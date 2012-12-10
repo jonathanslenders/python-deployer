@@ -174,8 +174,6 @@ class MyHost(SSHHost):
 2. Add this hosts to the service.
 
 ```python
-from deployer.settings import Settings, Setup
-
 class MyWebApplicationWithHosts(MyWebApplication):
     class Hosts:
         host = [ MyHost ]
@@ -232,7 +230,7 @@ class database(Service):
         self.hosts.filter('master').run('echo hello')
 ```
 
-Two roles were defined, named 'master' and 'slaves'. `self.hosts`, which is 
+Two roles were defined, named 'master' and 'slaves'. `self.hosts`, which is
 a queriable `HostsContainer` object, can be filtered on either of this roles now.
 
 Suppose that we assign some hosts to the master-role, and some to the
@@ -433,22 +431,22 @@ from deployer.run.socket_client import start
     service:
 
 ```python
-from deployer.run.ipython_shell import start 
+from deployer.run.ipython_shell import start
 ```
 
  3. There is also a web server which accepts telnet connection for easy
     deployment: (This is working, but needs some refactoring.)
 
 ```python
-from deployer.web_frontend import start                     
-from deployer.web_frontend.backends import RedisBackend     
-from citylive_deployments.config import citylive_deployment 
-                                                            
-                                                            
-if __name__ == '__main__':                                  
-    backend = RedisBackend(host='localhost', port=6379)     
-    backend.create_user('username', 'password')          
-    start(citylive_deployment, backend)                     
+from deployer.web_frontend import start
+from deployer.web_frontend.backends import RedisBackend
+from citylive_deployments.config import citylive_deployment
+
+
+if __name__ == '__main__':
+    backend = RedisBackend(host='localhost', port=6379)
+    backend.create_user('username', 'password')
+    start(citylive_deployment, backend)
 ```
 
 
