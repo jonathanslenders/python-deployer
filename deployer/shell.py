@@ -592,13 +592,13 @@ class Action(Handler):
 
 class RootHandler(ShellHandler):
     subhandlers = {
+            '.': Do,
             'cd': Cd,
             'clear': Clear,
             'do': Do,
-            'inspect': Inspect,
-            '.': Do,
             'exit': Exit,
             'find': Find,
+            'inspect': Inspect,
             'ls': Ls,
             'sandbox': Sandbox,
             'version': Version,
