@@ -195,7 +195,7 @@ class VirtualEnv(Service):
         """
         with self.host.prefix(self.activate_cmd):
             try:
-                return self.host.run("pip freeze | grep '^%s' " % esc1(package))
+                return self.host.run("pip freeze | grep '^%s' " % esc1(package)).strip()
             except ExecCommandFailed:
                 # Nothing found in grep, return None
                 return None
