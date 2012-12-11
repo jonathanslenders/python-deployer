@@ -106,10 +106,10 @@ def _resolve(query_object, instance):
         # Recursively resolving the tuple content is very useful for:
         #     Q("%s/%s") % (Q.var1, Q.var2)
         return tuple(_resolve(p, instance) for p in query_object)
-    
-    elif isinstance(part, list):
+
+    elif isinstance(query_object, list):
         return list(_resolve(p, instance) for p in query_object)
-    
+
     else:
         return query_object
 
