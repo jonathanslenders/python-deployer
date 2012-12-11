@@ -189,6 +189,17 @@ class VirtualEnv(Service):
         with self.host.prefix(self.activate_cmd):
             return self.host.run("pip freeze")
 
+    def find_version_of_package(self, package):
+        """
+        Return the installed version of a certain package
+        """
+        with self.host.prefix(self.activate_cmd):
+            try:
+                return self.host.run("pip freeze | grep '^%s' " % esc1(package))
+            except ExecCommandFailed:
+                # Nothing found in grep, return None
+                return None
+
     # Site-packages location
     @property
     def site_packages_location(self):
