@@ -260,5 +260,5 @@ def start(settings_module):
 
 
 if __name__ == '__main__':
-    from deployer.contrib.default_config import settings
-    start(settings_module=settings)
+    from deployer.contrib.default_config import example_settings
+    start(settings_module=example_settings)

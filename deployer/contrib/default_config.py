@@ -1,7 +1,8 @@
+from deployer.contrib.loggers.on_host import OnHostLogger
 from deployer.contrib.services.connect import Connect
 from deployer.contrib.services.monitoring import Monitor
+from deployer.contrib.unittest.services import UnitTest
 from deployer.host import SSHHost, Host, LocalHost
-from deployer.contrib.loggers.on_host import OnHostLogger
 from deployer.service import Service
 from deployer.service_groups import Other
 
@@ -44,7 +45,7 @@ class Examples(Service):
 #
 
 
-class settings(Service):
+class example_settings(Service):
     class Meta:
         # Default group name. (Can be overriden for every nested service.)
         group = Other
@@ -70,3 +71,6 @@ class settings(Service):
 
     connect = Connect
     monitor_host = Monitor
+
+    # For unit-testing the deployer
+    unit_test = UnitTest

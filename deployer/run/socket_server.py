@@ -594,5 +594,5 @@ def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_
 
 
 if __name__ == '__main__':
-    from deployer.contrib.default_config import settings
-    start(settings=settings)
+    from deployer.contrib.default_config import example_settings
+    start(settings=example_settings)
