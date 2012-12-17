@@ -233,7 +233,11 @@ class PropertyDescriptor(object):
         if instance:
             return Action(instance, self.fget, is_property=True)
         else:
-            raise AttributeError("Don't retreive properties from the class object. Use instance.action")
+            # TODO: refactor to return what was originally assigned to the
+            #       service class. (This is required for dynamically
+            #       assigning/retreiving properties of Service classes  which
+            #       were already initialized before.)
+            return property(self.fget)
 
 
 class QueryDescriptor(object):
