@@ -10,7 +10,8 @@ class Tmux(Service):
     """
     Open SSH connection to host
     """
-    url = 'http://downloads.sourceforge.net/project/tmux/tmux/tmux-1.6/tmux-1.6.tar.gz'
+    #url = 'http://downloads.sourceforge.net/project/tmux/tmux/tmux-1.6/tmux-1.6.tar.gz'
+    url = 'http://downloads.sourceforge.net/tmux/tmux-1.7.tar.gz'
 
     @default_action
     @isolate_one_only # It does not make much sense to open interactive shells to all hosts at the same time.

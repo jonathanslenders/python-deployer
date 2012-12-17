@@ -166,8 +166,8 @@ class Django(Service):
         username = Q.parent.username
 
         @property
-        def run_from_directory(env):
-            return env.parent.django_project + '/..'
+        def run_from_directory(self):
+            return self.parent.django_project + '/..'
 
         def setup(self):
             Uwsgi.setup(self)
