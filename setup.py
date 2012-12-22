@@ -21,7 +21,7 @@ setup(
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Environment :: Console',
-        'Intended Audience :: System Administrators'
+        'Intended Audience :: System Administrators',
         'Operating System :: POSIX',
         'Programming Language :: Python',
         'Topic :: System :: Installation/Setup',
