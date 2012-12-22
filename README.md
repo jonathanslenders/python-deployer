@@ -65,6 +65,8 @@ been refactored quite a few times.
 Getting started
 ---------------
 
+    pip install deployer
+
 Normally, you will create your own host definitions (with login credentials),
 and connect them somehow to a deployment service. There are quite a few ways
 for doing this, but to get a quick feeling of the example shell which
