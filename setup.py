@@ -9,6 +9,7 @@ setup(
     description='Python deployer',
     long_description=open('README.md', 'r').read(),
     author='Jonathan Slenders, Mobile Vikings, City Live nv',
+    author_email='jonathan.slenders@mobilevikings.com',
     packages=find_packages('.'),
     install_requires = [
         'paramiko==1.9.0',
@@ -18,8 +19,12 @@ setup(
         'termcolor==1.1.0',
         ],
     classifiers=[
-        'Intended Audience :: Developers',
+        'Development Status :: 5 - Production/Stable',
+        'Environment :: Console',
+        'Intended Audience :: System Administrators'
+        'Operating System :: POSIX',
         'Programming Language :: Python',
-        'Operating System :: Posix',
+        'Topic :: System :: Installation/Setup',
+        'Topic :: System :: Shells',
     ],
 )
