@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="python-deployer",
+    name="deployer",
     version='0.1',
     url='https://github.com/jonathanslenders/python-deployer',
     license='LICENSE.txt',
