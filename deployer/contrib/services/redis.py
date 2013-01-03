@@ -1,3 +1,4 @@
+from deployer.console import input
 from deployer.contrib.commands import wget
 from deployer.contrib.services.apt_get import AptGet
 from deployer.contrib.services.config import Config
@@ -47,7 +48,7 @@ class Redis(Service):
     bind = None
 
     # Download URL
-    redis_download_url = 'http://redis.googlecode.com/files/redis-2.2.13.tar.gz'
+    redis_download_url = 'http://redis.googlecode.com/files/redis-2.4.18.tar.gz'
 
     # directory for the database file, or None for the home directory
     @property
@@ -96,7 +97,8 @@ class Redis(Service):
         # Also make sure that redis was not yet installed
         if self.is_already_installed:
             print 'Warning: Redis is already installed'
-            return
+            if input('Redis is already installed. Reinstall?', answers=['y', 'n'], default='n') == 'n':
+                return
 
         # Install dependencies
         self.packages.install()

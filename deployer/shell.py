@@ -222,6 +222,7 @@ def Find(self, context):
 
     lesspipe(_list_nested_services(self.service, ''), self.shell.pty)
 
+from inspect import getfile
 
 @create_navigable_handler
 def Inspect(self, context):
@@ -237,6 +238,7 @@ def Inspect(self, context):
         yield termcolor.colored('  Created on: ', 'cyan') + \
               termcolor.colored(self.service._creation_date, 'red')
 
+
         # Print mro
         yield termcolor.colored('  Mro:', 'cyan')
         i = 1
@@ -245,6 +247,15 @@ def Inspect(self, context):
                 yield termcolor.colored('              %i ' % i, 'cyan') + \
                       termcolor.colored('%s.' % m.__module__, 'red') + \
                       termcolor.colored('%s' % m.__name__, 'yellow')
+                i += 1
+
+        # File names
+        yield termcolor.colored('  Files:', 'cyan')
+        i = 1
+        for m in self.service.__class__.__mro__:
+            if m.__module__ != 'deployer.service' and m != object:
+                yield termcolor.colored('              %i ' % i, 'cyan') + \
+                      termcolor.colored(getfile(m), 'red')
                 i += 1
 
         # Print host mappings
