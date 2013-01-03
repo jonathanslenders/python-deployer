@@ -48,7 +48,8 @@ class Redis(Service):
     bind = None
 
     # Download URL
-    redis_download_url = 'http://redis.googlecode.com/files/redis-2.4.18.tar.gz'
+        # redis_download_url = 'http://redis.googlecode.com/files/redis-2.4.18.tar.gz'
+    redis_download_url = 'http://redis.googlecode.com/files/redis-2.6.7.tar.gz'
 
     # directory for the database file, or None for the home directory
     @property
@@ -58,7 +59,6 @@ class Redis(Service):
 
     # Make persisntent True, when you want to save this database to the disk.
     persistent = False
-
 
     @property
     def database_file(self):
@@ -72,7 +72,8 @@ class Redis(Service):
         # Packages required for building redis
         packages = ('make', 'gcc',  'telnet', 'build-essential')
         # Depending on the system (x86 or 64bit), some packages are not available.
-        packages_if_available = ('libc6-dev', 'libc6-dev-amd64', 'libc6-dev-i386')
+        packages_if_available = ('libc6-dev', 'libc6-dev-amd64', 'libc6-dev-i386',
+                            'libjemalloc-dev')
 
     class upstart_service(UpstartService):
         """
@@ -111,12 +112,16 @@ class Redis(Service):
                 h.run(wget(self.redis_download_url, 'redis.tgz'))
                 h.run('tar xvzf redis.tgz')
 
-                with h.cd('redis-2.*'):
-                    if h.is_64_bit:
-                    	h.run('make ARCH="-m64"')
-                    else:
-                    	h.run('make 32bit')
-                    h.sudo('make install')
+                # Unset ARCH variable, otherwise redis doesn't compile.
+                # http://comments.gmane.org/gmane.linux.slackware.slackbuilds.user/6686
+                with h.env('ARCH', ''):
+                    # Make and install
+                    with h.cd('redis-2.*'):
+                        if h.is_64_bit:
+                            h.run('make ARCH="-m64"')
+                        else:
+                            h.run('make 32bit')
+                        h.sudo('make install')
 
         self.config.setup()
 
