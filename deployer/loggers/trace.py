@@ -8,7 +8,7 @@ class TraceLogger(Logger):
     Log traces inside this class
     For reflextion code.
 
-    After execution, we can retreive a list of Actions/Groups.
+    After execution, we can retrieve a list of Actions/Groups.
     (where every group can consist of other Actions/Groups.
     """
     def __init__(self):

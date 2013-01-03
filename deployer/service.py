@@ -165,7 +165,7 @@ class ActionDescriptor(object):
             #       retrieval path...
 
             return Action(None, self._func)
-            #raise Exception("Don't retreive action from the class object. Use instance.action")
+            #raise Exception("Don't retrieve action from the class object. Use instance.action")
             #return self._func
 
 
@@ -182,7 +182,7 @@ class ServiceDescriptor(object):
 
     def __get__(self, parent_instance, owner):
         """
-        When the child service is retreived from an instance of the parent service, an instance of the child service
+        When the child service is retrieved from an instance of the parent service, an instance of the child service
         will be returned (and the hosts from the parent are mapped to the child.)
 
         Depending on the value of Meta.isolate_role of the child service. This will act as an array of isolated
@@ -263,7 +263,7 @@ class QueryDescriptor(object):
         if instance:
             return Action(instance, run, is_property=True)
         else:
-            raise AttributeError("Don't retreive queries from the class object. Use instance.query_name")
+            raise AttributeError("Don't retrieve queries from the class object. Use instance.query_name")
 
 
 class ServiceBase(type):
@@ -548,7 +548,7 @@ class Env(object):
 
     def get_action(self, name):
         """
-        Retreive service action from within the environment, this does not
+        Retrieve service action from within the environment, this does not
         require calling sandbox/run on the action result.
         """
         action = self._service.get_action(name)

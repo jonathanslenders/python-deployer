@@ -261,7 +261,7 @@ class Host(object):
                               # In any case self._run_silent_sudo should not
                               # print anything.
 
-            # Retreive status code
+            # Retrieve status code
             status_code = chan.recv_exit_status()
             log_entry.set_status_code(status_code)
 
@@ -870,7 +870,7 @@ class SSHHost(Host):
             # PTY receive/send loop
             self._posix_shell(pty, chan, log_entry=log_entry, initial_input=initial_input)
 
-            # Retreive status code
+            # Retrieve status code
             status_code = chan.recv_exit_status()
             log_entry.set_status_code(status_code)
 

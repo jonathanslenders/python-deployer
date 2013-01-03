@@ -63,7 +63,7 @@ class capture(object):
     @property
     def value(self):
         """
-        Retreive captured content.
+        Retrieve captured content.
         """
         return ''.join(self._content)
 

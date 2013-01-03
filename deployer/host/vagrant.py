@@ -42,7 +42,7 @@ class VagrantHost(SSHHost):
 
     def _get_ssh_property(self, key):
         """
-        Run "vagrant ssh-config", and retreive property.
+        Run "vagrant ssh-config", and retrieve property.
         """
         if not hasattr(self, '_ssh_config'):
             host = self.host_machine()
