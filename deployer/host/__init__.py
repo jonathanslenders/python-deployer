@@ -32,12 +32,23 @@ from twisted.internet import fdesc
 # ================ Hosts =====================================
 
 
+# Remember instances for the Host classes. Keep them in this global
+# dictionary. (Another way would be to save the instance in a mangled name in
+# the class itself, but we had some trouble going that way, something with
+# inheritance.)
+_host_instances = { }
+
 
 class Host(object):
     """
     Definiton of a remote host. An instance will open an SSH connection
     according to the settings defined in the class definition.
     """
+    #class __metaclass__(type):
+    #    @property
+    #    def slug(self):
+    #        return self.__name__
+
     slug = ''
     username = ''
     password = '' # For sudo
@@ -72,10 +83,11 @@ class Host(object):
         Return an instance of this host.
         """
         # Singleton class.
-        if not hasattr(cls, '_instance'):
-            cls._instance = cls()
-
-        return cls._instance
+        try:
+            return _host_instances[cls]
+        except KeyError:
+            _host_instances[cls] = cls()
+            return _host_instances[cls]
 
     def clone(self):
         """
@@ -728,8 +740,8 @@ class SSHBackend(object):
     share the same backend (this class). Only one ssh connection per host
     will be created, and shared between all threads.
     """
-    def __init__(self, host_class):
-        self._host_class = host_class
+    def __init__(self, get_host_instance):
+        self._get_host_instance = get_host_instance
         self._ssh_cache = None
         self._lock = threading.Lock()
 
@@ -750,7 +762,7 @@ class SSHBackend(object):
         self._lock.acquire()
 
         if not (self._ssh_cache and self._ssh_cache._transport and self._ssh_cache._transport.is_active()):
-            h = self._host_class
+            h = self._get_host_instance()
 
             # Show connecting message (in current stdout)
             sys.stdout.write('*** Connecting to %s (%s)...\n' % (h.address, h.slug))
@@ -765,11 +777,11 @@ class SSHBackend(object):
             try:
                 if h.key_filename:
                     # When a key filename has been given, use the key
-                    self._ssh_cache.connect(h.address, username=h.username, key_filename=h.key_filename, timeout=h.timeout)
+                    self._ssh_cache.connect(h.address, port=h.port, username=h.username, key_filename=h.key_filename, timeout=h.timeout)
 
                 else:
                     # Otherwise, use a password instead
-                    self._ssh_cache.connect(h.address, username=h.username, password=h.password, timeout=h.timeout)
+                    self._ssh_cache.connect(h.address, port=h.port, username=h.username, password=h.password, timeout=h.timeout)
 
             except (paramiko.SSHException, Exception) as e:
                 self._ssh_cache = None
@@ -790,12 +802,13 @@ class SSHHost(Host):
     key_filename = None
     address = 'example.com'
     username = 'someone'
+    port = 22
     timeout = 10 # Seconds
     keepalive_interval  = 30
 
     def __init__(self, backend=None):
         Host.__init__(self)
-        self._backend = backend or SSHBackend(self.__class__)
+        self._backend = backend or SSHBackend(lambda: self)
 
     def clone(self):
         """
