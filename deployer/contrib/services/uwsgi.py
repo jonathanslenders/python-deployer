@@ -74,6 +74,8 @@ class Uwsgi(Service):
     uwsgi_workers = 2
     username = required_property()
 
+    uwsgi_download_url = 'http://projects.unbit.it/downloads/uwsgi-1.4.4.tar.gz'
+
 
     @map_roles.just_one
     class _packages(AptGet):
@@ -83,10 +85,10 @@ class Uwsgi(Service):
 
     @map_roles.just_one
     class virtual_env(VirtualEnv):
-        requirements = (
-                #'http://projects.unbit.it/downloads/uwsgi-1.1.2.tar.gz',
-                #'http://projects.unbit.it/downloads/uwsgi-1.2.3.tar.gz',
-                'http://projects.unbit.it/downloads/uwsgi-1.3.tar.gz',
+        @property
+        def requirements(self):
+            return (
+                self.parent.uwsgi_download_url,
 
                 # For monitoring uwsgi.
                 'uwsgitop',
