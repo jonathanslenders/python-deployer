@@ -86,8 +86,8 @@ class SocketShell(Shell):
     def extensions(self):
         return {
                 'new': NewShell,
-                'jobs': Jobs,
-                'monitor': Monitor,
+                #'jobs': Jobs,
+                'open_monitor': Monitor,
                 }
 
 
