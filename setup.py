@@ -26,7 +26,7 @@ Some key features are:
 
 setup(
     name="deployer",
-    version='0.1',
+    version='0.1.1',
     url='https://github.com/jonathanslenders/python-deployer',
     license='LICENSE.txt',
     description='Library for automating system deployments',
