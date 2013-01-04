@@ -588,6 +588,9 @@ class Env(object):
         - service_class, on object, inheriting from Service
         - **mappings: a dict which maps the roles on host containers (or Host
                       instances)
+
+        Note that when the service_class has a 'Hosts' definition inside,
+        this will always get priority above **mappings.
         """
         # Transform mappings
         for role in mappings:
