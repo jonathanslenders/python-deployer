@@ -24,9 +24,11 @@ Some key features are:
   system.
 """
 
+import deployer
+
 setup(
     name="deployer",
-    version='0.1.1',
+    version=deployer.__version__,
     url='https://github.com/jonathanslenders/python-deployer',
     license='LICENSE.txt',
     description='Library for automating system deployments',
