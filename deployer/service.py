@@ -226,18 +226,14 @@ class ServiceDescriptor(object):
 
 
 class PropertyDescriptor(object):
-    def __init__(self, fget):
-        self.fget = fget
+    def __init__(self, attribute):
+        self.attribute = attribute
 
     def __get__(self, instance, owner):
         if instance:
-            return Action(instance, self.fget, is_property=True)
+            return Action(instance, self.attribute.fget, is_property=True)
         else:
-            # TODO: refactor to return what was originally assigned to the
-            #       service class. (This is required for dynamically
-            #       assigning/retreiving properties of Service classes  which
-            #       were already initialized before.)
-            return property(self.fget)
+            return self.attribute
 
 
 class QueryDescriptor(object):
@@ -263,7 +259,7 @@ class QueryDescriptor(object):
         if instance:
             return Action(instance, run, is_property=True)
         else:
-            raise AttributeError("Don't retrieve queries from the class object. Use instance.query_name")
+            return self.query
 
 
 class ServiceBase(type):
@@ -360,8 +356,7 @@ class ServiceBase(type):
             if isinstance(attribute, required_property):
                 attribute.name = attr_name
                 attribute.owner = service_name
-            attribute.fget.__name__ = 'property:%s' % attr_name
-            return PropertyDescriptor(attribute.fget)
+            return PropertyDescriptor(attribute)
 
         # Query objects are like properties and should also be
         # wrapped into a descriptor
