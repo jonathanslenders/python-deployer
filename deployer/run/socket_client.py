@@ -76,7 +76,7 @@ class DeploymentClient(object):
         # Note: we use inspect, instead of __file__, because __file can
         # return pyc files.
         path = inspect.getfile(inspect.currentframe())
-        return "%s -c %s" % (path, self.socket_path)
+        return "python %s -c %s" % (path, self.socket_path)
 
     def _open_new_window(self, focus=False):
         """
