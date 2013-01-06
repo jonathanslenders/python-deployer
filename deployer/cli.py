@@ -358,6 +358,12 @@ class CLInterface(object):
             print # Print newline
             return e.result
 
+    def exit(self):
+        """
+        Exit cmd loop.
+        """
+        raise ExitCLILoop
+
     def read(self):
         """
         Blocking call which reads in command line input
@@ -412,7 +418,7 @@ class CLInterface(object):
 
                 # Control-D
                 elif c == '\x04':
-                    raise ExitCLILoop
+                    self.exit()
 
                 # Contrel-E
                 elif c == '\x05':

@@ -355,7 +355,7 @@ class Exit(ShellHandler):
     handler_type = BuiltinType()
 
     def __call__(self, context):
-        raise ExitCLILoop
+        self.shell.exit()
 
 
 class Return(ShellHandler):
@@ -719,6 +719,16 @@ class Shell(CLInterface):
 
     def _reset_navigation(self):
         self.state = ShellState(self.root_service)
+
+    def exit(self):
+        """
+        Exit cmd loop.
+        """
+        if self.state.can_return:
+            self.state = self.state.return_state
+            self.ctrl_c()
+        else:
+            super(Shell, self).exit()
 
     @property
     def prompt(self):
