@@ -579,30 +579,34 @@ class Env(object):
         subservice = self._service[name]
         return Env(subservice,self._pty, self._logger, self._is_sandbox)
 
-    def initialize_service(self, service_class, **mappings):
+    def initialize_service(self, service_class, mappings=None, name=None):
         """
         Dynamically initialize a service from within another service.
         This will make sure that the service class is initialized with the
         correct logger, sandbox and pty settings.
 
         - service_class, on object, inheriting from Service
-        - **mappings: a dict which maps the roles on host containers (or Host
+        - mappings: a dict which maps the roles on host containers (or Host
                       instances)
+        - name: custome name for this service.
 
         Note that when the service_class has a 'Hosts' definition inside,
         this will always get priority above **mappings.
         """
-        # Transform mappings
-        for role in mappings:
-            if isinstance(mappings[role], Host):
-                # TODO: decide whether we want to accept a Host class, or Host
-                # instance here. Maybe there's even no reason to not allow both.
-                mappings[role] = [ mappings[role] ]
-            else:
-                mappings[role] = mappings[role]._all
+        mappings = mappings or { }
+        name = name or service_class.__name__
+
+        # Transform mappings (can both be Host classes, or host container objects.)
+        for role, v in mappings.items():
+            if isclass(v) and issubclass(v, Host):
+                mappings[role] = [ v.get_instance() ]
+            elif isinstance(v, (list, tuple)):
+                mappings[role] = [ i.get_instance() for i in v ]
+            elif isinstance(v, HostsContainer):
+                mappings[role] = v._all
 
         # Initialize service
-        service_instance = service_class(HostsContainer(mappings), creator_service=self._service)
+        service_instance = service_class(HostsContainer(mappings), creator_service=self._service, name=name)
 
         # Wrap in Env
         return Env(service_instance, self._pty, self._logger, self._is_sandbox)
