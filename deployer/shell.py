@@ -148,7 +148,7 @@ class Version(ShellHandler):
     handler_type = BuiltinType()
 
     def __call__(self, context):
-        print termcolor.colored('  Deployment shell, version: ', 'cyan'),
+        print termcolor.colored('  deployer library, version: ', 'cyan'),
         print termcolor.colored(deployer.__version__, 'red')
         print termcolor.colored('  Host:                      ', 'cyan'),
         print termcolor.colored(socket.gethostname(), 'red')
