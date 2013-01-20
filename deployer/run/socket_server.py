@@ -298,18 +298,16 @@ class Connection(object):
                 d = threads.deferToThread(thread, f, conn)
 
                 # Attach thread-done callbacks
+                @d.addCallback
                 def done(result):
                     # Save result in correct slot.
                     results[index] = result
                     countDown()
 
+                @d.addErrback
                 def err(failure):
                     results[index] = str(failure)
                     countDown()
-
-                # Attach callbacks to these threads.
-                d.addCallback(done)
-                d.addErrback(err)
 
             while connections:
                 conn = connections.pop()
