@@ -13,6 +13,7 @@ class GitBase(ServiceBase):
         'branch': 'branch',
         'describe': 'describe',
         'diff': 'diff',
+        'log': 'log',
         'pull': 'pull',
         'reset': 'reset --hard',
         'show': 'show',
@@ -28,7 +29,10 @@ class GitBase(ServiceBase):
     _ignore_exit_status = [ 'show', 'whatchanged' ] # These are displayed through lesspipe, and would return 141 when 'q' was pressed.
 
     def __new__(cls, name, bases, attrs):
-        for cmd_name, command in cls._default_commands.items():
+        # Extra git commands
+        commands = attrs.get('commands', { })
+
+        for cmd_name, command in cls._default_commands.items() + commands.items():
             attrs[cmd_name] = cls._create_git_command(command,
                                         ignore_exit_status=command in cls._ignore_exit_status)
 
@@ -51,6 +55,8 @@ class Git(Service):
 
     repository = required_property()
     repository_location = required_property()
+
+    commands = { } # Extra git commands. Map function name to git command.
 
     @dont_isolate_yet
     def checkout(self, commit=None):

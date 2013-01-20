@@ -109,62 +109,6 @@ class VirtualEnv(Service):
             for r in self.requirements:
                 self.hosts.run(_pip_install("-U '%s'" % esc1(r)))
 
-    def upgrade_requirements_since(self, commit='-1', end_commit=None):
-        """
-        Upgrade requirements changed since a commit.
-
-        If you pass a negative number as the commit SHA, it means "the Nth change of the file".
-        So -1 means the last change, -2 the change before that, ...
-        """
-        requested_end_commit = end_commit
-        for host in self.hosts:
-            with host.prefix(self.activate_cmd):
-                for requirements_file in self.requirements_files:
-                    # Change to directory, otherwise we need --git-dir,
-                    # which doesn't work with specifing files (git log -- <file>)
-                    with host.cd(posixpath.dirname(requirements_file)):
-                        # Define start and end commits
-                        start_commit = commit
-                        if commit[0] == '-':
-                            log_count = int(commit) - 1 # We want the changes before this one
-                            start_commit = host.run("git  log --pretty=%%h %s -- '%s' | tail -1" % (log_count, esc1(requirements_file)), interactive=False).strip()
-
-                        # Or should end_commit always be HEAD?
-                        # Now we might miss changes in the file that are not committed
-                        # (Of course, they should be missed - don't forget to commit your stuff, dammit!)
-                        end_commit = requested_end_commit
-                        if not end_commit:
-                            end_commit = host.run("git log --pretty=%h -1 | tail -1", interactive=False).strip()
-
-                        # Take diff of the requirements file
-                        requirements_diff = host.run("git diff %s..%s -- '%s'" % (start_commit, end_commit, esc1(requirements_file)), interactive=False)
-                        DIFF_HEADER_LINE_COUNT = 5
-                        requirements_to_update = []
-                        if 0 < len(requirements_diff):
-                            for line in requirements_diff.splitlines()[DIFF_HEADER_LINE_COUNT:]:
-                                if '+' == line[0]:
-                                    requirements_to_update.append(line[1:])
-
-                        # Also update lines with 'auto-update'
-                        try:
-                            requirements_autoupdate = host.run("grep auto-update '%s'" % esc1(requirements_file), interactive=False)
-                            for r in requirements_autoupdate.splitlines():
-                                if r not in requirements_to_update:
-                                    requirements_to_update.append(r)
-                        except ExecCommandFailed:
-                            # Nothing found in grep, no problem
-                            pass
-
-                        if 0 == len(requirements_to_update):
-                            print 'No requirements to update'
-                            continue
-
-                        # Write lines to a file, pass it to pip
-                        requirements_diff_file = '/tmp/requirements-%s-%s.txt' % (start_commit, end_commit)
-                        host.open(requirements_diff_file, 'w').write('\n'.join(requirements_to_update))
-                        host.run(_pip_install("--no-dependencies -U -r '%s'" % esc1(requirements_diff_file)))
-                        host.run("rm '%s'" % esc1(requirements_diff_file))
-
     @dont_isolate_yet
     def install_package(self, package=None):
         if not package:
@@ -231,36 +175,3 @@ class VirtualEnv(Service):
                     extensions.append(e)
 
             return ''.join('%s\n' % e for e in extensions)
-
-    # Some extensions
-
-    def all_git_versions(self):
-        """
-        Print GIT versions for all packages in ~/env/name/src/*
-        Returns space-separated tuples (package, commit, tag)
-        """
-        h  = self.host
-
-        with h.cd(self.virtual_env_location):
-            with h.cd('src'):
-                h.run('for l in `ls`; do '
-                        '(test -d $l && cd $l; test -d .git && '
-                                        'echo -n "$l " && '
-                                        'echo -n "` git rev-parse HEAD ` " && '
-                                        'git describe --tags 2>/dev/null'
-                         ');'
-                    ' done')
-
-
-    def fix_distribute(self):
-        """
-        If you get the following import error during any install
-        in the virtualenv, this will fix it.
-
-        >> from pkg_resources import load_entry_point
-        ImportError: No module named pkg_resources
-
-        http://stackoverflow.com/questions/7446187/no-module-named-pkg-resources
-        """
-        with self.host.prefix(self.activate_cmd):
-            self.host.run('curl http://python-distribute.org/distribute_setup.py | python')
