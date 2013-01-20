@@ -32,6 +32,10 @@ IMPORTANT: This file contains a good mix of event driven (Twisted Matrix) and
            code is forked to threads.
 """
 
+
+# Consts
+OPEN_TERMINAL_TIMEOUT = 2
+
 #
 # Shell extensions
 #
@@ -217,22 +221,40 @@ class Connection(object):
         # `funcs` can be a list of callables or a single callable.
         if callable(funcs):
             funcs = [funcs]
+        else:
+            funcs = funcs[:] # Clone, because we pop.
 
         def getConnection():
             self.openNewConnection(focus=focus)
 
             # Blocking call to wait for a new connection
             return PtyManager.getNewConnectionFromThread()
-                                # TODO: getNewConnectionFromThread() should timeout after 2
-                                #       seconds, (client failed to open second
-                                #       window.) and we should run `func` in our
-                                #       own thread, using `self.connection.pty`
 
         # Be sure to have all the necessairy connections available for every
         # function. If that's not the case, we should keep this thread
         # blocking, and eventually decide to run this function in our own
         # thread if we can't offload it in a fork.
-        connections = [ getConnection() for c in funcs ]
+        connections = []
+        for f in funcs:
+            try:
+                connections.append(getConnection())
+            except PtyManager.NoPtyConnection, e:
+                # getNewConnection can timeout, when opening a new teminal
+                # fails. (In that case we should run functions in our own
+                # thread.)
+                print 'ERROR: Could not open new terminal window...\n'
+                break
+
+        # Result
+        results = [] # Final result.
+        done_d = defer.Deferred() # Fired when all functions are called.
+
+        # Finish execution countdown
+        todo = [len(funcs)]
+        def countDown():
+            todo[0] -= 1
+            if todo[0] == 0:
+                done_d.callback(results)
 
         def thread(f, connection):
             """
@@ -267,24 +289,13 @@ class Connection(object):
             """
             In the Twisted reactor's thread.
             """
-            results = []
-            todo = [len(funcs)] # Count down results
-            done_d = defer.Deferred()
-
             def startThread(f, conn):
                 # Add placeholder in results list (ordered output)
                 index = len(results)
-                results.append('')
+                results.append(None)
 
                 # Spawn thread
                 d = threads.deferToThread(thread, f, conn)
-
-                def countDown():
-                    # Count down, when reaching zero, we have all threads
-                    # executed.
-                    todo[0] -= 1
-                    if todo[0] == 0:
-                        done_d.callback(results)
 
                 # Attach thread-done callbacks
                 def done(result):
@@ -300,38 +311,52 @@ class Connection(object):
                 d.addCallback(done)
                 d.addErrback(err)
 
-            for f, conn in zip(funcs, connections):
+            while connections:
+                conn = connections.pop()
+                f = funcs.pop()
                 startThread(f, conn)
 
-            class ForkResult(object):
-                """
-                This ForkResult, containing the state of the thread, will be
-                returned from the Twisted's reactor thread, to this connection's
-                thread.
-                Note that this member methods are probably not run from the reactor.
-                """
-                def join(self):
-                    """
-                    Wait for the thread to finish.
-                    """
-                    if todo[0] == 0:
-                        return results
-                    else:
-                        return threads.blockingCallFromThread(reactor, lambda: done_d)
-
-                @property
-                def result(self):
-                    if todo[0] == 0:
-                        return results
-                    else:
-                        raise AttributeError('Result not yet known. Not all threads have been finished.')
-
-            return ForkResult()
-
         # This is blocking, given that `startAllThreads` will be run in the
-        # reactor, and we'll wait for ForkResult to be returned. We don't
-        # wait for the thread to finish.
-        return threads.blockingCallFromThread(reactor, startAllThreads)
+        # reactor. Not that we wait for all the spawned threads to finish.
+        threads.blockingCallFromThread(reactor, startAllThreads)
+
+        # Call remaining functions in current thread/pty. This is the case when
+        # opening new terminals failed.
+        def handleRemainingInCurrentPty():
+            while funcs:
+                f = funcs.pop()
+                try:
+                    result = f(self.pty)
+                    results.append(result)
+                except Exception, e:
+                    results.append(str(e))
+                countDown()
+        handleRemainingInCurrentPty()
+
+        class ForkResult(object):
+            """
+            This ForkResult, containing the state of the thread, will be
+            returned from the Twisted's reactor thread, to this connection's
+            thread.
+            Note that this member methods are probably not run from the reactor.
+            """
+            def join(self):
+                """
+                Wait for the thread to finish.
+                """
+                if todo[0] == 0:
+                    return results
+                else:
+                    return threads.blockingCallFromThread(reactor, lambda: done_d)
+
+            @property
+            def result(self):
+                if todo[0] == 0:
+                    return results
+                else:
+                    raise AttributeError('Result not yet known. Not all threads have been finished.')
+
+        return ForkResult()
 
 
 class ConnectionShell(object):
@@ -357,20 +382,27 @@ class ConnectionShell(object):
         # Ask the client to open a new connection
         self.connection.openNewConnection(focus=True)
 
-        # Blocking call to wait for a new incoming connection
-        new_connection = PtyManager.getNewConnectionFromThread()
+        try:
+            # Blocking call to wait for a new incoming connection
+            new_connection = PtyManager.getNewConnectionFromThread()
 
-        # Start a new shell-thread into this connection.
-        ConnectionShell(new_connection, clone_shell=self.shell).startThread()
+            # Start a new shell-thread into this connection.
+            ConnectionShell(new_connection, clone_shell=self.shell).startThread()
+        except PtyManager.NoPtyConnection, e:
+            print 'ERROR: could not open new terminal window...'
 
     def openNewShellFromReactor(self):
         self.connection.openNewConnection(focus=True)
         d = PtyManager.getNewConnection()
 
+        @d.addCallback
         def openShell(new_connection):
             new_connection.startShell(clone_shell=self.shell)
 
-        d.addCallback(openShell)
+        @d.addErrback
+        def failed(failure):
+            # Opening a new shell failed.
+            pass
 
     def startThread(self):
         threads.deferToThread(self.thread)
@@ -411,6 +443,9 @@ class ConnectionShell(object):
 class PtyManager(object):
     need_pty_callback = None
 
+    class NoPtyConnection(Exception):
+        pass
+
     @classmethod
     def getNewConnectionFromThread(cls):
         """
@@ -427,7 +462,14 @@ class PtyManager(object):
 
         def callback(connection):
             cls.need_pty_callback = None
+            timeout.cancel()
             d.callback(connection)
+
+        def timeout():
+            cls.need_pty_callback = None
+            d.errback(cls.NoPtyConnection())
+
+        timeout = reactor.callLater(OPEN_TERMINAL_TIMEOUT, timeout)
 
         cls.need_pty_callback = staticmethod(callback)
         return d
@@ -468,7 +510,7 @@ class CliClientProtocol(Protocol):
                 # instance), check whether we are in an interactive session,
                 # and if so, copy this shell.
                 if self.connection.connection_shell:
-                    self.connection.connection_shell.openNewShellFromReactor() # TODO: handle fail.
+                    self.connection.connection_shell.openNewShellFromReactor()
                 else:
                     self._handle('open-new-window', { 'focus': True })
 

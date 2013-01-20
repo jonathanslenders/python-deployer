@@ -84,6 +84,7 @@ class DeploymentClient(object):
         """
         try:
             tmux_env = os.environ.get('TMUX', '')
+            xterm_env = os.environ.get('XTERM', '')
             if tmux_env:
                 # Construct tmux split command
                 swap = (' && (tmux last-pane || true)' if not focus else '')
@@ -96,13 +97,19 @@ class DeploymentClient(object):
 
                 subprocess.call(r'TMUX=%s tmux split-window "PATH=\"%s\" %s" %s %s' % (tmux_env, path_env, self.new_window_command, swap, tiled),
                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            else:
+            elif xterm_env:
                 # When in a gnome-terminal:
                 if os.environ.get('COLORTERM', '') == 'gnome-terminal':
                     subprocess.call('gnome-terminal -e "%s" &' % self.new_window_command, shell=True)
                 # Fallback to xterm
                 else:
                     subprocess.call('xterm -e %s &' % self.new_window_command, shell=True)
+            else:
+                # Failed, print err.
+                sys.stdout.write(
+                        'ERROR: Doesn\'t know how to open new terminal. '
+                        'TMUX and XTERM environment variables are empty.\r\n')
+                sys.stdout.flush()
 
         except Exception, ex:
             # TODO: Somehow, the subprocess.call raised an IOError Invalid argument,
