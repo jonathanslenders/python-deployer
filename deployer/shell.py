@@ -19,6 +19,8 @@ from pygments import highlight
 from pygments.formatters import TerminalFormatter as Formatter
 from pygments.lexers import PythonTracebackLexer
 
+from inspect import getfile
+
 __all__ = ('Shell', )
 
 
@@ -147,7 +149,7 @@ class Version(ShellHandler):
     is_leaf = True
     handler_type = BuiltinType()
 
-    def __call__(self, context):
+    def __call__(self):
         print termcolor.colored('  deployer library, version: ', 'cyan'),
         print termcolor.colored(deployer.__version__, 'red')
         print termcolor.colored('  Host:                      ', 'cyan'),
@@ -209,7 +211,7 @@ class Do(ShellHandler):
 
 
 @create_navigable_handler
-def Find(self, context):
+def Find(self):
     def _list_nested_services(service, prefix):
         for name, action in service.get_actions():
             yield '%s %s' % (prefix, termcolor.colored(name, service.get_group().color))
@@ -222,10 +224,9 @@ def Find(self, context):
 
     lesspipe(_list_nested_services(self.service, ''), self.shell.pty)
 
-from inspect import getfile
 
 @create_navigable_handler
-def Inspect(self, context):
+def Inspect(self):
     """
     Inspection of the current service. Show host mappings and other information.
     """
@@ -314,12 +315,12 @@ def Inspect(self, context):
 
 
 @create_navigable_handler
-def Cd(self, context):
+def Cd(self):
     self.shell.state.cd(self.service)
 
 
 @create_navigable_handler
-def Ls(self, context):
+def Ls(self):
     """
     List subservices and actions in the current service.
     """
@@ -354,7 +355,7 @@ class Exit(ShellHandler):
     is_leaf = True
     handler_type = BuiltinType()
 
-    def __call__(self, context):
+    def __call__(self):
         self.shell.exit()
 
 
@@ -365,7 +366,7 @@ class Return(ShellHandler):
     is_leaf = True
     handler_type = BuiltinType()
 
-    def __call__(self, context):
+    def __call__(self):
         self.shell.state = self.shell.state.return_state
 
 
@@ -376,7 +377,7 @@ class Clear(ShellHandler):
     is_leaf = True
     handler_type = BuiltinType()
 
-    def __call__(self, context):
+    def __call__(self):
         sys.stdout.write('\033[2J\033[0;0H')
         sys.stdout.flush()
 
@@ -439,9 +440,9 @@ class Service(Handler):
         elif name == '&' and self.is_leaf:
             return Action(self.service.get_action(self.service._default_action), self.shell, self.sandbox, fork=True)
 
-    def __call__(self, context):
+    def __call__(self):
         if self.service._default_action:
-            return Action(self.service.get_action(self.service._default_action), self.shell, self.sandbox).__call__(context)
+            return Action(self.service.get_action(self.service._default_action), self.shell, self.sandbox).__call__()
 
 
 class Action(Handler):
@@ -464,16 +465,16 @@ class Action(Handler):
         else:
             return type_of_action(self.action)
 
-    def __call__(self, context):
+    def __call__(self):
         if self.fork:
             def action(pty):
-                self._run_action(context, pty)
+                self._run_action(pty)
 
             self.shell.pty.run_in_auxiliary_ptys(action)
         else:
-            self._run_action(context, self.shell.pty)
+            self._run_action(self.shell.pty)
 
-    def _run_action(self, context, pty):
+    def _run_action(self, pty):
         # Execute
         sandbox = self.sandbox
         logger_interface = self.shell.logger_interface

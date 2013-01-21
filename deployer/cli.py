@@ -42,12 +42,6 @@ class ExitCLILoop(Exception):
         self.result = result
 
 
-class CallContext(object):
-    def __init__(self, parts, cli):
-        self.command = ' '.join(parts)
-        self.cli = cli
-
-
 class CLInterface(object):
     """
     A pure-python implementation of a command line completion interface.
@@ -126,7 +120,7 @@ class CLInterface(object):
         if h and not parts:
             if h.is_leaf:
                 self.currently_running = ' '.join(original_parts)
-                h(CallContext(parts=original_parts, cli=self))
+                h()
                 self.currently_running = None
             else:
                 print self.not_a_leaf_message
@@ -633,7 +627,7 @@ class Handler(object):
     is_leaf = False
     handler_type = HandlerType()
 
-    def __call__(self, context):
+    def __call__(self):
         raise NotImplementedError
 
     def complete_subhandlers(self, part):
