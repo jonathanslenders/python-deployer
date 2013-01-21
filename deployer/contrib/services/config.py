@@ -97,7 +97,7 @@ class Config(Service):
         self.host.open(self.remote_path, 'wb', use_sudo=self.use_sudo).write(self.content)
 
         if self.make_executable:
-            self.host.sudo("chmod a+x '%s'" % esc1(self.remote_path))
+            self.host.sudo("chmod a+x '%s'" % esc1(self.host.expand_path(self.remote_path)))
 
     def backup(self):
         """
