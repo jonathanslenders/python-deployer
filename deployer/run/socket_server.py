@@ -53,7 +53,7 @@ class NewShell(ShellHandler):
     is_leaf = True
     handler_type = SocketHandlerType()
 
-    def __call__(self, context):
+    def __call__(self):
         print 'Opening new window...'
         self.shell.session.openNewShellFromThread()
 
@@ -61,14 +61,14 @@ class Jobs(ShellHandler):
     is_leaf = True
     handler_type = SocketHandlerType()
 
-    def __call__(self, context):
+    def __call__(self):
         print ' TODO: show running jobs...' # TODO
 
 class Monitor(ShellHandler):
     is_leaf = True
     handler_type = SocketHandlerType()
 
-    def __call__(self, context):
+    def __call__(self):
         # Open monitor in new pane.
         def monitor(pty):
             logger = IndentedDefaultLogger(pty.stdout)

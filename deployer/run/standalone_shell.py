@@ -47,7 +47,7 @@ class HistoryList(ShellHandler):
     is_leaf = True
     handler_type = BuiltinType()
 
-    def __call__(self, context):
+    def __call__(self):
         # Show all entries
         for i, entry in enumerate(self.shell.history):
             print self._color_history_entry(i+1, entry)
@@ -75,7 +75,7 @@ class HistoryShowEntry(ShellHandler):
     def __init__(self, entry):
         self.entry = entry
 
-    def __call__(self, context):
+    def __call__(self):
         for r in self.entry.result:
             print TracePrinter(r.trace).print_color()
 
@@ -97,7 +97,7 @@ class HistoryShow(ShellHandler):
 
 
 class HistoryChildEntry(HistoryShowEntry):
-    def __call__(self, context):
+    def __call__(self):
         for r in self.entry.result:
             for io in r.trace.all_io:
                 sys.stdout.write(io)
