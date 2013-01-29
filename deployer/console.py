@@ -209,7 +209,6 @@ def select_service(pty, root_service, prompt='Select service', filter=None):
     Show autocompletion for service selection.
     """
     from deployer.cli import ExitCLILoop, Handler, HandlerType, CLInterface
-    from deployer.pty import Pty
 
     class ServiceHandler(Handler):
         def __init__(self, service):

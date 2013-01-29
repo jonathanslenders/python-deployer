@@ -1,12 +1,11 @@
 from twisted.conch import telnet
-from twisted.conch.telnet import TelnetProtocol, StatefulTelnetProtocol, TelnetTransport
+from twisted.conch.telnet import StatefulTelnetProtocol, TelnetTransport
 from twisted.internet import reactor, abstract, fdesc
 from twisted.internet.protocol import ServerFactory
 
 from deployer import std
 from deployer.cli import HandlerType
 from deployer.console import NoInput, input
-from deployer.contrib.loggers.on_host import OnHostLogger
 from deployer.loggers import Actions
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger
@@ -16,10 +15,8 @@ from deployer.shell import Shell, ShellHandler, GroupHandler
 from operator import attrgetter
 
 import datetime
-import json
 import os
 import random
-import readline
 import select
 import signal
 import string

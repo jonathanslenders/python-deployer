@@ -19,12 +19,12 @@ class Utils(Service):
         """
         Set the hostname, according to the slug, given in the Host instance.
         """
-        h = self.host
+        host = self.host
 
         if input('Do you really want to set the hostname for %s to %s' % (host.address, host.slug), answers=['y', 'n']) == 'y':
-            h.sudo("echo '%s' > /etc/hostname" % host.slug)
-            h.sudo("echo '127.0.0.1  %s' >> /etc/hosts" % host.slug)
-            h.sudo("hostname -F /etc/hostname")
+            host.sudo("echo '%s' > /etc/hostname" % host.slug)
+            host.sudo("echo '127.0.0.1  %s' >> /etc/hosts" % host.slug)
+            host.sudo("hostname -F /etc/hostname")
 
     def tail_deployment_history(self):
         self.host.run("test -f ~/.deployer/history && cat ~/.deployer/history")

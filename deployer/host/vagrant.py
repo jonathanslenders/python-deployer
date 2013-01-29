@@ -1,5 +1,4 @@
-from deployer.host import SSHHost, Host, LocalHost
-from deployer.utils import esc1
+from deployer.host import SSHHost, LocalHost
 
 import os.path
 

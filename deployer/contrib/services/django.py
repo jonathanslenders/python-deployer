@@ -1,12 +1,7 @@
 from deployer.console import input
-from deployer.contrib.services.apt_get import AptGet
 from deployer.contrib.services.uwsgi import Uwsgi
 from deployer.query import Q
 from deployer.service import Service, isolate_host, ServiceBase, map_roles, supress_action_result, required_property, isolate_one_only, alias
-from deployer.utils import esc1
-from functools import wraps
-
-import os
 
 
 wsgi_app_template = \

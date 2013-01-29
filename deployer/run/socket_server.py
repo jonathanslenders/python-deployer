@@ -3,7 +3,7 @@
 from deployer import std
 from deployer.cli import HandlerType
 from deployer.daemonize import daemonize
-from deployer.shell import Shell, ShellHandler, GroupHandler
+from deployer.shell import Shell, ShellHandler
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger, IndentedDefaultLogger
 from deployer.pty import Pty
@@ -18,8 +18,6 @@ import datetime
 import getpass
 import os
 import pickle
-import random
-import string
 import sys
 
 __all__ = ('start',)

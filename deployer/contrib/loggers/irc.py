@@ -3,7 +3,6 @@ from __future__ import absolute_import
 from deployer.loggers import Logger
 from threading import Thread, Event
 
-import sys
 import irc.client
 import socket
 

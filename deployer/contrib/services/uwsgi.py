@@ -1,15 +1,12 @@
 from deployer.console import input
 from deployer.contrib.services.apt_get import AptGet
 from deployer.contrib.services.config import Config
-from deployer.contrib.services.sysvinit import SysVInitService
 from deployer.contrib.services.virtualenv import VirtualEnv
 from deployer.query import Q
 from deployer.service import Service, required_property, isolate_host, map_roles
 from deployer.utils import esc1
 
-from pygments.lexers import BashLexer, IniLexer
-
-import os
+from pygments.lexers import BashLexer
 
 
 init_d_template = """\
@@ -223,5 +220,3 @@ class Uwsgi(Service):
 
             # Automatically start on system boot.
             self.hosts.sudo("update-rc.d '%s' defaults" % self.slug)
-
-

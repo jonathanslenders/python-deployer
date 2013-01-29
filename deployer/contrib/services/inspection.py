@@ -1,6 +1,4 @@
 from deployer.service import Service, default_action, isolate_host
-
-import json
 import termcolor
 
 

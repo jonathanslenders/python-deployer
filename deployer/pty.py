@@ -108,7 +108,6 @@ def select(*args, **kwargs):
 
     >>  signal.signal(signal.SIGWINCH, sigwinch_handler)
     """
-    from _socket import error as SocketError
     import errno
 
     while True:

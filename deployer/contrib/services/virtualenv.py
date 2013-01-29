@@ -7,7 +7,6 @@ from deployer.query import Q
 from deployer.utils import esc1
 
 import os
-import posixpath
 
 
 def _pip_install(suffix=''):

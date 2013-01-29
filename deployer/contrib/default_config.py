@@ -2,7 +2,7 @@ from deployer.contrib.loggers.on_host import OnHostLogger
 from deployer.contrib.services.connect import Connect
 from deployer.contrib.services.monitoring import Monitor
 from deployer.contrib.unittest.services import UnitTest
-from deployer.host import SSHHost, Host, LocalHost
+from deployer.host import SSHHost, LocalHost
 from deployer.service import Service
 from deployer.service_groups import Other
 

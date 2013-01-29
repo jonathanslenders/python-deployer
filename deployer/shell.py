@@ -1,14 +1,9 @@
-import datetime
-import os
-import readline
 import socket
-import string
 import sys
 import termcolor
-import time
 import traceback
 
-from deployer.cli import CLInterface, Handler, HandlerType, ExitCLILoop
+from deployer.cli import CLInterface, Handler, HandlerType
 from deployer.exceptions import ExecCommandFailed, QueryException
 from deployer.service import ActionException
 from deployer.console import lesspipe, in_columns
@@ -670,8 +665,8 @@ class ShellState(object):
             prefix = ''
 
         return prefix + termcolor.colored('.', 'green').join(
-			termcolor.colored(s._name or '', s.get_group().color) for s in
-						self._service._path + [self._service])
+            termcolor.colored(s._name or '', s.get_group().color) for s in
+                        self._service._path + [self._service])
 
     def cd(self, target_service):
         self._prev_service = self._service

@@ -12,7 +12,6 @@ import os
 import sys
 import termcolor
 import termios
-import tty
 import time
 
 from twisted.internet import fdesc

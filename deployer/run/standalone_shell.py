@@ -9,8 +9,6 @@ from deployer.pty import Pty
 from deployer.shell import Shell, ShellHandler, GroupHandler, BuiltinType
 
 import codecs
-import datetime
-import getpass
 import os
 import random
 import signal
@@ -184,7 +182,6 @@ def start(settings):
     settings = settings()
 
     # Loggers
-    username = getpass.getuser()
     logger = create_logger()
     history_logger = HistoryLogger()
     extra_loggers = settings.Meta.extra_loggers

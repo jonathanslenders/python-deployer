@@ -1,7 +1,6 @@
 from deployer.console import confirm, input
-from deployer.contrib.services.apt_get import AptGet
 from deployer.exceptions import ExecCommandFailed
-from deployer.service import Service, map_roles, isolate_host, dont_isolate_yet, ServiceBase, required_property, default_action
+from deployer.service import Service, isolate_host, dont_isolate_yet, ServiceBase, required_property, default_action
 from deployer.utils import esc1
 import termcolor
 
