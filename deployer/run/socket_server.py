@@ -581,9 +581,8 @@ def startSocketServer(settings, shutdownOnLastDisconnect):
         try:
             path = '/tmp/deployer.sock.%s.%i' % (getpass.getuser(), i)
             reactor.listenUNIX(path, factory)
-            print 'Listening on: %s' % path
             break
-        except CannotListenError, e:
+        except CannotListenError:
             i += 1
 
             # When 100 times failed, cancel server
