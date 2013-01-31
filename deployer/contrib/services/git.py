@@ -54,6 +54,7 @@ class Git(Service):
 
     repository = required_property()
     repository_location = required_property()
+    default_revision = 'default'
 
     commands = { } # Extra git commands. Map function name to git command.
 
@@ -65,7 +66,7 @@ class Git(Service):
 
         # If no commit was given, ask for commit.
         if not commit:
-            commit = input('Git commit', default='master')
+            commit = input('Git commit', default=self.default_revision)
             if not commit: raise Exception('No commit given')
 
         self._checkout(commit)
