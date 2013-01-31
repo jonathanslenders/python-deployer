@@ -169,7 +169,7 @@ def in_columns(item_iterator, pty, margin_left=0):
 
     # World per line?
     term_width = pty.get_size()[1] - margin_left
-    words_per_line = term_width / max_length
+    words_per_line = max(term_width / max_length, 1)
 
     # Iterate through items.
     margin = ' ' * margin_left
