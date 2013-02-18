@@ -52,6 +52,7 @@ class Host(object):
     slug = ''
     username = ''
     password = '' # For sudo
+    start_path = None # None or string
 
     # Terminal to report to use for interactive sessions
     term = 'xterm' # xterm, vt100, xterm-256color
@@ -70,6 +71,14 @@ class Host(object):
         self._command_prefixes = []
         self._path = [] # cd to this path for every command
         self._env = [] # Environment variables
+
+        # Choose startup path
+        if self.start_path:
+            self._path.append(self.start_path)
+        elif self.username:
+            self._path.append('~%s' % self.username)
+        else:
+            self._path.append('~')
 
         # No sandbox
         self._sandboxing = False
