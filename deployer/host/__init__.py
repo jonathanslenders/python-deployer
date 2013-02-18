@@ -72,14 +72,6 @@ class Host(object):
         self._path = [] # cd to this path for every command
         self._env = [] # Environment variables
 
-        # Choose startup path
-        if self.start_path:
-            self._path.append(self.start_path)
-        elif self.username:
-            self._path.append('~%s' % self.username)
-        else:
-            self._path.append('~')
-
         # No sandbox
         self._sandboxing = False
 
@@ -114,6 +106,18 @@ class Host(object):
         for var in ('_command_prefixes', '_path', '_env', '_sandboxing'):
             setattr(other_host, var, copy.copy(getattr(self, var)))
 
+    def _get_start_path(self):
+        """
+        Return the path in which commands at the server will be executed.
+        by default. (if no cd-statements are used.)
+        """
+        if self.start_path:
+            return self.start_path
+        elif self.username:
+            return '~%s' % self.username
+        else:
+            return '~'
+
     @property
     def cwd(self):
         """
@@ -131,7 +135,7 @@ class Host(object):
         result = []
 
         # Prefix with all cd-statements
-        for p in self._path:
+        for p in [self._get_start_path()] + self._path:
             # TODO: We can't have double quotes around paths,
             #       or shell expansion of '*' does not work.
             #       Make this an option for with cd(path):...
