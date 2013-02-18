@@ -54,7 +54,7 @@ class Git(Service):
 
     repository = required_property()
     repository_location = required_property()
-    default_revision = 'default'
+    default_revision = 'master'
 
     commands = { } # Extra git commands. Map function name to git command.
 
