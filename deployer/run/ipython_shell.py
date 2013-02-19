@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
 def start(settings):
-    from IPython.Shell import IPShellEmbed
+    from IPython import embed
     root = settings()
-    ipshell = IPShellEmbed()
-    ipshell()
+    embed()
 
 if __name__ == '__main__':
     from deployer.contrib.default_config import example_settings
