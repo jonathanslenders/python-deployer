@@ -1073,7 +1073,9 @@ class Service(object):
         # When a Hosts object exists in this service, use that one, and ignore
         # the hosts which are passed in this constructor. So, any host
         # mappings do not apply
-        if hasattr(self.__class__, 'Hosts'):
+        # Note that when is_isolated=True, we always accept the hosts parameter, we asume that
+        # the non-isolated base defines the correct Hosts
+        if hasattr(self.__class__, 'Hosts') and not is_isolated:
             def get_hosts_container():
                 hosts = { }
                 for k in dir(self.__class__.Hosts):
