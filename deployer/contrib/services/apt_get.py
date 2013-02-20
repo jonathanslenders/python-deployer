@@ -52,8 +52,10 @@ class AptGet(Service):
     def add_sources(self, slug, sources, overwrite=False):
         extra_sources_dir = '/etc/apt/sources.list.d'
         for host in self.hosts:
+            distro_codename = host.run('lsb_release -cs', interactive=False).strip()
             if not host.exists('%s/%s.list' % (extra_sources_dir, slug)) or overwrite:
-                host.open('%s/%s.list' % (extra_sources_dir, slug), 'w', use_sudo=True).write("\n".join(sources))
+                host.open('%s/%s.list' % (extra_sources_dir, slug), 'w', use_sudo=True) \
+                        .write("\n".join(sources) % {'distro_codename': distro_codename})
 
     def setup_extra(self):
         self.setup_extra_keys()
