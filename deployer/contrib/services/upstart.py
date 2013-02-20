@@ -18,7 +18,15 @@ chdir '%(chdir)s'
 exec %(command)s
 respawn
 
+%(pre_start_script)s
 %(post_stop_script)s
+"""
+
+pre_start_script_template = \
+"""
+pre-start script
+%(content)s
+end script
 """
 
 post_stop_script_template = \
@@ -35,6 +43,7 @@ class UpstartService(Service):
     user = 'root'
     author = '(author)'
     command = required_property() # e.g. '/bin/sleep 1000'
+    pre_start_script = ''
     post_stop_script = '' # No post stop script
 
     slug = required_property() # A /etc/init/(slug).conf file will be created
@@ -65,6 +74,10 @@ class UpstartService(Service):
         def content(self):
             self = self.parent
 
+            if self.pre_start_script:
+                pre_start_script = pre_start_script_template % {
+                        'content': indent(self.pre_start_script),
+                    }
             if self.post_stop_script:
                 post_stop_script = post_stop_script_template % {
                         'content': indent(self.post_stop_script),
@@ -79,6 +92,7 @@ class UpstartService(Service):
                     'chdir': esc1(self.chdir),
                     'command': self.full_command,
                     'user': esc1(self.user),
+                    'pre_start_script': pre_start_script,
                     'post_stop_script': post_stop_script,
                 }
 
