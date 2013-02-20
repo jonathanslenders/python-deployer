@@ -29,8 +29,8 @@ class VirtualEnv(Service):
     # Paths to be added using add2virtualenv
     path_extensions = ()
 
-    # This can be python2.6 too, or None if you want to use the default for the system
-    python_version = 'python2.7'
+    # This can be python2.6 or python2.7 if you don't want to use the system default
+    python_version = 'python'
 
     def setup(self):
         """
