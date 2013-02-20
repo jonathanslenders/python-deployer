@@ -194,11 +194,11 @@ class Connection(object):
             # .. IOError: [Errno 9] Bad file descriptor
             pass
 
-    def startShell(self, clone_shell=None):
+    def startShell(self, clone_shell=None, cd_path=None):
         """
         Start an interactive shell in this connection.
         """
-        self.connection_shell = ConnectionShell(self, clone_shell=clone_shell)
+        self.connection_shell = ConnectionShell(self, clone_shell=clone_shell, cd_path=cd_path)
         self.connection_shell.startThread()
 
     def openNewConnection(self, focus=False):
@@ -360,7 +360,7 @@ class ConnectionShell(object):
     Start an interactive shell for a connection.
     (using a separate thread.)
     """
-    def __init__(self, connection, clone_shell=None):
+    def __init__(self, connection, clone_shell=None, cd_path=None):
         self.connection = connection
 
         # Create loggers
@@ -369,6 +369,7 @@ class ConnectionShell(object):
         # Run shell
         self.shell = SocketShell(connection.settings, connection.pty,
                                 self.logger_interface, clone_shell=clone_shell)
+        self.cd_path = cd_path
 
     def openNewShellFromThread(self):
         """
@@ -418,6 +419,9 @@ class ConnectionShell(object):
         for l in extra_loggers:
             self.logger_interface.attach(l)
 
+        # Start at correct location
+        if self.cd_path:
+            self.shell.cd(self.cd_path)
         self.shell.cmdloop()
 
         self.logger_interface.detach(in_shell_logger)
@@ -513,10 +517,13 @@ class CliClientProtocol(Protocol):
             elif action == '_start-interaction':
                 print 'creating session'
 
+                cd_path = data.get('cd_path', None)
+
                 # The defer to thread method, which will be called back
                 # immeditiately, can hang if the thread pool has been
                 # saturated. Therefor we show this message instead.
-                self._handle('_print', 'Waiting for thread to start...\r\n')
+
+                #self._handle('_print', 'Waiting for thread to start...\r\n')
 
                 # When a new Pty was needed by an existing shell. (For instance, for
                 # a parallel session. Report this connection; otherwise start a new
@@ -524,7 +531,7 @@ class CliClientProtocol(Protocol):
                 if PtyManager.need_pty_callback:
                     PtyManager.need_pty_callback(self.connection)
                 else:
-                    self.connection.startShell()
+                    self.connection.startShell(cd_path=cd_path)
 
             # Keep the remainder for the next time.
             remainder = io.read()

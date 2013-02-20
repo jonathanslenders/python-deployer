@@ -708,6 +708,14 @@ class Shell(CLInterface):
         self.root_handler = RootHandler(self)
         CLInterface.__init__(self, self.pty, self.root_handler)
 
+    def cd(self, cd_path):
+        for p in cd_path:
+            try:
+                self.state.cd(self.state._service.get_subservice(p))
+            except AttributeError:
+                print 'Unknown path given.'
+                return
+
     @property
     def extensions(self):
         # Dictionary with extensions to the root handler

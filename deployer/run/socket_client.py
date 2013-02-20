@@ -152,7 +152,7 @@ class DeploymentClient(object):
         self.socket.sendall(pickle.dumps(('_get_info', '')))
         self._read_loop()
 
-    def run(self, command=None):
+    def run(self, cd_path=None):
         """
         Run main event loop.
         """
@@ -164,11 +164,9 @@ class DeploymentClient(object):
         # Report size
         self._send_size()
 
-        self.socket.sendall(pickle.dumps(('_start-interaction', '')))
-
-        # Send command to server if one was given.
-        if command:
-            self.socket.sendall(pickle.dumps(('_input', '%s\n' % command)))
+        self.socket.sendall(pickle.dumps(('_start-interaction', {
+                'cd_path': cd_path,
+            })))
 
         self._read_loop()
         sys.stdout.write('\n')
@@ -223,16 +221,16 @@ def start(settings_module):
     """
     make_stdin_unbuffered()
 
-    run_command = None
+    cd_path = None
     socket_name = ''
 
     def print_usage():
         print 'Usage:'
-        print '    ./client.py [-h|--help] [ -c|--connect "socket number" ] [ -r|--run "command" ] [ -l | --list-sessions ]'
+        print '    ./client.py [-h|--help] [ -c|--connect "socket number" ] [ -p|--path "path" ] [ -l | --list-sessions ]'
 
     # Parse command line arguments.
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hr:c:l', ['help', 'run=', 'connect=', 'list-sessions'])
+        opts, args = getopt.getopt(sys.argv[1:], 'hp:c:l', ['help', 'path=', 'connect=', 'list-sessions'])
     except getopt.GetoptError, err:
         print str(err)
         print_usage()
@@ -243,15 +241,15 @@ def start(settings_module):
             print_usage()
             sys.exit()
 
-        elif o in ('-r', '--run'):
-            run_command = a
-
         elif o in ('-l', '--list-sessions',):
             list_sessions()
             sys.exit()
 
         elif o in ('-c', '--connect'):
             socket_name = a
+
+        elif o in ('-p', '--path'):
+            cd_path = a.split('.')
 
     # If no socket has been given. Start a daemonized server in the
     # background, and use that socket instead.
@@ -263,7 +261,7 @@ def start(settings_module):
     if not socket_name.startswith('/'):
         socket_name = '/tmp/deployer.sock.%s.%s' % (getpass.getuser(), socket_name)
 
-    DeploymentClient(socket_name).run(command=run_command)
+    DeploymentClient(socket_name).run(cd_path=cd_path)
 
 
 if __name__ == '__main__':
