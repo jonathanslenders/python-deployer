@@ -37,6 +37,12 @@ class Pty(object):
             # Default value
             return 24, 80
 
+    def get_width(self):
+        return self.get_size()[1]
+
+    def get_height(self):
+        return self.get_size()[0]
+
     def set_size(self, rows, cols):
         if self.stdout.isatty():
             # Buffer for the C call
