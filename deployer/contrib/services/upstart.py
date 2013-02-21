@@ -78,11 +78,13 @@ class UpstartService(Service):
                 pre_start_script = pre_start_script_template % {
                         'content': indent(self.pre_start_script),
                     }
+            else:
+                pre_start_script = ''
+
             if self.post_stop_script:
                 post_stop_script = post_stop_script_template % {
                         'content': indent(self.post_stop_script),
                     }
-
             else:
                 post_stop_script = ''
 
