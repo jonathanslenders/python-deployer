@@ -659,14 +659,13 @@ class ShellState(object):
 
     @property
     def prompt(self):
-        if self._return_state:
-            prefix = '%s\r\n%s' % (self._return_state.prompt, termcolor.colored('`-- ', 'cyan'))
-        else:
-            prefix = ''
-
-        return prefix + termcolor.colored('.', 'green').join(
-            termcolor.colored(s._name or '', s.get_group().color) for s in
-                        self._service._path + [self._service])
+        # Returns a list of (text,color) tuples for the prompt.
+        result = []
+        for s in self._service._path + [self._service]:
+            if result:
+                result.append( ('.', None) )
+            result.append( (s._name or '', s.get_group().color) )
+        return result
 
     def cd(self, target_service):
         self._prev_service = self._service
@@ -736,18 +735,22 @@ class Shell(CLInterface):
 
     @property
     def prompt(self):
-        stateprompt = self.state.prompt
+        """
+        Return a list of [ (text, color) ] tuples representing the prompt.
+        """
+        return ([
+                    # Username part
+                    (self._username if self._username else '', 'cyan'),
+                    (' @ ' if self._username else '', 'green'),
 
-        return '%s%s%s%s' % (
-                # Username part
-                ('%s %s ' % (termcolor.colored(self._username, 'cyan'),
-                            termcolor.colored('@', 'green')) if self._username else ''),
-                # 'deployment'
-                termcolor.colored(self.root_service.__class__.__name__, 'cyan'),
+                    # 'deployment'
+                    (self.root_service.__class__.__name__, 'cyan')
+                ]
 
                 # Path
-                stateprompt,
+                + self.state.prompt +
 
                 # Prompt sign
-                termcolor.colored(' > ', 'cyan', attrs=['bold'])
-            )
+                [
+                    (' > ', 'cyan')
+                ])

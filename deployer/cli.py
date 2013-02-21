@@ -48,7 +48,7 @@ class CLInterface(object):
     autocompletion in Python 2.6/2.7 when different ptys are used in different
     threads.
     """
-    prompt = '>'
+    prompt = ('>', None)
     not_found_message = 'Command not found...'
     not_a_leaf_message = 'Incomplete command...'
 
@@ -63,7 +63,7 @@ class CLInterface(object):
         self.tcattr = termios.tcgetattr(self.stdin.fileno())
         self.line = [] # Character array
         self.insert_pos = 0
-        self.terminal_pos = 0
+        self.scroll_pos = 0 # Horizontal scrolling
         self.vi_navigation = False # In vi-navigation mode (instead of insert mode.)
 
         # Additional pipe through which this shell can receive messages while
@@ -171,66 +171,148 @@ class CLInterface(object):
         # Initialize new read
         self.line = []
         self.insert_pos = 0
-        self.terminal_pos = 0
         self.history_position = 0
         self.vi_navigation = False
 
         # Print promt again
         self.stdout.write('\r\n')
-        self.print_prompt()
-
-    def print_prompt(self):
-        # Print prompt
-        self.stdout.write(self.prompt)
-        self.terminal_pos = 0
-
-        # Reprint current string
         self.print_command()
 
-    def print_command(self):
+
+    def print_command(self, only_if_scrolled=False):
         """
-        Reprint command (what's after the prompt), using syntax highlighting.
+        Print the whole command line prompt.
+        """
+        termwidth = self.pty.get_width()
+        prompt_out, prompt_length = self._make_prompt(termwidth)
+
+        changed = self._update_scroll(prompt_length)
+        if changed or not only_if_scrolled:
+            self._print_command(prompt_out, prompt_length, termwidth)
+
+    def _make_prompt(self, termwidth):
+        """
+        Create a (outbuffer, promptsize) object.
+        """
+        out = []
+        pos = 0
+
+        # Call prompt property
+        prompt = self.prompt
+
+        # Max prompt size
+        max_prompt_size = termwidth / 2
+
+        # Loop backwards over all the parts, truncate when required.
+        while prompt and pos < max_prompt_size:
+            text, color = prompt.pop()
+
+            if len(text) > max_prompt_size - pos:
+                text = text[-(max_prompt_size-pos):]
+
+            out = [ termcolor.colored(text, color) ] + out
+            pos += len(text)
+
+        return out, pos
+
+    def _update_scroll(self, prompt_length):
+        """
+        Update scroll, to make sure that the cursor is always visible.
+        """
+        changed = False
+        pos = prompt_length
+
+        # Make sure that the cursor is within range.
+        # (minus one, because we need to have an insert prompt available after the input text.)
+        available_width = self.pty.get_width() - prompt_length - 1
+
+        # Make sure that the insert position is visible
+        if self.insert_pos > available_width + self.scroll_pos:
+            self.scroll_pos = self.insert_pos - available_width
+            changed = True
+
+        if self.insert_pos < self.scroll_pos:
+            self.scroll_pos = self.insert_pos
+            changed = True
+
+        # Make sure that the scrolling pos is never larger than it has to be.
+        # e.g. after enlarging the window size.
+        if self.scroll_pos > len(self.line) - available_width:
+            self.scroll_pos = max(0, len(self.line) - available_width)
+
+        return changed
+
+    def _print_command(self, prompt_out, prompt_length, termwidth):
+        """
+        Reprint prompt.
         """
         # We have an unbufferred stdout, so it's faster to write only once.
-        out = []
+        out = [ ]
 
         # Move cursor position to the left.
-        if self.terminal_pos:
-            out.append('\x1b[%iD' % self.terminal_pos) # Move 'pos' positions backwards
+        out.append('\x1b[%iD' % termwidth)
 
-        out.append('\x1b[K') # Erace until the end of line
+        # Erace until the end of line
+        out.append('\x1b[K')
 
-        # Print complete command line
+        # Add prompt
+        pos = prompt_length
+        out += prompt_out
+
+        # Horizontal scrolling
+        scroll_pos = self.scroll_pos
+
+        # Print interactive part of command line
         line = ''.join(self.line)
         h = self.root
+
         while line:
             if line[0].isspace():
-                out.append(line[0])
+                overflow = pos+1 > termwidth
+                if overflow:
+                    break
+                else:
+                    if scroll_pos:
+                        scroll_pos -= 1
+                    else:
+                        out.append(line[0])
+                        pos += 1
+
                 line = line[1:]
             else:
                 # First following part
                 p = line.split()[0]
                 line = line[len(p):]
 
+                # Get color
+                color = None
                 if h:
                     try:
                         h = h.get_subhandler(p)
-
                         if h:
-                            out.append(termcolor.colored(p, h.handler_type.color))
-                        else:
-                            out.append(p)
+                            color = h.handler_type.color
                     except (NotImplementedError, NoSubHandler):
-                        h = None
-                        out.append(p)
-                else:
-                    out.append(p)
+                        pass
+
+                while scroll_pos and p:
+                    scroll_pos -= 1
+                    p = p[1:]
+
+                # Trim when the line's too long.
+                overflow = pos + len(p) > termwidth
+                if overflow:
+                    p = p[:termwidth-pos]
+
+                # Print this slice in the correct color.
+                out.append(termcolor.colored(p, color))
+                pos += len(p)
+
+                if overflow:
+                    break
 
         # Move cursor to correct position
-        pos = len(self.line)
-        if pos > self.insert_pos + 1:
-            out.append('\x1b[%iD' % (pos - self.insert_pos)) # Move positions backwards
-        self.terminal_pos = self.insert_pos
+        out.append('\x1b[%iD' % termwidth) # Move 'x' positions backwards (to the start of the line)
+        out.append('\x1b[%iC' % (prompt_length + self.insert_pos - self.scroll_pos)) # Move back to right
 
         # Flush buffer
         self.stdout.write(''.join(out))
@@ -239,12 +321,13 @@ class CLInterface(object):
     def clear(self):
         # Erase screen and move cursor to 0,0
         self.stdout.write('\033[2J\033[0;0H')
-        self.print_prompt()
+        self.print_command()
 
     def backspace(self):
         if self.insert_pos > 0:
             self.line = self.line[:self.insert_pos-1] + self.line[self.insert_pos:]
             self.insert_pos -= 1
+
             self.print_command()
         else:
             self.stdout.write('\a') # Beep
@@ -252,20 +335,21 @@ class CLInterface(object):
     def cursor_left(self):
         if self.insert_pos > 0:
             self.insert_pos -= 1
-            self.terminal_pos -= 1
             self.stdout.write('\x1b[D') # Move to left
+
+            self.print_command(True)
 
     def cursor_right(self):
         if self.insert_pos < len(self.line):
             self.insert_pos += 1
-            self.terminal_pos += 1
             self.stdout.write('\x1b[C') # Move to right
+
+            self.print_command(True)
 
     def word_forwards(self):
         found_space = False
         while self.insert_pos < len(self.line) - 1:
             self.insert_pos += 1
-            self.terminal_pos += 1
             self.stdout.write('\x1b[C') # Move to right
 
             if self.line[self.insert_pos].isspace():
@@ -273,17 +357,20 @@ class CLInterface(object):
             elif found_space:
                 return
 
+        self.print_command(True)
+
     def word_backwards(self):
         found_non_space = False
         while self.insert_pos > 0:
             self.insert_pos -= 1
-            self.terminal_pos -= 1
             self.stdout.write('\x1b[D') # Move to left
 
             if not self.line[self.insert_pos].isspace():
                 found_non_space = True
             if found_non_space and self.insert_pos > 0 and self.line[self.insert_pos-1].isspace():
                 return
+
+        self.print_command(True)
 
     def delete(self):
         if self.insert_pos < len(self.line):
@@ -338,9 +425,16 @@ class CLInterface(object):
     def cmdloop(self):
         try:
             while True:
+                # Set handler for resize terminal events.
+                self.pty.set_ssh_channel_size = lambda: self.print_command()
+
+                # Read command
                 with raw_mode(self.stdin):
                     result = self.read().strip()
 
+                self.pty.set_ssh_channel_size = None
+
+                # Handle result
                 if result:
                     self.lines_history.append(result)
                     self.history_position = 0
@@ -365,8 +459,7 @@ class CLInterface(object):
         # Initialize new read
         self.line = []
         self.insert_pos = 0
-        self.terminal_pos = 0
-        self.print_prompt()
+        self.print_command()
 
         # Timings
         last_up = time.time()
@@ -388,7 +481,7 @@ class CLInterface(object):
                 self.stdout.write('\r\n')
 
                 # Clear line
-                self.print_prompt()
+                self.print_command()
 
             if self.stdin in r:
                 c = self.stdin.read(1)
@@ -440,7 +533,7 @@ class CLInterface(object):
                 # Control-R
                 elif c == '\x12': # 18
                     self.stdout.write('\r\nSorry, reverse search is not supported.\r\n')
-                    self.print_prompt()
+                    self.print_command()
 
                 # Enter
                 elif c in ('\r', '\n'): # Depending on the client \n or \r is sent.
@@ -458,7 +551,7 @@ class CLInterface(object):
                         all_completions = self.complete(True)
                         if all_completions:
                             self.print_all_completions(all_completions)
-                            self.print_prompt()
+                            self.print_command()
 
                     else:
                         # Call tab completion
