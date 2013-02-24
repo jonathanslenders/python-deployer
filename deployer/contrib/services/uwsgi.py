@@ -71,8 +71,7 @@ class Uwsgi(Service):
     uwsgi_workers = 2
     username = required_property()
 
-    uwsgi_download_url = 'http://projects.unbit.it/downloads/uwsgi-1.4.4.tar.gz'
-
+    uwsgi_download_url = 'http://projects.unbit.it/downloads/uwsgi-1.4.6.tar.gz'
 
     @map_roles.just_one
     class _packages(AptGet):
