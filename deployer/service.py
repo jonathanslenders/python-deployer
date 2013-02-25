@@ -916,7 +916,10 @@ def get_isolations(service):
     # The parent may not yet have been isolated, and therefore,
     # this may be a list of parents, causing this action to be
     # actually a list of actions.
-    if service.parent and not service.parent._is_isolated and not service_has_host_definitions:
+                # Note that even if this service has its own hosts definitions,
+                # we should isolate the parent. (Because it should still be able
+                # to call self.parent.x.)
+    if service.parent and not service.parent._is_isolated:
         parents = list(get_isolations(service.parent))
     else:
         parents = [ Isolation('', service.parent) ] # service.parent can still be None
