@@ -1,4 +1,4 @@
-from deployer.console import input
+from deployer.console import confirm
 from deployer.contrib.commands import wget
 from deployer.contrib.services.apt_get import AptGet
 from deployer.contrib.services.config import Config
@@ -38,6 +38,7 @@ class Redis(Service):
     # Port and slug should be unique between all redis installations on one
     # host.
     port = 6379
+    database = 0
     slug = required_property()
     password = required_property()
 
@@ -79,49 +80,39 @@ class Redis(Service):
         """
         Redis upstart service.
         """
-        @property
-        def slug(self):
-            return 'redis-%s' % self.parent.slug
-
+        slug = Q('redis-%s') % Q.parent.slug
         chdir = '/'
-
-        @property
-        def user(self):
-            return self.parent.username
-
-        @property
-        def command(self):
-            return '/usr/local/bin/redis-server %s' % self.parent.config_file
+        user = Q.parent.username
+        command = Q('/usr/local/bin/redis-server %s') % Q.parent.config_file
 
 
     def setup(self):
         # Also make sure that redis was not yet installed
         if self.is_already_installed:
             print 'Warning: Redis is already installed'
-            if input('Redis is already installed. Reinstall?', answers=['y', 'n'], default='n') == 'n':
+            if not confirm('Redis is already installed. Reinstall?'):
                 return
 
         # Install dependencies
         self.packages.install()
 
         # Download, compile and install redis
-        for h in self.hosts:
-            # If not yet installed
-            if not h.has_command('redis-server'):
-                # Download redis
-                h.run(wget(self.redis_download_url, 'redis.tgz'))
-                h.run('tar xvzf redis.tgz')
+        # If not yet installed
+        if not self.host.has_command('redis-server'):
+            # Download redis
+            self.host.run(wget(self.redis_download_url, 'redis.tgz'))
+            self.host.run('tar xvzf redis.tgz')
 
-                # Unset ARCH variable, otherwise redis doesn't compile.
-                # http://comments.gmane.org/gmane.linux.slackware.slackbuilds.user/6686
-                with h.env('ARCH', ''):
-                    # Make and install
-                    with h.cd('redis-2.*'):
-                        if h.is_64_bit:
-                            h.run('make ARCH="-m64"')
-                        else:
-                            h.run('make 32bit')
-                        h.sudo('make install')
+            # Unset ARCH variable, otherwise redis doesn't compile.
+            # http://comments.gmane.org/gmane.linux.slackware.slackbuilds.user/6686
+            with self.host.env('ARCH', ''):
+                # Make and install
+                with self.host.cd('redis-2.*'):
+                    if self.host.is_64_bit:
+                        self.host.run('make ARCH="-m64"')
+                    else:
+                        self.host.run('make 32bit')
+                    self.host.sudo('make install')
 
         self.config.setup()
 
