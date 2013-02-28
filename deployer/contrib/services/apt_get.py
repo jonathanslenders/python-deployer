@@ -17,6 +17,10 @@ class AptGet(Service):
     extra_key_urls = ()
     extra_sources = {}
 
+    def setup(self):
+        self.setup_extra()
+        self.install()
+
     def install(self, skip_update=True):
         """
         Install packages.
@@ -77,3 +81,9 @@ class AptGet(Service):
         for package in self.dpkg_packages:
             self.host.sudo(wget(package))
             self.host.sudo("dpkg -i '%s'" % esc1(package.split('/')[-1]))
+
+    def is_package_available(self, package):
+        # apt-cache will return an error message on stderr,
+        # but nothing on stdout if the package could not be found
+        return bool(self.host.run("apt-cache madison '%s'" % esc1(package),
+            interactive=False).strip())
