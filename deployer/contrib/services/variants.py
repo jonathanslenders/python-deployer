@@ -5,14 +5,37 @@ from deployer.utils import esc1
 
 class Variants(Config):
     """
+    Simple server-side persistent key-value list of attributes.
+
+    Mostly useful for an installation of a service on a server: what version is
+    installed with what options? Do we need to install it again or extend it
+    with new options for this extra service?
+
     Similar to variants for MacPorts. Variants are conditional modifications
     of installations. They are flags, saved on the target system. If we detect
     that the variants don't match with those that we expect, then we know that
     we have to reinstall the service.
     This is useful, for when some services are installed system-wide from
-    several set-ups. Each set-up can add their own variants.  If some variants
+    several set-ups. Each set-up can add their own variants. If some variants
     are already in place, and our service adds another variant, then we should
     probably reinstall the service, combining all these variants.
+
+    Variants can be specified as a list/set or as a dict, but the helper
+    attributes convert them to dicts. This allows you to use keys and values,
+    which can be compared (like version numbers). It is possible that we will
+    drop list support in the future.
+
+    Example:
+
+    variants = ('version:1.2', 'plugin_foo')
+
+    Equivalent:
+
+    variants = {'version': '1.2', 'plugin_foo': True}
+
+    If the server would already contain ('version:1.1', 'plugin_bar'), you know
+    you will have to install Version 1.2 with plugins foo and bar to satisfy
+    your own service and other services on the same host that depend on it.
     """
     # Override
     variants = set()
@@ -24,12 +47,12 @@ class Variants(Config):
 
     @property
     def content(self):
-        final_variants = self.list(self.variants_final)
+        final_variants = self._as_list(self.variants_final)
 
         # Return result
         return ' '.join(final_variants)
 
-    def dict(self, var_list):
+    def _as_dict(self, var_list):
         if isinstance(var_list, dict):
             return var_list
         var_dict = {}
@@ -37,11 +60,13 @@ class Variants(Config):
             var_parts = var.split(':')
             if len(var_parts) == 1:
                 var_dict[var_parts[0]] = True
+            elif len(var_parts) > 2:
+                raise Exception('Variant %s contains more than one colon' % var)
             else:
                 var_dict[var_parts[0]] = var_parts[1]
         return var_dict
 
-    def list(self, var_dict):
+    def _as_list(self, var_dict):
         if isinstance(var_dict, list):
             return var_dict
         var_list = []
@@ -55,6 +80,9 @@ class Variants(Config):
 
     @property
     def variants_installed(self):
+        """
+        The currently installed variants.
+        """
         if self.host.exists(self.remote_path):
             return self.current_content.split()
         return {}
@@ -63,16 +91,27 @@ class Variants(Config):
     @property
     def variants_final(self):
         """
-        Merge variants installed with requested
+        Merge variants installed with requested.
+
+        If you (re-)install a service, use this as the guide of what to install.
         """
-        vars_installed = self.dict(self.variants_installed)
+        vars_installed = self._as_dict(self.variants_installed)
         vars_installed.update(self.variants_to_update)
         return vars_installed
 
     @property
     def variants_to_update(self):
-        vars_installed = self.dict(self.variants_installed)
-        vars_requested = self.dict(self.variants)
+        """
+        Compare the installed variants with the variants requested by this service.
+
+        This will return the variants that need to change, with their final
+        version. You can check this property to determine whether you need to
+        reinstall the service. If you decide to reinstall, use variants_final
+        as a guide of what to install, because variants_to_update will not
+        include variants that have not changed.
+        """
+        vars_installed = self._as_dict(self.variants_installed)
+        vars_requested = self._as_dict(self.variants)
         vars_to_update = {}
         for var_req, var_spec_req in vars_requested.iteritems():
             if var_req not in vars_installed:
