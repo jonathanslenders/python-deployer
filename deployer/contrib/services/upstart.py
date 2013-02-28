@@ -17,25 +17,10 @@ stop on shutdown
 chdir '%(chdir)s'
 exec %(command)s
 respawn
+%(extra)s
 
-%(pre_start_script)s
-%(post_stop_script)s
+%(extra_scripts)s
 """
-
-pre_start_script_template = \
-"""
-pre-start script
-%(content)s
-end script
-"""
-
-post_stop_script_template = \
-"""
-post-stop script
-%(content)s
-end script
-"""
-
 
 @isolate_host
 class UpstartService(Service):
@@ -44,7 +29,10 @@ class UpstartService(Service):
     author = '(author)'
     command = required_property() # e.g. '/bin/sleep 1000'
     pre_start_script = ''
-    post_stop_script = '' # No post stop script
+    post_start_script = ''
+    pre_stop_script = ''
+    post_stop_script = ''
+    extra = ''
 
     slug = required_property() # A /etc/init/(slug).conf file will be created
 
@@ -74,19 +62,16 @@ class UpstartService(Service):
         def content(self):
             self = self.parent
 
-            if self.pre_start_script:
-                pre_start_script = pre_start_script_template % {
-                        'content': indent(self.pre_start_script),
-                    }
-            else:
-                pre_start_script = ''
-
-            if self.post_stop_script:
-                post_stop_script = post_stop_script_template % {
-                        'content': indent(self.post_stop_script),
-                    }
-            else:
-                post_stop_script = ''
+            extra_scripts = ''
+            for s in ('start', 'stop'):
+                for p in ('pre', 'post'):
+                    script = getattr(self, '%s_%s_script' % (p, s), '')
+                    if script:
+                        extra_scripts += """
+%s-%s script
+%s
+end script
+""" % (p, s, indent(script))
 
             return upstart_template % {
                     'description': esc1(self.description),
@@ -94,8 +79,8 @@ class UpstartService(Service):
                     'chdir': esc1(self.chdir),
                     'command': self.full_command,
                     'user': esc1(self.user),
-                    'pre_start_script': pre_start_script,
-                    'post_stop_script': post_stop_script,
+                    'extra': self.extra,
+                    'extra_scripts': extra_scripts,
                 }
 
     def setup(self):
