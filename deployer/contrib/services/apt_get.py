@@ -17,6 +17,10 @@ class AptGet(Service):
     extra_key_urls = ()
     extra_sources = {}
 
+    def setup(self):
+        self.setup_extra()
+        self.install()
+
     def install(self, skip_update=True):
         """
         Install packages.
@@ -25,37 +29,35 @@ class AptGet(Service):
             self.update()
 
         # apt-get install
-        with self.hosts.env('DEBIAN_FRONTEND', 'noninteractive'):
-            self.hosts.sudo('apt-get install -yq %s' % ' '.join(self.packages))
+        with self.host.env('DEBIAN_FRONTEND', 'noninteractive'):
+            self.host.sudo('apt-get install -yq %s' % ' '.join(self.packages))
 
             # Optional packages
             for p in self.packages_if_available:
-                for h in self.hosts:
-                    try:
-                        h.sudo('apt-get install -yq %s' % p)
-                    except ExecCommandFailed:
-                        print 'Failed to install %s on %s, ignoring...' % (p, h.slug)
+                try:
+                    self.host.sudo('apt-get install -yq %s' % p)
+                except ExecCommandFailed:
+                    print 'Failed to install %s on %s, ignoring...' % (p, self.host.slug)
 
         # dpkg packages
         self.install_dpkg_packages()
 
     def update(self):
-        self.hosts.sudo('apt-get update')
+        self.host.sudo('apt-get update')
 
     def add_key_url(self, key_url):
-        self.hosts.sudo("wget '%s' -O - | apt-key add -" % esc1(key_url))
+        self.host.sudo("wget '%s' -O - | apt-key add -" % esc1(key_url))
 
     def add_key(self, fingerprint, keyserver=None):
         keyserver = keyserver if keyserver else DEFAULT_KEYSERVER
-        self.hosts.sudo("apt-key adv --keyserver %s --recv %s" % (keyserver, fingerprint))
+        self.host.sudo("apt-key adv --keyserver %s --recv %s" % (keyserver, fingerprint))
 
     def add_sources(self, slug, sources, overwrite=False):
         extra_sources_dir = '/etc/apt/sources.list.d'
-        for host in self.hosts:
-            distro_codename = host.run('lsb_release -cs', interactive=False).strip()
-            if not host.exists('%s/%s.list' % (extra_sources_dir, slug)) or overwrite:
-                host.open('%s/%s.list' % (extra_sources_dir, slug), 'w', use_sudo=True) \
-                        .write("\n".join(sources) % {'distro_codename': distro_codename})
+        distro_codename = self.host.run('lsb_release -cs', interactive=False).strip()
+        if not self.host.exists('%s/%s.list' % (extra_sources_dir, slug)) or overwrite:
+            self.host.open('%s/%s.list' % (extra_sources_dir, slug), 'w', use_sudo=True) \
+                    .write("\n".join(sources) % {'distro_codename': distro_codename})
 
     def setup_extra(self):
         self.setup_extra_keys()
@@ -77,5 +79,11 @@ class AptGet(Service):
 
     def install_dpkg_packages(self):
         for package in self.dpkg_packages:
-            self.hosts.sudo(wget(package))
-            self.hosts.sudo("dpkg -i '%s'" % esc1(package.split('/')[-1]))
+            self.host.sudo(wget(package))
+            self.host.sudo("dpkg -i '%s'" % esc1(package.split('/')[-1]))
+
+    def is_package_available(self, package):
+        # apt-cache will return an error message on stderr,
+        # but nothing on stdout if the package could not be found
+        return bool(self.host.run("apt-cache madison '%s'" % esc1(package),
+            interactive=False).strip())
