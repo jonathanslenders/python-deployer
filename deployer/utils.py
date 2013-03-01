@@ -71,4 +71,32 @@ class capture(object):
         # Restore stdout
         sys.stdout.set_handler(self.original_stdout)
 
+def map_services(services, map_method, *args, **kwargs):
+    """
+    Call a method of the passed services, if it exists.
+    """
+    for s in services:
+        if hasattr(s, map_method):
+            if s.is_isolated:
+                yield getattr(s, map_method)(*args, **kwargs)
+            else:
+                for i in s:
+                    yield getattr(i, map_method)(*args, **kwargs)
 
+def walk_services(service):
+    """
+    Walk over the given service(s) and subservices.
+    """
+    if isinstance(service, (list, tuple)):
+        todo = service[:]
+    else:
+        todo = [service]
+    visited = set()
+    while todo:
+        s = todo.pop()
+        yield s
+        visited.add(s)
+
+        for name, subservice in s.get_subservices(include_isolations=False):
+            if name != 'root' and subservice not in visited:
+                todo.append(subservice)
