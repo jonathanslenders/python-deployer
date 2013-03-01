@@ -530,8 +530,8 @@ class Env(object):
     def __call__(self, *a, **kw):
         self._service(*a, **kw).run(self._pty, self._logger)
 
-    def get_subservices(self):
-        for name, subservice in self._service.get_subservices():
+    def get_subservices(self, include_isolations=True):
+        for name, subservice in self._service.get_subservices(include_isolations):
             yield name, self.get_subservice(name)
 
     def get_group(self):
@@ -1132,7 +1132,7 @@ class Service(object):
             if not name.startswith('_') and isinstance(member, Action) and not getattr(self, name).is_property:
                 yield name, getattr(self, name)
 
-    def get_subservices(self):
+    def get_subservices(self, include_isolations=True):
         """
         Yield the available nested subservices. Returns tupels of (name, subservice_instance)
         (Except the private ones)
@@ -1146,7 +1146,8 @@ class Service(object):
                     yield name, getattr(self, name)
 
         # Isolations also act as subservices.
-        if self.Meta.isolate_role and not self._is_isolated:
+        if include_isolations and \
+                self.Meta.isolate_role and not self._is_isolated:
             for i in get_isolations(self):
                 yield ':%s' % i.name, i.service
 
