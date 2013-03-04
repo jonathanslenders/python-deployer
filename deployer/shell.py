@@ -206,6 +206,16 @@ class Do(ShellHandler):
 
 
 @create_navigable_handler
+def Connect(self):
+    """
+    Open interactive SSH connection with this host.
+    """
+    from deployer.contrib.services import connect
+    from deployer.host_container import HostsContainer
+    c = connect.Connect(HostsContainer({ 'host': self.service.hosts._all }))
+    c.with_host().run(self.shell.pty, self.shell.logger_interface)
+
+@create_navigable_handler
 def Find(self):
     def _list_nested_services(service, prefix):
         for name, action in service.get_actions():
@@ -602,13 +612,13 @@ class RootHandler(ShellHandler):
             '.': Do,
             'cd': Cd,
             'clear': Clear,
-            'do': Do,
             'exit': Exit,
             'find': Find,
-            'inspect': Inspect,
             'ls': Ls,
-            'sandbox': Sandbox,
-            'version': Version,
+            '--connect': Connect,
+            '--inspect': Inspect,
+            '--sandbox': Sandbox,
+            '--version': Version,
     }
     def complete_subhandlers(self, part):
         """
