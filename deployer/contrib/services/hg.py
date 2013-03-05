@@ -23,7 +23,7 @@ class HgBase(ServiceBase):
     def _create_hg_command(command):
         def run(self):
             with self.host.cd(self.repository_location):
-                return self.host.run('git %s' % command)
+                return self.host.run('hg %s' % command)
         return run
 
 @isolate_host
