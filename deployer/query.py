@@ -158,6 +158,7 @@ class static(Query):
     Query which represents just a static value.
     """
     def __init__(self, value):
+        Query.__init__(self)
         self.value = value
 
     @property
@@ -174,6 +175,7 @@ class attrgetter(Query):
     Query which takes an attribute of the result from another query.
     """
     def __init__(self, query_before, attrname):
+        Query.__init__(self)
         self.query_before = query_before
         self.attrname = attrname
 
@@ -192,6 +194,7 @@ class call(Query):
     Query which would call the result of another query.
     """
     def __init__(self, query_before, args, kwargs):
+        Query.__init__(self)
         self.query_before = query_before
         self.args = args
         self.kwargs = kwargs
@@ -211,6 +214,7 @@ class parent(Query):
     `parent('parent_name')` would go up through all the parents looking for that name.
     """
     def __init__(self, query_before):
+        Query.__init__(self)
         self.query_before = query_before
 
     def __call__(self, parent_name):
@@ -237,6 +241,7 @@ class find_parent_by_name(Query):
         some_property = Q('NameOfParent').property_of_that_parent
     """
     def __init__(self, query_before, parent_name):
+        Query.__init__(self)
         self.query_before = query_before
         self.parent_name = parent_name
 
