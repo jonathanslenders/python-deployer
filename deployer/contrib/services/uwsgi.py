@@ -71,7 +71,7 @@ class Uwsgi(Service):
     uwsgi_workers = 2
     username = required_property()
 
-    uwsgi_download_url = 'http://projects.unbit.it/downloads/uwsgi-1.4.6.tar.gz'
+    uwsgi_download_url = 'http://projects.unbit.it/downloads/uwsgi-1.4.8.tar.gz'
 
     @map_roles.just_one
     class _packages(AptGet):
@@ -108,23 +108,24 @@ class Uwsgi(Service):
     def stats_socket(self):
         return '/tmp/uwsgi-stats-%s' % self.slug
 
-    @property
-    def start_command(self):
+    def _get_start_command(self, daemonize=True):
         """
         UWSGI startup command
         Because of --daemonize, we don't need upstart anymore.
         """
         return '%(virtual_env)s/bin/uwsgi -H %(virtual_env)s -s %(uwsgi_socket)s --threads %(threads)i --workers %(workers)i --stats %(stats)s ' \
-                '--pidfile=%(pidfile)s --daemonize %(log)s --logfile-chown %(username)s -M %(wsgi_app)s --uid %(username)s' % {
+                '%(pidfile)s %(daemonize)s %(log)s --logfile-chown %(username)s -M %(wsgi_app)s --uid %(username)s --chmod-socket %(chmod_socket)s' % {
                     'virtual_env': self.virtual_env_location,
                     'uwsgi_socket': self.uwsgi_socket,
-                    'pidfile': self.pidfile,
+                    'pidfile': ('--pidfile=%s' % self.pidfile if daemonize else ''),
+                    'daemonize': '--daemonize' if daemonize else '',
                     'log': self.logfile,
                     'wsgi_app': self.wsgi_app_location,
                     'threads': self.uwsgi_threads,
                     'workers': self.uwsgi_workers,
                     'stats': self.stats_socket,
                     'username': self.username,
+                    'chmod_socket': 666,
                     }
 
     @property
@@ -148,16 +149,19 @@ class Uwsgi(Service):
         with self.hosts.prefix(self.virtual_env.activate_cmd):
             self.hosts.sudo("uwsgitop '%s'" % self.stats_socket)
 
-    def start(self):
+    def start(self, daemonize=True):
         """
         Start uWSGI stack
         """
         for h in self.hosts:
             if not h.exists(self.pidfile):
                 with h.cd(self.run_from_directory):
-                    h.sudo(self.start_command)
+                    h.sudo(self._get_start_command(daemonize))
             else:
                 print 'Pidfile %s already exists' % self.pidfile
+
+    def run_in_shell(self):
+        self.start(daemonize=False)
 
     def stop(self):
         """
@@ -209,7 +213,7 @@ class Uwsgi(Service):
                     'slug': self.slug,
                     'run_from_directory': self.run_from_directory,
                     'pidfile': self.pidfile,
-                    'start_command': self.start_command,
+                    'start_command': self._get_start_command(True),
                     'reload_command': self.reload_command,
                     'stop_command': self.stop_command,
                     }
