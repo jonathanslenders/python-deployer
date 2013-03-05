@@ -54,7 +54,7 @@ class DjangoBase(ServiceBase):
         'help': 'help',
         'list_migrations': 'migrate --list',
         'migrate': 'migrate --noinput --no-initial-data --merge --ignore-ghost-migrations',
-        'runserver': lambda self: 'runserver 0.0.0.0:%i' % self.runserver_port,
+        'runserver': lambda self: 'runserver 0.0.0.0:%i' % self.http_port,
         'shell': 'shell',
         'shell_plus': 'shell_plus',
         'syncdb': 'syncdb --noinput',
@@ -129,8 +129,13 @@ class Django(Service):
     uwsgi_socket = 'localhost:3032' # Can be either a tcp socket or unix file socket
     uwsgi_threads = 10
     uwsgi_workers = 2
+    uwsgi_use_http = False # When true, we will use the same port as runserver.
+                           # this has the advantage that Django's runserver and
+                           # uwsgi can be used interchangable.
 
-    runserver_port = 8000
+    # HTTP Server
+    http_port = 8000
+
 
     uwsgi_auto_reload = False
 
@@ -174,6 +179,7 @@ class Django(Service):
         uwsgi_workers = Q.parent.uwsgi_workers
         virtual_env_location = Q.parent.virtual_env_location
         username = Q.parent.username
+        use_http = Q.parent.uwsgi_use_http
 
         @property
         def run_from_directory(self):
