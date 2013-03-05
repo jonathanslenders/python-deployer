@@ -2,6 +2,7 @@ from deployer.console import input
 from deployer.contrib.services.uwsgi import Uwsgi
 from deployer.query import Q
 from deployer.service import Service, isolate_host, ServiceBase, map_roles, supress_action_result, required_property, isolate_one_only, alias
+from deployer.contrib.services.config import Config
 
 
 wsgi_app_template = \
@@ -17,7 +18,19 @@ null = open(os.devnull, 'w')
 sys.stdout = null
 
 # specify the settings
-os.environ['DJANGO_SETTINGS_MODULE'] = '%(settings_module)s'
+os.environ['DJANGO_SETTINGS_MODULE'] = %(settings_module)s
+
+if %(auto_reload)s:
+    import uwsgi
+    from uwsgidecorators import timer
+    from django.utils import autoreload
+
+    @timer(3)
+    def change_code_gracefull_reload(sig):
+        if autoreload.code_changed():
+            uwsgi.reload()
+
+
 
 # Since we want to parse some HTTP headers (for https support), we don't create
 # the WSGI handler as `application`.
@@ -119,6 +132,8 @@ class Django(Service):
 
     runserver_port = 8000
 
+    uwsgi_auto_reload = False
+
     def _get_management_command(self, command):
         """
         Create the call for a management command.
@@ -168,12 +183,27 @@ class Django(Service):
             Uwsgi.setup(self)
             self.parent.install_wsgi_app()
 
+    class wsgi_app(Config):
+        remote_path = Q.parent.wsgi_app_location
 
-    def install_wsgi_app(self):
-        """
-        Install wsgi script for this django application
-        """
-        for h in self.hosts:
-            h.sudo("mkdir -p $(dirname '%s')" % self.wsgi_app_location)
-            h.open(self.wsgi_app_location, 'wb', use_sudo=True).write(wsgi_app_template % { 'settings_module': self.settings_module })
-            h.sudo("chown %s '%s'" % (self.username, self.wsgi_app_location))
+        @property
+        def content(self):
+            self = self.parent
+            return wsgi_app_template % {
+                'auto_reload': repr(self.uwsgi_auto_reload),
+                'settings_module': repr(self.settings_module),
+            }
+
+        def setup(self):
+            self.host.sudo("mkdir -p $(dirname '%s')" % self.remote_path)
+            Config.setup(self)
+            self.host.sudo("chown %s '%s'" % (self.parent.username, self.remote_path))
+
+     #   def install_wsgi_app(self):
+     #       """
+     #       Install wsgi script for this django application
+     #       """
+     #       for h in self.hosts:
+     #           h.sudo("mkdir -p $(dirname '%s')" % self.wsgi_app_location)
+     #           h.open(self.wsgi_app_location, 'wb', use_sudo=True).write(wsgi_app_template % { 'settings_module': self.settings_module })
+     #           h.sudo("chown %s '%s'" % (self.username, self.wsgi_app_location))
