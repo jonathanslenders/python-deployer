@@ -73,6 +73,10 @@ class Uwsgi(Service):
 
     uwsgi_download_url = 'http://projects.unbit.it/downloads/uwsgi-1.4.8.tar.gz'
 
+    # HTTP
+    use_http = False
+    http_port = 80
+
     @map_roles.just_one
     class _packages(AptGet):
         # libxml2-dev is required for compiling uwsgi
@@ -113,10 +117,15 @@ class Uwsgi(Service):
         UWSGI startup command
         Because of --daemonize, we don't need upstart anymore.
         """
-        return '%(virtual_env)s/bin/uwsgi -H %(virtual_env)s -s %(uwsgi_socket)s --threads %(threads)i --workers %(workers)i --stats %(stats)s ' \
+        if True:
+            socket = '--http 127.0.0.1:%s' % self.http_port
+        else:
+            socket = '-s %s' % self.uwsgi_socket
+
+        return '%(virtual_env)s/bin/uwsgi -H %(virtual_env)s %(uwsgi_socket)s --threads %(threads)i --workers %(workers)i --stats %(stats)s ' \
                 '%(pidfile)s %(daemonize)s %(log)s --logfile-chown %(username)s -M %(wsgi_app)s --uid %(username)s --chmod-socket %(chmod_socket)s' % {
                     'virtual_env': self.virtual_env_location,
-                    'uwsgi_socket': self.uwsgi_socket,
+                    'uwsgi_socket': socket,
                     'pidfile': ('--pidfile=%s' % self.pidfile if daemonize else ''),
                     'daemonize': '--daemonize' if daemonize else '',
                     'log': self.logfile,
