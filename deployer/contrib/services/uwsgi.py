@@ -117,7 +117,7 @@ class Uwsgi(Service):
         UWSGI startup command
         Because of --daemonize, we don't need upstart anymore.
         """
-        if True:
+        if self.use_http:
             socket = '--http 127.0.0.1:%s' % self.http_port
         else:
             socket = '-s %s' % self.uwsgi_socket
