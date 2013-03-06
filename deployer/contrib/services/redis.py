@@ -39,8 +39,8 @@ class Redis(Service):
     # host.
     port = 6379
     database = 0
+    password = None
     slug = required_property()
-    password = required_property()
 
     # username for the server process
     username = required_property()
