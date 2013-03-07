@@ -403,6 +403,10 @@ class Service(Handler):
         if self.service.parent and '..'.startswith(part):
             yield '..', Service(self.service.parent, self.shell, self.sandbox)
 
+        if '/'.startswith(part):
+            root = find_root_service(self.service)
+            yield '/', Service(root, self.shell, self.sandbox)
+
         for name, action in self.service.get_actions(include_private=include_private):
             if name.startswith(part):
                 yield name, Action(action, self.shell, self.sandbox)
@@ -417,6 +421,9 @@ class Service(Handler):
     def get_subhandler(self, name):
         if name == '..' and self.service.parent:
             return Service(self.service.parent, self.shell, self.sandbox)
+
+        elif name == '/':
+            return Service(find_root_service(self.service), self.shell, self.sandbox)
 
         elif self.service.has_subservice(name):
             subservice = self.service.get_subservice(name)
