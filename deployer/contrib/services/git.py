@@ -20,6 +20,7 @@ class GitBase(ServiceBase):
         'stash': 'stash',
         'stash_list': 'stash list',
         'stash_pop': 'stash pop',
+        'stash_clear': 'stash clear',
         'status': 'status',
         'version': 'version',
         'whatchanged': 'whatchanged',
