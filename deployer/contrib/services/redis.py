@@ -155,25 +155,25 @@ class Redis(Service):
     def shell(self):
         print 'Opening telnet connection to Redis... Press Ctrl-C to exit.'
         print
-        self.host.run('redis-cli -h localhost -a "%s" -p %s' % (self.password, self.port))
+        self.host.run('redis-cli -h localhost -a "%s" -p %s' % (self.password or '', self.port))
 
 
     def monitor(self):
         """
         Monitor all commands that are currently executed on this redis database.
         """
-        self.host.run('echo "MONITOR" | redis-cli -h localhost -a "%s" -p %s' % (self.password, self.port))
+        self.host.run('echo "MONITOR" | redis-cli -h localhost -a "%s" -p %s' % (self.password or '', self.port))
 
 
     def dbsize(self):
         """
         Return the number of keys in the selected database.
         """
-        self.host.run('echo "DBSIZE" | redis-cli -h localhost -a "%s" -p %s' % (self.password, self.port))
+        self.host.run('echo "DBSIZE" | redis-cli -h localhost -a "%s" -p %s' % (self.password or '', self.port))
 
 
     def info(self):
         """
         Get information and statistics about the server
         """
-        self.host.run('echo "INFO" | redis-cli -h localhost -a "%s" -p %s' % (self.password, self.port))
+        self.host.run('echo "INFO" | redis-cli -h localhost -a "%s" -p %s' % (self.password or '', self.port))
