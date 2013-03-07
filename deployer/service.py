@@ -102,7 +102,11 @@ class RoleMappingDecorator(object):
             # (This would cause problems if other references to the class
             # definition exist elsewhere.)
             new_meta = type('Meta', (subservice_class.Meta, ), { 'role_mapping': self.create_role_mapping() })
-            return type(subservice_class.__name__, (subservice_class, ), { 'Meta': new_meta })
+            return type(subservice_class.__name__, (subservice_class, ), {
+                        'Meta': new_meta,
+                        # Keep the module, to make sure that inspect.getsourcelines still works.
+                        '__module__': subservice_class.__module__,
+                        })
 
         # Else, passing in role mappings
         elif len(args) == 0 and len(kwargs):
@@ -1270,7 +1274,10 @@ def isolate_role(role):
     def isolate_decorator(service):
         # Don't modify the class, but create a new definition instead.
         new_meta = type('Meta', (service.Meta, ), { 'isolate_role': role })
-        return type(service.__name__, (service,), { 'Meta': new_meta })
+        return type(service.__name__, (service,), {
+                    'Meta': new_meta,
+                    '__module__': service.__module__,
+                     })
 
     # Add doc
     isolate_decorator.__doc__ = 'Turn on host isolation for the role "%s"' % role
