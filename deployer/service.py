@@ -1123,16 +1123,16 @@ class Service(object):
             node = node.parent
         return node
 
-    def get_actions(self):
+    def get_actions(self, include_private=False):
         """
         Yield all the available actions. Yields tuples of (name, Action callable.)
         (Except the private ones)
         """
         for name, member in inspect.getmembers(self):
-            if not name.startswith('_') and isinstance(member, Action) and not getattr(self, name).is_property:
+            if (include_private or not name.startswith('_')) and isinstance(member, Action) and not getattr(self, name).is_property:
                 yield name, getattr(self, name)
 
-    def get_subservices(self, include_isolations=True):
+    def get_subservices(self, include_isolations=True, include_private=False):
         """
         Yield the available nested subservices. Returns tupels of (name, subservice_instance)
         (Except the private ones)
@@ -1141,7 +1141,7 @@ class Service(object):
         """
         # Sub services
         for name, member in inspect.getmembers(self):
-            if not name.startswith('_') and name != 'parent':
+            if (include_private or not name.startswith('_')) and name not in ('parent', '_creator_service'):
                 if isinstance(member, Service):
                     yield name, getattr(self, name)
 

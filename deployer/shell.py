@@ -82,7 +82,7 @@ def create_navigable_handler(call_handler):
             if parent and name == '..':
                 return PathHandler(self.shell, parent)
 
-            for n, s in self.service.get_subservices():
+            for n, s in self.service.get_subservices(include_private=True):
                 if name == n:
                     return PathHandler(self.shell, s)
 
@@ -102,10 +102,11 @@ def create_navigable_handler(call_handler):
             if parent and '..'.startswith(part):
                 yield ('..', PathHandler(self.shell, parent))
 
-            for name, s in self.service.get_subservices():
+            # Note: when an underscore has been typed, include private too.
+            include_private = part.startswith('_')
+            for name, s in self.service.get_subservices(include_private=include_private):
                 if name.startswith(part):
                     yield name, PathHandler(self.shell, s)
-
 
         __call__ = call_handler
 
@@ -152,57 +153,6 @@ class Version(ShellHandler):
         print termcolor.colored('  Root service class:        ', 'cyan'),
         print termcolor.colored(self.shell.root_service.__module__, 'red'),
         print termcolor.colored('  <%s>' % self.shell.root_service.__class__.__name__, 'red')
-
-
-
-class Do(ShellHandler):
-    is_leaf = False
-    sandbox = False
-    handler_type = BuiltinType()
-
-    def complete_subhandlers(self, part):
-        service = self.shell.state._service
-
-        # Root
-        if '/'.startswith(part):
-            yield '/', Service(find_root_service(service), self.shell, self.sandbox)
-
-        # Parent
-        if service.parent and '..'.startswith(part):
-            yield '..', Service(service.parent, self.shell, self.sandbox)
-
-        # Services
-        for name, s in service.get_subservices():
-            if name.startswith(part):
-                yield name, Service(s, self.shell, self.sandbox)
-
-        # Actions
-        for name, a in service.get_actions():
-            if name.startswith(part):
-                yield name, Action(a, self.shell, self.sandbox)
-
-    def get_subhandler(self, name):
-        service = self.shell.state._service
-
-        # Root
-        if name == '/':
-            return Service(find_root_service(service), self.shell, self.sandbox)
-
-        # Parent
-        if service.parent and name == '..':
-            return Service(service.parent, self.shell, self.sandbox)
-
-        # Services
-        subservices = dict(service.get_subservices())
-        if name in subservices:
-            service = subservices[name]
-            return Service(service, self.shell, self.sandbox)
-
-        # Actions
-        actions = dict(service.get_actions())
-        if name in actions:
-            action = actions[name]
-            return Action(action, self.shell, self.sandbox)
 
 
 @create_navigable_handler
@@ -387,14 +337,6 @@ class Clear(ShellHandler):
         sys.stdout.flush()
 
 
-class Sandbox(Do):
-    """
-    Run commands in sandboxed mode. No code will be executed on remote servers.
-    """
-    sandbox = True
-    handler_type = BuiltinType()
-
-
 class Service(Handler):
     """
     Service node.
@@ -417,14 +359,16 @@ class Service(Handler):
             return type_of_service(self.service)
 
     def complete_subhandlers(self, part):
+        include_private = part.startswith('_')
+
         if self.service.parent and '..'.startswith(part):
             yield '..', Service(self.service.parent, self.shell, self.sandbox)
 
-        for name, action in self.service.get_actions():
+        for name, action in self.service.get_actions(include_private=include_private):
             if name.startswith(part):
                 yield name, Action(action, self.shell, self.sandbox)
 
-        for name, subservice in self.service.get_subservices():
+        for name, subservice in self.service.get_subservices(include_private=include_private):
             if name.startswith(part):
                 yield name, Service(subservice, self.shell, self.sandbox)
 
@@ -448,6 +392,13 @@ class Service(Handler):
     def __call__(self):
         if self.service._default_action:
             return Action(self.service.get_action(self.service._default_action), self.shell, self.sandbox).__call__()
+
+
+class Sandbox(Service):
+    handler_type = BuiltinType()
+
+    def __init__(self, service, shell):
+        Service.__init__(self, service, shell, True)
 
 
 class Action(Handler):
@@ -609,7 +560,6 @@ class Action(Handler):
 
 class RootHandler(ShellHandler):
     subhandlers = {
-            '.': Do,
             'cd': Cd,
             'clear': Clear,
             'exit': Exit,
@@ -617,9 +567,17 @@ class RootHandler(ShellHandler):
             'ls': Ls,
             '--connect': Connect,
             '--inspect': Inspect,
-            '--sandbox': Sandbox,
             '--version': Version,
     }
+
+    @property
+    def current_service(self):
+        return Service(self.shell.state._service, self.shell, sandbox=False)
+
+    @property
+    def sandboxed_current_service(self):
+        return Sandbox(self.shell.state._service, self.shell)
+
     def complete_subhandlers(self, part):
         """
         Return (name, Handler) subhandler pairs.
@@ -638,11 +596,23 @@ class RootHandler(ShellHandler):
             if name.startswith(part):
                 yield name, h(self.shell)
 
+        # Sandbox
+        if 'sandbox'.startswith(part):
+            yield 'sandbox', self.sandboxed_current_service
+
         # Services autocomplete for 'Do' -> 'do' is optional.
-        for name, h in Do(self.shell).complete_subhandlers(part):
+        dot = self.current_service
+        if '.'.startswith(part):
+            yield '.', dot
+
+        for name, h in dot.complete_subhandlers(part):
             yield name, h
 
     def get_subhandler(self, name):
+        # Current service
+        if name == '.':
+            return self.current_service
+
         # Default built-ins
         if name in self.subhandlers:
             return self.subhandlers[name](self.shell)
@@ -650,12 +620,16 @@ class RootHandler(ShellHandler):
         if self.shell.state.can_return and name == 'return':
             return Return(self.shell)
 
+        if name == 'sandbox':
+            return self.sandboxed_current_service
+
         # Extensions
         if name in self.shell.extensions:
             return self.shell.extensions[name](self.shell)
 
         # Services autocomplete for 'Do' -> 'do' is optional.
-        return Do(self.shell).get_subhandler(name)
+        dot = self.current_service
+        return dot.get_subhandler(name)
 
 
 class ShellState(object):
