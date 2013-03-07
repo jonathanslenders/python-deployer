@@ -302,6 +302,45 @@ def Ls(self):
 
     lesspipe(run(), self.shell.pty)
 
+@create_navigable_handler
+def SourceCode(self):
+    """
+    Print the source code of a service.
+    """
+    import inspect
+
+    from pygments import highlight
+    from pygments.lexers import PythonLexer
+    from pygments.formatters import TerminalFormatter
+    from deployer.console import choice
+
+    options = []
+
+    for m in self.service.__class__.__mro__:
+        if m.__module__ != 'deployer.service' and m != object:
+            options.append( ('%s.%s' % (
+                  termcolor.colored(m.__module__, 'red'),
+                  termcolor.colored(m.__name__, 'yellow')), m) )
+
+    if len(options) > 1:
+        service_class = choice('Choose service definition', options)
+    else:
+        service_class = options[0][1]
+
+    def run():
+        try:
+            # Retrieve source
+            source = inspect.getsource(service_class)
+
+            # Highlight code
+            source = highlight(source, PythonLexer(), TerminalFormatter())
+
+            for l in source.split('\n'):
+                yield l.rstrip('\n')
+        except IOError:
+            yield 'Could not retrieve source code.'
+
+    lesspipe(run(), self.shell.pty)
 
 class Exit(ShellHandler):
     """
@@ -568,6 +607,7 @@ class RootHandler(ShellHandler):
             '--connect': Connect,
             '--inspect': Inspect,
             '--version': Version,
+            '--source-code': SourceCode,
     }
 
     @property
