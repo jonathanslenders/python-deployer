@@ -32,15 +32,17 @@ class VirtualEnv(Service):
     # This can be python2.6 or python2.7 if you don't want to use the system default
     python_version = 'python'
 
-    def setup(self):
+    def setup(self, force_upgrade=False):
         """
         Setup virtualenv
         """
-        # Install packages
-        self.packages.install()
 
-        self.host.sudo('easy_install pip')
-        self.host.sudo('pip install -U pip virtualenv virtualenvwrapper')
+        if force_upgrade or not self.host.exists('/usr/local/bin/virtualenvwrapper.sh'):
+            # Install packages
+            self.packages.install()
+
+            self.host.sudo('easy_install pip')
+            self.host.sudo('pip install -U pip virtualenv virtualenvwrapper')
 
         # Install requirements
         self.mkvirtualenv()
