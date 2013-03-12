@@ -187,7 +187,7 @@ class Django(Service):
 
         def setup(self):
             Uwsgi.setup(self)
-            self.parent.install_wsgi_app()
+            self.parent.wsgi_app.setup()
 
     class wsgi_app(Config):
         remote_path = Q.parent.wsgi_app_location
