@@ -27,6 +27,9 @@ dir %(directory)s
 
 port %(port)s
 
+# Close the connection after a client is idle for N seconds (0 to disable)
+timeout %(timeout)s
+
 %(bind)s
 """
 
@@ -41,6 +44,8 @@ class Redis(Service):
     database = 0
     password = None
     slug = required_property()
+
+    timeout = 0
 
     # username for the server process
     username = required_property()
@@ -137,6 +142,7 @@ class Redis(Service):
                     'port': self.port,
                     'auto_save': 'save 60 1' if self.persistent else '',
                     'bind': ('bind %s' %  self.bind if self.bind else ''),
+                    'timeout': str(int(self.timeout)),
                 }
 
         def setup(self):
