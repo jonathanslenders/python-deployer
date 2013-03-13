@@ -487,41 +487,6 @@ class Action(Handler):
         # Report action call to logger interface
         action_callback = logger_interface.log_cli_action(command, sandbox)
 
-        def print_exec_failed_exception(e):
-            # hosts.run/sudo failed? Print error information.
-            print
-            print termcolor.colored('FAILED !!', 'red', attrs=['bold'])
-            print termcolor.colored('Command:     ', 'yellow'),
-            print termcolor.colored(e.command, 'red', attrs=['bold'])
-            print termcolor.colored('Host:        ', 'yellow'),
-            print termcolor.colored(e.host.slug, 'red', attrs=['bold'])
-            print termcolor.colored('Status code: ', 'yellow'),
-            print termcolor.colored(str(e.status_code), 'red', attrs=['bold'])
-            print
-
-        def print_query_exception(e):
-            print
-            print termcolor.colored('FAILED TO EXECUTE QUERY', 'red', attrs=['bold'])
-            print termcolor.colored('Service:     ', 'yellow'),
-            print termcolor.colored(e.service.__repr__(path_only=True), 'red', attrs=['bold'])
-            print termcolor.colored('Attribute:   ', 'yellow'),
-            print termcolor.colored(e.attr_name, 'red', attrs=['bold'])
-            print termcolor.colored('Query:       ', 'yellow'),
-            print termcolor.colored(e.query, 'red', attrs=['bold'])
-            print
-
-            if e.inner_exception:
-                if isinstance(e.inner_exception, ExecCommandFailed):
-                    print_exec_failed_exception(e.inner_exception)
-                else:
-                    print_other_exception(e.inner_exception)
-
-        def print_other_exception(e):
-            # Normal exception: print exception
-            print
-            print e
-            print
-
         try:
             if sandbox:
                 result = self.action(*self.args, _trace_action=True).sandbox(pty, logger_interface)
@@ -546,40 +511,11 @@ class Action(Handler):
                     handle_result(r.result)
 
         except ActionException, e:
-            if isinstance(e.inner_exception, ExecCommandFailed):
-                print_exec_failed_exception(e.inner_exception)
-
-            elif isinstance(e.inner_exception, QueryException):
-                print_query_exception(e.inner_exception)
-
-            else:
-                print '-'*79
-                print highlight(e.traceback, PythonTracebackLexer(), Formatter())
-                print '-'*79
-
-      #      # Print traceback through deployer services
-      #      print 'TODO: following trace is not entirely correct. It may show more deeper '
-      #      print '      than where the error actually occured.'
-
-      #      t = e.trace
-      #      while t:
-      #          from deployer.loggers.trace import TraceGroup
-      #          from deployer.loggers import Actions
-      #          if isinstance(t, TraceGroup):
-      #              print '- ', t.func_name
-      #              t = t.items[0] if t.items else None
-      #          elif t.entry_type == Actions.Run:
-      #              print '- (command) ', t.command
-      #              t = None
-      #          elif t.entry_type in (Actions.Put, Actions.Get, Actions.Open):
-      #              print '- (file) ', t.remote_path
-      #              t = None
-
-            action_callback.set_failed(e.inner_exception, e.traceback)
+            action_callback.set_failed(e)
 
         except Exception, e:
             # Print traceback and return to shell
-            print str(e)
+            print repr(e)
             print traceback.format_exc()
             action_callback.set_failed(e, traceback.format_exc())
 

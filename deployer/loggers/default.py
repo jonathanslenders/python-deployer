@@ -1,6 +1,11 @@
-from deployer.loggers import Logger, RunCallback, FileCallback, ForkCallback, Actions
-import termcolor
+from deployer.exceptions import ExecCommandFailed, QueryException
+from deployer.loggers import Logger, RunCallback, CliActionCallback, FileCallback, ForkCallback, Actions
+from pygments import highlight
+from pygments.formatters import TerminalFormatter as Formatter
+from pygments.lexers import PythonTracebackLexer
 import sys
+import termcolor
+
 
 class DefaultLogger(Logger):
     """
@@ -91,6 +96,13 @@ class DefaultLogger(Logger):
         self._print_start(run_entry.host, run_entry.command, run_entry.use_sudo, run_entry.sandboxing)
         return RunCallback(completed=lambda:
             self._print_end(run_entry.status_code == 0))
+
+    def log_cli_action(self, cli_entry):
+        def cli_entry_finished():
+            if not cli_entry.succeeded:
+                print_cli_exception(cli_entry, self.stdout)
+
+        return CliActionCallback(completed=cli_entry_finished)
 
     def log_file_opened(self, file_entry):
         self._print_start(file_entry.host, {
@@ -192,3 +204,77 @@ class IndentedDefaultLogger(DefaultLogger):
 #                    slave_stdout.write(colored('failed', 'red'))
 #
 #                slave_stdout.write('\0338') # ESC 8: Restore cursor position
+
+
+def print_cli_exception(cli_entry, stdout):
+    """
+    When an action, called from the interactive shell fails, print the
+    exception.
+    """
+    e = cli_entry.exception
+
+    def print_exec_failed_exception(e):
+        # hosts.run/sudo failed? Print error information.
+        print
+        print termcolor.colored('FAILED !!', 'red', attrs=['bold'])
+        print termcolor.colored('Command:     ', 'yellow'),
+        print termcolor.colored(e.command, 'red', attrs=['bold'])
+        print termcolor.colored('Host:        ', 'yellow'),
+        print termcolor.colored(e.host.slug, 'red', attrs=['bold'])
+        print termcolor.colored('Status code: ', 'yellow'),
+        print termcolor.colored(str(e.status_code), 'red', attrs=['bold'])
+        print
+
+    def print_query_exception(e):
+        print
+        print termcolor.colored('FAILED TO EXECUTE QUERY', 'red', attrs=['bold'])
+        print termcolor.colored('Service:     ', 'yellow'),
+        print termcolor.colored(e.service.__repr__(path_only=True), 'red', attrs=['bold'])
+        print termcolor.colored('Attribute:   ', 'yellow'),
+        print termcolor.colored(e.attr_name, 'red', attrs=['bold'])
+        print termcolor.colored('Query:       ', 'yellow'),
+        print termcolor.colored(e.query, 'red', attrs=['bold'])
+        print
+
+        if e.inner_exception:
+            if isinstance(e.inner_exception, ExecCommandFailed):
+                print_exec_failed_exception(e.inner_exception)
+            else:
+                print_other_exception(e.inner_exception)
+
+    def print_other_exception(e):
+        # Normal exception: print exception
+        print
+        print e
+        print
+
+    if isinstance(e.inner_exception, ExecCommandFailed):
+        print_exec_failed_exception(e.inner_exception)
+
+    elif isinstance(e.inner_exception, QueryException):
+        print_query_exception(e.inner_exception)
+
+    else:
+        print '-'*79
+        print highlight(e.traceback, PythonTracebackLexer(), Formatter())
+        print '-'*79
+
+  #      # Print traceback through deployer services
+  #      print 'TODO: following trace is not entirely correct. It may show more deeper '
+  #      print '      than where the error actually occured.'
+
+  #      t = e.trace
+  #      while t:
+  #          from deployer.loggers.trace import TraceGroup
+  #          from deployer.loggers import Actions
+  #          if isinstance(t, TraceGroup):
+  #              print '- ', t.func_name
+  #              t = t.items[0] if t.items else None
+  #          elif t.entry_type == Actions.Run:
+  #              print '- (command) ', t.command
+  #              t = None
+  #          elif t.entry_type in (Actions.Put, Actions.Get, Actions.Open):
+  #              print '- (file) ', t.remote_path
+  #              t = None
+
+

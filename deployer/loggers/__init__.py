@@ -71,14 +71,12 @@ class LoggerInterface(object):
                 entry.result = None
                 entry.succeeded = None
                 entry.exception = None
-                entry.traceback = None
 
                 entry._callbacks = [ l.log_cli_action(entry) for l in self.loggers ]
 
-            def set_failed(entry, exception, traceback):
+            def set_failed(entry, action_exception):
                 entry.time_ended = datetime.datetime.now()
-                entry.exception = exception
-                entry.traceback = traceback
+                entry.exception = action_exception
                 entry.succeeded = False
 
                 for c in entry._callbacks:

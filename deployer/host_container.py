@@ -102,8 +102,10 @@ class HostsContainer(object):
             host.filter('role1', MyHostClass) # This means: take 'role1' from this container, but add an instance of this class
 
         """
-        if len(roles) == 1 and any(isinstance(roles[0], t) for t in (tuple, list)): # TODO: deprecate this line.
+        # TODO: deprecate this line.
+        if len(roles) == 1 and any(isinstance(roles[0], t) for t in (tuple, list)):
             roles = roles[0]
+            import warnings; warnings.warn('DeprecationWarning: called hosts.filter([...]) with tuple parameter.')
 
         return self._new(_filter_hosts(self._hosts, roles))
 
