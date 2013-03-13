@@ -483,9 +483,3 @@ Feature work
   ```
 
   This would require some changes to the `host.py` file.
-
-* Use pyrepl for the command line interface. Right now we have our own
-  readline replacement, but this is incomplete. (It does not yet support
-  reverse search, or multiline editing, etc...  pyrepl may be the solution.
-  (If it's efficient in terms of unbufferred I/O flushing. Otherwise we
-  can still get some inspiration over there.)
