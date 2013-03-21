@@ -276,6 +276,51 @@ class ServiceBase(type):
     # increased after every definition of a Service class.
     creation_counter = 0
 
+    @classmethod
+    def _preprocess_attributes(cls, attrs, base):
+        """
+        Do double-underscore preprocessing of attributes.
+        e.g.
+        `server__ssl_is_enabled = True` will override the `ssl_is_enabled`
+        value of the server object in attrs.
+        """
+        new_attrs = { }
+        override = { } # { attr_to_override: { k->v } }
+
+        # Split attributes in real attributes and "nested overrides".
+        for k,v in attrs.items():
+            if '__' in k and not k.startswith('__'): # Allow name mangling.
+                # Split at __ (only split at the first __, type(...) below
+                # does it recursively.)
+                attr_to_override, key = k.split('__', 1)
+
+                if attr_to_override in override:
+                    override[attr_to_override][key] = v
+                else:
+                    override[attr_to_override] = { key : v }
+            else:
+                new_attrs[k] = v
+
+        # Now apply overrides.
+        for attr, overrides in override.items():
+            first_override = overrides.keys()[0]
+
+            if attr in new_attrs:
+                raise Exception("Don't override %s__%s property in the same scope." %
+                                (attr, first_override))
+            elif hasattr(base, attr):
+                original_service = getattr(base, attr)
+
+                if not issubclass(original_service, Service):
+                    raise Exception('Service override %s__%s is not applied on a Service class.' %
+                                    (attr, first_override))
+                else:
+                    new_attrs[attr] = type(attr, (original_service,), overrides)
+            else:
+                raise Exception("Couldn't find %s__%s to override." % (attr, first_override))
+
+        return new_attrs
+
     def __new__(cls, name, bases, attrs):
         # No multiple inheritance allowed.
         if len(bases) > 1:
@@ -284,6 +329,9 @@ class ServiceBase(type):
 
         # Default action, if one was defined is some of the bases, use that one.
         default_action = getattr(bases[0], '_default_action', None)
+
+        # Preprocess __ in attributes
+        attrs = cls._preprocess_attributes(attrs, bases[0])
 
         if name != 'Service':
             # Do not allow __init__ to be overriden
