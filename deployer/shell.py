@@ -312,7 +312,7 @@ def SourceCode(self):
     from pygments import highlight
     from pygments.lexers import PythonLexer
     from pygments.formatters import TerminalFormatter
-    from deployer.console import choice
+    from deployer.console import choice, NoInput
 
     options = []
 
@@ -323,7 +323,10 @@ def SourceCode(self):
                   termcolor.colored(m.__name__, 'yellow')), m) )
 
     if len(options) > 1:
-        service_class = choice('Choose service definition', options)
+        try:
+            service_class = choice('Choose service definition', options)
+        except NoInput:
+            return
     else:
         service_class = options[0][1]
 
