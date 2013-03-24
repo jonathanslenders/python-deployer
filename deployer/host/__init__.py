@@ -7,6 +7,7 @@
 #   - should be extensible with a web interface.
 
 
+import StringIO
 import copy
 import getpass
 import os
@@ -788,13 +789,17 @@ class SSHBackend(object):
                 self._ssh_cache.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
             try:
-                if h.key_filename:
-                    # When a key filename has been given, use the key
-                    self._ssh_cache.connect(h.address, port=h.port, username=h.username, key_filename=h.key_filename, timeout=h.timeout)
-
+                # Paramiko's authentication method can be either a public key, public key file, or password.
+                if h.rsa_key:
+                    # RSA key
+                    rsa_key_file_obj = StringIO.StringIO(h.rsa_key)
+                    kw = { "pkey": paramiko.RSAKey.from_private_key(rsa_key_file_obj, h.rsa_key_password) }
+                elif h.key_filename:
+                    kw = { "key_filename": h.key_filename }
                 else:
-                    # Otherwise, use a password instead
-                    self._ssh_cache.connect(h.address, port=h.port, username=h.username, password=h.password, timeout=h.timeout)
+                    kw = { "password": h.password }
+
+                self._ssh_cache.connect(h.address, port=h.port, username=h.username, timeout=h.timeout, **kw)
 
             except (paramiko.SSHException, Exception) as e:
                 self._ssh_cache = None
@@ -813,6 +818,8 @@ class SSHHost(Host):
     # Base host configuration
     reject_unknown_hosts = False
     key_filename = None
+    rsa_key = None
+    rsa_key_password = None
     address = 'example.com'
     username = 'someone'
     port = 22
