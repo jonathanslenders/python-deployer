@@ -6,6 +6,7 @@ from deployer.contrib.services.upstart import UpstartService
 from deployer.query import Q
 from deployer.service import Service, required_property, isolate_host
 from pygments.lexers import IniLexer
+from deployer.utils import esc1
 
 
 # /etc/redis.conf template
@@ -29,6 +30,9 @@ port %(port)s
 
 # Close the connection after a client is idle for N seconds (0 to disable)
 timeout %(timeout)s
+
+# Logfile
+logfile %(logfile)s
 
 %(bind)s
 """
@@ -72,6 +76,10 @@ class Redis(Service):
     @property
     def config_file(self):
         return '/etc/redis-%s.conf' % self.slug
+
+    @property
+    def logfile(self):
+        return '/var/log/redis-%s.log' % self.slug
 
     class packages(AptGet):
         # Packages required for building redis
@@ -142,12 +150,20 @@ class Redis(Service):
                     'auto_save': 'save 60 1' if self.persistent else '',
                     'bind': ('bind %s' %  self.bind if self.bind else ''),
                     'timeout': str(int(self.timeout)),
+                    'logfile': self.logfile,
                 }
 
         def setup(self):
             Config.setup(self)
             self.host.sudo("chown '%s' '%s' " % (self.parent.username, self.remote_path))
 
+    def touch_logfile(self):
+        # Touch and chown logfile.
+        self.host.sudo("touch '%s'" % esc1(self.logfile))
+        self.host.sudo("chown '%s' '%s'" % (esc1(self.username), esc1(self.logfile)))
+
+    def tail_logfile(self):
+        self.host.sudo("tail -n 20 -f '%s'" % esc1(self.logfile))
 
     @property
     def is_already_installed(self):
