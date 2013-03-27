@@ -519,8 +519,9 @@ class Action(Handler):
         except Exception, e:
             # Print traceback and return to shell
             print repr(e)
-            print traceback.format_exc()
-            action_callback.set_failed(e, traceback.format_exc())
+            tb = traceback.format_exc()
+            action_callback.set_failed(e, traceback=tb)
+
 
     def complete_subhandlers(self, part):
         # Autocompletion for first action parameter

@@ -237,10 +237,7 @@ def print_cli_exception(cli_entry, stdout):
         print
 
         if e.inner_exception:
-            if isinstance(e.inner_exception, ExecCommandFailed):
-                print_exec_failed_exception(e.inner_exception)
-            else:
-                print_other_exception(e.inner_exception)
+            print_exception(e.inner_exception)
 
     def print_other_exception(e):
         # Normal exception: print exception
@@ -248,16 +245,20 @@ def print_cli_exception(cli_entry, stdout):
         print e
         print
 
-    if isinstance(e.inner_exception, ExecCommandFailed):
-        print_exec_failed_exception(e.inner_exception)
+    def print_exception(e):
+        if isinstance(e, ExecCommandFailed):
+            print_exec_failed_exception(e)
+        elif isinstance(e, QueryException):
+            print_query_exception(e)
+        else:
+            print_other_exception(e)
 
-    elif isinstance(e.inner_exception, QueryException):
-        print_query_exception(e.inner_exception)
+    if cli_entry.traceback:
+        print '-'*79
+        print highlight(cli_entry.traceback, PythonTracebackLexer(), Formatter())
+        print '-'*79
 
-    else:
-        print '-'*79
-        print highlight(e.traceback, PythonTracebackLexer(), Formatter())
-        print '-'*79
+    print_exception(e)
 
   #      # Print traceback through deployer services
   #      print 'TODO: following trace is not entirely correct. It may show more deeper '
