@@ -126,7 +126,16 @@ class DeploymentClient(object):
 
             # Unmarshalling succeeded, call callback
             if action == '_print':
-                sys.stdout.write(data)
+                while True:
+                    try:
+                        sys.stdout.write(data)
+                        break
+                    except IOError, e:
+                        # Sometimes, when we have a lot of output, we get here:
+                        # IOError: [Errno 11] Resource temporarily unavailable
+                        # Just waiting a little, and retrying seems to work.
+                        # See also: deployer.host.__init__ for a similar issue.
+                        time.sleep(0.2)
 
             elif action == 'open-new-window':
                 focus = data['focus']

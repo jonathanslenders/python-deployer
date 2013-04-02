@@ -345,7 +345,17 @@ class Host(object):
                         log_entry.log_io(x)
 
                         # Write received characters to stdout and flush
-                        pty.stdout.write(x)
+                        while True:
+                            try:
+                                pty.stdout.write(x)
+                                break
+                            except IOError, e:
+                                # Sometimes, when we have a lot of output, we get here:
+                                # IOError: [Errno 11] Resource temporarily unavailable
+                                # Just waiting a little, and retrying seems to work.
+                                # See also: deployer.run.socket_client for a similar issue.
+                                time.sleep(0.2)
+
                         pty.stdout.flush()
 
                         # Also remember received output.
@@ -389,8 +399,8 @@ class Host(object):
             # Restore terminal
             termios.tcsetattr(pty.stdin, termios.TCSADRAIN, oldtty)
 
-        # Set blocking again
-        fdesc.setBlocking(pty.stdin)
+            # Set blocking again
+            fdesc.setBlocking(pty.stdin)
 
         return ''.join(result)
 
