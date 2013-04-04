@@ -56,7 +56,7 @@ class Host(object):
     start_path = None # None or string
 
     # Terminal to report to use for interactive sessions
-    term = 'xterm' # xterm, vt100, xterm-256color
+    term = os.environ.get('TERM', 'xterm') # xterm, vt100, xterm-256color
 
     # Magic prompt. We expect this string to not appear in the stdout of
     # random programs. This makes it possible to automatically send the
