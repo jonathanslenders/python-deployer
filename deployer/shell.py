@@ -4,7 +4,6 @@ import termcolor
 import traceback
 
 from deployer.cli import CLInterface, Handler, HandlerType
-from deployer.exceptions import ExecCommandFailed, QueryException
 from deployer.service import ActionException
 from deployer.console import lesspipe, in_columns
 from itertools import groupby
@@ -512,6 +511,8 @@ class Action(Handler):
             if isinstance(result, list):
                 for r in result:
                     handle_result(r.result)
+            else:
+                handle_result(result)
 
         except ActionException, e:
             action_callback.set_failed(e)

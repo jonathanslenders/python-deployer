@@ -1,5 +1,6 @@
 from deployer.exceptions import ExecCommandFailed, QueryException
 from deployer.loggers import Logger, RunCallback, CliActionCallback, FileCallback, ForkCallback, Actions
+from deployer.service import ActionException
 from pygments import highlight
 from pygments.formatters import TerminalFormatter as Formatter
 from pygments.lexers import PythonTracebackLexer
@@ -99,6 +100,7 @@ class DefaultLogger(Logger):
 
     def log_cli_action(self, cli_entry):
         def cli_entry_finished():
+            print 'cli_entry_finished'
             if not cli_entry.succeeded:
                 print_cli_exception(cli_entry, self.stdout)
 
@@ -239,6 +241,14 @@ def print_cli_exception(cli_entry, stdout):
         if e.inner_exception:
             print_exception(e.inner_exception)
 
+    def print_action_exception(e):
+        if isinstance(e.inner_exception, (ExecCommandFailed, QueryException)):
+            print_exception(e.inner_exception)
+        else:
+            print '-'*79
+            print highlight(e.traceback, PythonTracebackLexer(), Formatter())
+            print '-'*79
+
     def print_other_exception(e):
         # Normal exception: print exception
         print
@@ -246,7 +256,9 @@ def print_cli_exception(cli_entry, stdout):
         print
 
     def print_exception(e):
-        if isinstance(e, ExecCommandFailed):
+        if isinstance(e, ActionException):
+            print_action_exception(e)
+        elif isinstance(e, ExecCommandFailed):
             print_exec_failed_exception(e)
         elif isinstance(e, QueryException):
             print_query_exception(e)
