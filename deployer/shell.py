@@ -162,7 +162,10 @@ def Connect(self):
     from deployer.contrib.services import connect
     from deployer.host_container import HostsContainer
     c = connect.Connect(HostsContainer({ 'host': self.service.hosts._all }))
-    c.with_host().run(self.shell.pty, self.shell.logger_interface)
+
+    # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
+    Action(c.with_host, self.shell, False)()
+
 
 @create_navigable_handler
 def Find(self):
