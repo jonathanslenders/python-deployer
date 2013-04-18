@@ -632,6 +632,11 @@ class ShellState(object):
         self._service = subservice
         self._prev_service = None
 
+    def clone(self):
+        s = ShellState(self._service, self._return_state)
+        s._prev_service = self._prev_service
+        return s
+
     @property
     def prompt(self):
         # Returns a list of (text,color) tuples for the prompt.
@@ -674,7 +679,7 @@ class Shell(CLInterface):
         self.logger_interface = logger_interface
 
         if clone_shell:
-            self.state = clone_shell.state
+            self.state = clone_shell.state.clone()
         else:
             self._reset_navigation()
 
