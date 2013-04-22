@@ -92,23 +92,23 @@ class VirtualEnv(Service):
         """
         Install packages through PIP.
         """
-        with self.hosts.prefix(self.activate_cmd):
+        with self.host.prefix(self.activate_cmd):
             for f in self.requirements_files:
-                self.hosts.run(_pip_install("-r '%s'" % esc1(f)))
+                self.host.run(_pip_install("-r '%s'" % esc1(f)))
 
             for r in self.requirements:
-                self.hosts.run(_pip_install("'%s'" % esc1(r)))
+                self.host.run(_pip_install("'%s'" % esc1(r)))
 
     def upgrade_requirements(self):
         """
         Upgrade packages through PIP.
         """
-        with self.hosts.prefix(self.activate_cmd):
+        with self.host.prefix(self.activate_cmd):
             for f in self.requirements_files:
-                self.hosts.run(_pip_install("-U -r '%s'" % esc1(f)))
+                self.host.run(_pip_install("-U -r '%s'" % esc1(f)))
 
             for r in self.requirements:
-                self.hosts.run(_pip_install("-U '%s'" % esc1(r)))
+                self.host.run(_pip_install("-U '%s'" % esc1(r)))
 
     @dont_isolate_yet
     def install_package(self, package=None):
@@ -120,8 +120,8 @@ class VirtualEnv(Service):
         """
         Install package manually through PIP.
         """
-        with self.hosts.prefix(self.activate_cmd):
-            self.hosts.run(_pip_install("-U '%s'" % esc1(package)))
+        with self.host.prefix(self.activate_cmd):
+            self.host.run(_pip_install("-U '%s'" % esc1(package)))
 
     def install_ipython(self, version='0.10.2'):
         self.install_package('ipython==%s' % version)
