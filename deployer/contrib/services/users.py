@@ -1,14 +1,16 @@
-from deployer.service import Service, isolate_host
+from deployer.service import Service, isolate_host, required_property
 from deployer.utils import esc1
-
+from deployer.query import Q
 
 @isolate_host
 class User(Service):
     """
     Unix/Linux user management.
     """
-    username = 'username'
-    home_directory = '/home/username'
+    username = required_property()
+    groupname = Q.username
+    has_home_directory = True
+    home_directory_base = None
     shell = '/bin/bash'
 
     def create(self):
@@ -16,23 +18,35 @@ class User(Service):
         Create this user and home directory.
         (Does not fail when the user or directory already exists.)
         """
-        username = esc1(self.username)
-        home_directory = esc1(self.home_directory)
-        shell = esc1(self.shell)
+        if self.exists():
+            return
 
-        # Create user if he doesn't exists yet
-        self.hosts.sudo("grep '%s' /etc/passwd || useradd '%s' -d '%s' -s '%s' " % (username, username, home_directory, shell))
+        useradd_args = []
+        useradd_args.append("'%s'" % esc1(self.username))
+        useradd_args.append("-s '%s'" % self.shell)
+        if self.has_home_directory:
+            useradd_args.append('-m')
+            if self.home_directory_base:
+                useradd_args.append("-b '%s'" % self.home_directory_base)
+        else:
+            useradd_args.append('-M')
 
-        # Create home directory, and make this user the owner
-        self.hosts.sudo("mkdir -p '%s' " % home_directory)
-        self.hosts.sudo("chown %s:%s '%s' " % (username, username, self.home_directory))
+        # Group
+        if self.username == self.groupname:
+            useradd_args.append('-U')
+        else:
+            if self.groupname:
+                self.host.sudo("grep '%s' /etc/group || groupadd '%s'" % esc1(self.groupname), esc1(self.groupname))
+                useradd_args.append("-g '%s'" % esc1(self.groupname))
+
+        self.host.sudo("useradd " + " ".join(useradd_args))
 
     def exists(self):
         """
         Return true when this user account was already created.
         """
         try:
-            self.hosts.sudo("grep '%s' /etc/passwd" % self.username)
+            self.host.sudo("grep '%s' /etc/passwd" % self.username)
             return True
         except:
             return False
