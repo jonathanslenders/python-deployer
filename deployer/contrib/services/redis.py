@@ -58,7 +58,7 @@ class Redis(Service):
     bind = None
 
     # Download URL
-    redis_download_url = 'http://redis.googlecode.com/files/redis-2.6.11.tar.gz'
+    redis_download_url = 'http://redis.googlecode.com/files/redis-2.6.13.tar.gz'
 
     # directory for the database file, or None for the home directory
     @property
