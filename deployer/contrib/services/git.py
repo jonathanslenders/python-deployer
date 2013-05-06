@@ -89,22 +89,19 @@ class Git(Service):
             with host.cd(self.repository_location):
                 host.run('git fetch --all --prune')
 
-                # Check whether commit exists
-                check_commit = "git show '%s' --oneline --summary > /dev/null"
-                host.run(check_commit % esc1(commit))
-
                 # Stash
                 if existed:
                     host.run('git stash')
 
                 # Checkout
-                host.run("git checkout '%s'" % esc1(commit))
-                host.run("git submodule update --init") # Also load submodules.
-
-                # Pop stash
-                if existed:
+                try:
+                    host.run("git checkout '%s'" % esc1(commit))
+                    host.run("git submodule update --init") # Also load submodules.
+                finally:
+                    # Pop stash
                     try:
-                        host.run('git stash pop 2>&1', interactive=False) # will fail when checkout had no local changes
+                        if existed:
+                            host.run('git stash pop 2>&1', interactive=False) # will fail when checkout had no local changes
                     except ExecCommandFailed, e:
                         result = e.result
                         if result.strip() not in ('Nothing to apply', 'No stash found.'):
