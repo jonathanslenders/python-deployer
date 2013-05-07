@@ -71,7 +71,7 @@ class Uwsgi(Service):
     uwsgi_workers = 2
     username = required_property()
 
-    uwsgi_download_url = 'http://projects.unbit.it/downloads/uwsgi-1.4.8.tar.gz'
+    uwsgi_download_url = 'http://projects.unbit.it/downloads/uwsgi-1.9.8.tar.gz'
 
     # HTTP
     use_http = False
