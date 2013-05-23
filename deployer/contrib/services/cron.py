@@ -30,11 +30,9 @@ class Cron(Service):
 
     # ===============[ Tasks ]================
 
-    def activate_all(self, host=None):
-        hosts = [host] if host else self.hosts
-        for host in hosts:
-            home = host.get_home_directory(self.username)
-            host.sudo('cat %s/.deployer-crons/* | crontab' % home, user=self.username)
+    def activate_all(self):
+        home = self.host.get_home_directory(self.username)
+        self.host.sudo('cat %s/.deployer-crons/* | crontab' % home, user=self.username)
 
     # Deprecated (confusing naming)
     def install(self):
@@ -45,20 +43,19 @@ class Cron(Service):
         Install cronjob
         (This will leave the other cronjobs, created by this service intact.)
         """
-        for host in self.hosts:
-            # Get home directory for this user
-            home = host.get_home_directory(self.username)
+        # Get home directory for this user
+        home = self.host.get_home_directory(self.username)
 
-            # Create a subdirectory .deployer-crons if this does not yet exist
-            host.sudo('mkdir -p %s/.deployer-crons' % home)
-            host.sudo('chown %s %s/.deployer-crons' % (self.username, home))
+        # Create a subdirectory .deployer-crons if this does not yet exist
+        self.host.sudo('mkdir -p %s/.deployer-crons' % home)
+        self.host.sudo('chown %s %s/.deployer-crons' % (self.username, home))
 
-            # Write this cronjob into deployer-crons/slug
-            host.open('%s/.deployer-crons/%s' % (home, self.slug), 'wb', use_sudo=True).write(self.cron_line)
-            host.sudo('chown %s %s/.deployer-crons/%s' % (self.username, home, self.slug))
+        # Write this cronjob into deployer-crons/slug
+        self.host.open('%s/.deployer-crons/%s' % (home, self.slug), 'wb', use_sudo=True).write(self.cron_line)
+        self.host.sudo('chown %s %s/.deployer-crons/%s' % (self.username, home, self.slug))
 
-            if not skip_activate:
-                self.activate_all(host)
+        if not skip_activate:
+            self.activate_all()
 
     # Deprecated (confusing naming)
     def uninstall(self):
@@ -68,17 +65,16 @@ class Cron(Service):
         """
         Uninstall cronjob
         """
-        for host in self.hosts:
-            # Get home directory for this user
-            home = host.get_home_directory(self.username)
+        # Get home directory for this user
+        home = self.host.get_home_directory(self.username)
 
-            # Remove this cronjob
-            path = '%s/.deployer-crons/%s' % (home, self.slug)
-            if host.exists(path):
-                host.sudo("rm '%s' " % path)
+        # Remove this cronjob
+        path = '%s/.deployer-crons/%s' % (home, self.slug)
+        if self.host.exists(path):
+            self.host.sudo("rm '%s' " % path)
 
-            if not skip_activate:
-                self.activate_all(host)
+        if not skip_activate:
+            self.activate_all()
 
     @property
     def cron_line(self):
@@ -91,12 +87,11 @@ class Cron(Service):
         print self.cron_line
 
     def run_now(self):
-        self.hosts.sudo(self.command, user=self.username)
+        self.host.sudo(self.command, user=self.username)
 
     def list_all_crons(self):
-        for host in self.hosts:
-            # Get home directory for this user
-            home = host.get_home_directory(self.username)
+        # Get home directory for this user
+        home = self.host.get_home_directory(self.username)
 
-            # Print crontabs
-            host.sudo('cat %s/.deployer-crons/* ' % home, user=self.username)
+        # Print crontabs
+        self.host.sudo('cat %s/.deployer-crons/* ' % home, user=self.username)
