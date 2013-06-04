@@ -1,4 +1,3 @@
-from deployer.console import confirm, input
 from deployer.exceptions import ExecCommandFailed
 from deployer.service import Service, isolate_host, dont_isolate_yet, ServiceBase, required_property, default_action
 from deployer.utils import esc1
@@ -67,7 +66,7 @@ class Git(Service):
 
         # If no commit was given, ask for commit.
         if not commit:
-            commit = input('Git commit', default=self.default_revision)
+            commit = self.console.input('Git commit', default=self.default_revision)
             if not commit: raise Exception('No commit given')
 
         self._checkout(commit)
@@ -106,7 +105,7 @@ class Git(Service):
                         result = e.result
                         if result.strip() not in ('Nothing to apply', 'No stash found.'):
                             print result
-                            if not confirm('Should we continue?'):
+                            if not self.console.confirm('Should we continue?', default=True):
                                 raise Exception('Problem with popping your stash, please check logs and try again.')
 
 class GitOverview(Service):

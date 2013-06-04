@@ -126,7 +126,6 @@ class StandaloneShell(Shell):
     """
     def __init__(self, settings, pty, logger_interface, history):
         Shell.__init__(self, settings, pty, logger_interface)
-
         self.history = history
 
     @property
@@ -134,34 +133,7 @@ class StandaloneShell(Shell):
         return { 'history': History, }
 
 
-def create_logger():
-    """
-    Create a logger, depending on the environment.
-    If we run in tmux, log to another pane.
-    """
-    if 'TMUX' in os.environ:
-        # Show logging information in a separate TMUX pane.
-
-        # Create fifo pipe
-        filename = '/tmp/deployment-log-%s' % ''.join(random.sample(string.ascii_letters, 20))
-        if not os.path.exists(filename):
-            os.mkfifo(filename)
-
-        # Split window, and open pipo in the new pane
-        os.popen('tmux split-window "cat %s; rm %s"; tmux last-pane ' % (filename, filename))
-
-        # Start logger in this pane
-        #logger_stdout = codecs.open(filename, encoding=sys.stdout.encoding, mode='w+', errors='replace')
-        logger_stdout = codecs.open(filename, mode='w+', errors='replace')
-        logger_stdout.write('\n\n*** Logging output only. Type commands in the other pane.\n\n')
-        logger_stdout.flush()
-        return IndentedDefaultLogger(logger_stdout)
-    else:
-        # If no tmux is available, log to stdout.
-        return DefaultLogger(sys.__stdout__)
-
-
-def start(settings):
+def start(settings, interactive=True):
     """
     Start the deployment shell in standalone modus. (No parrallel execution,
     no server/client. Just one interface, and everything sequential.)
@@ -172,7 +144,7 @@ def start(settings):
     sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 
     # Create Pty object
-    pty = Pty(sys.stdin, sys.stdout)
+    pty = Pty(sys.stdin, sys.stdout, interactive=interactive)
 
     def sigwinch_handler(n, frame):
         pty.trigger_resize()
@@ -182,18 +154,17 @@ def start(settings):
     settings = settings()
 
     # Loggers
-    logger = create_logger()
     history_logger = HistoryLogger()
     extra_loggers = settings.Meta.extra_loggers
 
     logger_interface = LoggerInterface()
-    logger_interface.attach(logger)
     logger_interface.attach(history_logger)
 
     for l in extra_loggers:
         logger_interface.attach(l)
 
     # Start shell command loop
+    print 'Running single threaded shell...'
     StandaloneShell(settings, pty, logger_interface, history_logger.history).cmdloop()
 
     for l in extra_loggers:

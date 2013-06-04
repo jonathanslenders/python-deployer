@@ -1,4 +1,4 @@
-from deployer.console import input
+from deployer.console import Console
 from deployer.host import Host
 from deployer.host_container import HostsContainer, HostContainer
 from deployer.service_groups import Group
@@ -491,6 +491,13 @@ class Env(object):
         return self._service._is_isolated
 
     @property
+    def console(self):
+        """
+        Proxy object to the pseudoterminal.
+        """
+        return Console(self._pty)
+
+    @property
     def super(self):
         """
         super property does not work, use following construct:
@@ -541,7 +548,8 @@ class Env(object):
                 forkname = proxy.__getname()
 
                 # Ask before forking in sandboxed mode.
-                if self._is_sandbox and input('Do you want to fork %s in sandbox?' % forkname, answers=['y', 'n']) == 'n':
+                if self._is_sandbox and not self.console.confirm('Do you want to fork %s in sandbox?' % forkname,
+                                default=False):
                     return
 
                 # Fork logger
@@ -829,8 +837,7 @@ class Action(object):
                     # Multiple cells, but need to be run on only one.
                     elif len(isolations) > 1 and getattr(self._func, 'isolate_one_only', False):
                         # Ask the end-user which one to use.
-                        from deployer.console import select_service_isolation
-                        isolation_service = select_service_isolation(service)
+                        isolation_service = Console(pty).select_service_isolation(service)
 
                         # This this action on the new service.
                         return [ a._run_on_service(pty, logger_interface, sandboxed, isolation_service) ]
@@ -932,7 +939,7 @@ class Action(object):
                     print 'An exception was raised during *sandboxed* execution.'
                     print 'If you go on, the simulation will possibly be different from real execution.'
 
-                    if input('Go on?', answers=['y', 'n']) == 'n':
+                    if not Console(pty).confirm('Go on?', default=False):
                         raise e
 
         # When an action is called unbound, but with the first parameter

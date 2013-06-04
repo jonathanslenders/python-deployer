@@ -5,7 +5,7 @@ import traceback
 
 from deployer.cli import CLInterface, Handler, HandlerType
 from deployer.service import ActionException
-from deployer.console import lesspipe, in_columns
+from deployer.console import Console
 from itertools import groupby
 import deployer
 
@@ -187,6 +187,8 @@ def Inspect(self):
     """
     Inspection of the current service. Show host mappings and other information.
     """
+    console = Console(self.shell.pty)
+
     def inspect():
         # Print full name
         yield termcolor.colored('  Service:    ', 'cyan') + \
@@ -242,7 +244,7 @@ def Inspect(self):
             for name, a in self.service.get_actions():
                 yield termcolor.colored(name, 'red'), len(name)
 
-        for line in in_columns(item_iterator(), self.shell.pty, margin_left=13):
+        for line in console.in_columns(item_iterator(), margin_left=13):
             yield line
 
         # Services
@@ -265,10 +267,10 @@ def Inspect(self):
                     yield text, length
 
             # Show in columns
-            for line in in_columns(item_iterator(), self.shell.pty, margin_left=13):
+            for line in console.in_columns(item_iterator(), margin_left=13):
                 yield line
 
-    lesspipe(inspect(), self.shell.pty)
+    console.lesspipe(inspect())
 
 
 @create_navigable_handler
@@ -282,6 +284,7 @@ def Ls(self):
     List subservices and actions in the current service.
     """
     w = self.shell.stdout.write
+    console = Console(self.shell.pty)
 
     def run():
         # Print services
@@ -290,7 +293,7 @@ def Ls(self):
             def column_iterator():
                 for name, service in self.service.get_subservices():
                     yield termcolor.colored(name, type_of_service(service).color), len(name)
-            for line in in_columns(column_iterator(), self.shell.pty):
+            for line in console.in_columns(column_iterator()):
                 yield line
 
         # Print actions
@@ -299,10 +302,10 @@ def Ls(self):
             def column_iterator():
                 for name, action in self.service.get_actions():
                     yield termcolor.colored(name, type_of_action(action).color), len(name)
-            for line in in_columns(column_iterator(), self.shell.pty):
+            for line in console.in_columns(column_iterator()):
                 yield line
 
-    lesspipe(run(), self.shell.pty)
+    console.lesspipe(run())
 
 @create_navigable_handler
 def SourceCode(self):

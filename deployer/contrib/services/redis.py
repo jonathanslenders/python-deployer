@@ -1,4 +1,3 @@
-from deployer.console import confirm
 from deployer.contrib.commands import wget
 from deployer.contrib.services.apt_get import AptGet
 from deployer.contrib.services.config import Config
@@ -102,7 +101,7 @@ class Redis(Service):
         # Also make sure that redis was not yet installed
         if self.is_already_installed:
             print 'Warning: Redis is already installed'
-            if not confirm('Redis is already installed. Reinstall?'):
+            if not self.console.confirm('Redis is already installed. Reinstall?'):
                 return
 
         # Install dependencies
@@ -127,6 +126,38 @@ class Redis(Service):
                     self.host.sudo('make install')
 
         self.config.setup()
+        self.touch_logfile()
+
+    def tail_logfile(self):
+        self.host.sudo("tail -n 20 -f '%s'" % esc1(self.logfile))
+
+    @property
+    def is_already_installed(self):
+        """
+        Returns true when redis was already installed on all hosts
+        """
+        return self.host.exists(self.config_file) and self.upstart_service.is_already_installed()
+
+
+    def shell(self):
+        print 'Opening telnet connection to Redis... Press Ctrl-C to exit.'
+        print
+        self.host.run('redis-cli -h localhost -a "%s" -p %s' % (self.password or '', self.port))
+
+
+    def monitor(self):
+        """
+        Monitor all commands that are currently executed on this redis database.
+        """
+        self.host.run('echo "MONITOR" | redis-cli -h localhost -a "%s" -p %s' % (self.password or '', self.port))
+
+
+    def dbsize(self):
+        """
+        Return the number of keys in the selected database.
+        """
+
+
 
         # Install upstart config, and run
         self.upstart_service.setup()

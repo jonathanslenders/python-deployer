@@ -97,8 +97,8 @@ class SocketPty(Pty):
     """
     The Pty object that we pass to every shell.
     """
-    def __init__(self, stdin, stdout, run_in_new_pty):
-        Pty.__init__(self, stdin, stdout)
+    def __init__(self, stdin, stdout, run_in_new_pty, interactive):
+        Pty.__init__(self, stdin, stdout, interactive)
         self._run_in_new_ptys = run_in_new_pty
 
     def run_in_auxiliary_ptys(self, callbacks):
@@ -140,7 +140,7 @@ class Connection(object):
     for either an interactive session, for logging,
     or for a second parallel deployment.
     """
-    def __init__(self, settings, transportHandle, doneCallback):
+    def __init__(self, settings, transportHandle, doneCallback, interactive):
         self.settings = settings
         self.transportHandle = transportHandle
         self.doneCallback = doneCallback
@@ -158,7 +158,7 @@ class Connection(object):
         stdout = os.fdopen(self.slave, 'w', 0)
 
         # Create pty object, for passing to deployment enviroment.
-        self.pty = SocketPty(stdin, stdout, self.runInNewPtys)
+        self.pty = SocketPty(stdin, stdout, self.runInNewPtys, interactive=interactive)
 
         # Start read loop
         self._startReading()
@@ -565,11 +565,12 @@ class CliClientProtocol(Protocol):
         self.transport.write(pickle.dumps((action, data)) )
 
     def connectionMade(self):
-        self.connection = Connection(self.factory.settings, self._handle, self.transport.loseConnection)
+        self.connection = Connection(self.factory.settings, self._handle, self.transport.loseConnection,
+                        interactive=self.factory.interactive)
         self.factory.connectionPool.add(self.connection)
 
 
-def startSocketServer(settings, shutdownOnLastDisconnect):
+def startSocketServer(settings, shutdownOnLastDisconnect, interactive):
     """
     Bind the first available unix socket.
     Return the path.
@@ -580,6 +581,7 @@ def startSocketServer(settings, shutdownOnLastDisconnect):
     factory.protocol = CliClientProtocol
     factory.shutdownOnLastDisconnect = shutdownOnLastDisconnect
     factory.settings = settings
+    factory.interactive = interactive
 
     # Search for a socket to listen on.
     i = 0
@@ -602,7 +604,7 @@ def startSocketServer(settings, shutdownOnLastDisconnect):
 
 # =================[ Startup]=================
 
-def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50):
+def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50, interactive=True):
     """
     Start web server
     If daemonized, this will start the server in the background,
@@ -612,7 +614,7 @@ def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_
     settings = settings()
 
     # Start server
-    path = startSocketServer(settings, shutdownOnLastDisconnect=shutdown_on_last_disconnect)
+    path = startSocketServer(settings, shutdownOnLastDisconnect=shutdown_on_last_disconnect, interactive=interactive)
 
     def run_server():
         # Thread sensitive interface for stdout/stdin

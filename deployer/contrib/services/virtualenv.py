@@ -1,4 +1,3 @@
-from deployer.console import input
 from deployer.contrib.services.apt_get import AptGet
 from deployer.contrib.services.config import Config
 from deployer.exceptions import ExecCommandFailed
@@ -61,15 +60,18 @@ class VirtualEnv(Service):
 
     def mkvirtualenv(self):
         with self.host.env('WORKON_HOME', os.path.dirname(self.virtual_env_location)):
-            python_req = '-p %s' % esc1(self.python_version) if self.python_version else ''
-            self.host.run(". /usr/local/bin/virtualenvwrapper.sh && mkvirtualenv '%s' %s || true" % (esc1(self.virtual_env_location), python_req))
+            # Find python executable.
+            python = self.host.run('which %s' % (self.python_version or 'python')).strip()
 
-            # The or-true at the end is not really the way to go, but
-            # somehow, when we run mkvirtualenv this way, it return status
-            # code 1, and it will not create the the following user
-            # scripts into the virtual env, however the virtual env works
-            # perfectly fine.
-            # ** predeactivate, postdeactivate, preactivate, postactivate, get_env_details
+            with self.host.env('VIRTUALENVWRAPPER_PYTHON', python):
+                self.host.run(". /usr/local/bin/virtualenvwrapper.sh && mkvirtualenv '%s' || true" % esc1(self.virtual_env_location))
+
+                # The or-true at the end is not really the way to go, but
+                # somehow, when we run mkvirtualenv this way, it return status
+                # code 1, and it will not create the the following user
+                # scripts into the virtual env, however the virtual env works
+                # perfectly fine.
+                # ** predeactivate, postdeactivate, preactivate, postactivate, get_env_details
 
     @map_roles.just_one
     class packages(AptGet):
@@ -113,7 +115,7 @@ class VirtualEnv(Service):
     @dont_isolate_yet
     def install_package(self, package=None):
         if not package:
-            package = input('Enter package')
+            package = self.console.input('Enter package')
         self._install_package(package)
 
     def _install_package(self, package):

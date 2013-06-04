@@ -42,7 +42,7 @@ class Hg(Service):
     @dont_isolate_yet
     def checkout(self, changeset=None):
         if not changeset:
-            commit = input('Hg changeset', default=self.default_changeset)
+            commit = self.console.input('Hg changeset', default=self.default_changeset)
             if not commit: raise Exception('No changeset given')
 
         self._checkout(changeset)

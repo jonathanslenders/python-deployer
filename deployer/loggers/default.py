@@ -100,7 +100,6 @@ class DefaultLogger(Logger):
 
     def log_cli_action(self, cli_entry):
         def cli_entry_finished():
-            print 'cli_entry_finished'
             if not cli_entry.succeeded:
                 print_cli_exception(cli_entry, self.stdout)
 

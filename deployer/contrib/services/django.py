@@ -1,4 +1,3 @@
-from deployer.console import input
 from deployer.contrib.services.uwsgi import Uwsgi
 from deployer.query import Q
 from deployer.service import Service, isolate_host, ServiceBase, map_roles, supress_action_result, required_property, isolate_one_only, alias
@@ -156,7 +155,7 @@ class Django(Service):
     @isolate_one_only
     @alias('manage.py')
     def _manage_py(self, command=None):
-        command = command or input('python manage.py (...)')
+        command = command or self.console.input('python manage.py (...)')
         self._run_management_command(command)
 
     @property
@@ -189,6 +188,7 @@ class Django(Service):
             Uwsgi.setup(self)
             self.parent.wsgi_app.setup()
 
+    @map_roles.just_one
     class wsgi_app(Config):
         remote_path = Q.parent.wsgi_app_location
 
@@ -204,12 +204,3 @@ class Django(Service):
             self.host.sudo("mkdir -p $(dirname '%s')" % self.remote_path)
             Config.setup(self)
             self.host.sudo("chown %s '%s'" % (self.parent.username, self.remote_path))
-
-     #   def install_wsgi_app(self):
-     #       """
-     #       Install wsgi script for this django application
-     #       """
-     #       for h in self.hosts:
-     #           h.sudo("mkdir -p $(dirname '%s')" % self.wsgi_app_location)
-     #           h.open(self.wsgi_app_location, 'wb', use_sudo=True).write(wsgi_app_template % { 'settings_module': self.settings_module })
-     #           h.sudo("chown %s '%s'" % (self.username, self.wsgi_app_location))

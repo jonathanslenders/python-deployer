@@ -1,4 +1,3 @@
-from deployer.console import input
 from deployer.contrib.services.apt_get import AptGet
 from deployer.contrib.services.config import Config
 from deployer.contrib.services.virtualenv import VirtualEnv
@@ -197,7 +196,7 @@ class Uwsgi(Service):
         Remove pidfile, sometimes it can happen that the pidfile was created, and the
         server crached due to a bad configuration, without removing the pidfile.
         """
-        if input('Remove pidfile', answers=['y', 'n']) == 'y':
+        if self.console.confirm('Remove pidfile'):
             self.hosts.sudo("kill -SIGQUIT ` cat '%s' ` || rm '%s' " % (esc1(self.pidfile), esc1(self.pidfile)))
 
 

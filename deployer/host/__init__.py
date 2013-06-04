@@ -22,7 +22,7 @@ import threading
 import time
 import tty
 
-from deployer.console import input as read_input
+from deployer.console import Console
 from deployer.exceptions import ExecCommandFailed
 from deployer.loggers import DummyLoggerInterface, Actions
 from deployer.pty import DummyPty, select
@@ -134,6 +134,10 @@ class Host(object):
         Prefix command with cd-statements and variable assignments
         """
         result = []
+
+        # Ensure that the start-path exists (only if one was given. Not for the ~)
+        if self.start_path:
+            result.append("(mkdir -p '%s' 2> /dev/null || true) && " % esc1(self.expand_path(self.start_path)))
 
         # Prefix with all cd-statements
         for p in [self._get_start_path()] + self._path:
@@ -422,6 +426,9 @@ class Host(object):
                         """ cut -d: -f2 | awk '{ print $1}' """ % interface).strip()
 
     def get_home_directory(self, username=None):
+        # TODO:....
+        # return self.expand_path('~%s' % username if username else '~')
+
         with self.cd('/'):
             with self.sandbox(False):
                 if username:
@@ -863,14 +870,13 @@ class SSHHost(Host):
         return paramiko.SFTPClient.from_transport(transport)
 
     def expand_path(self, path):
+        # Expand remote path, using the start path and cwd
+        path = os.path.join(self.start_path, self.cwd, path)
+
         # Tilde expansion
-        if path.startswith('~'):
+        if path.startswith('~/' or path == '~'):
             home = self.sftp.normalize('.')
             path = path.replace('~', home, 1)
-
-        # Expand remote path, using the cwd
-        if not os.path.isabs(path):
-            path = os.path.join(self.cwd, path)
 
         return path
 
@@ -928,10 +934,10 @@ class LocalHost(Host):
         Host.__init__(self)
         self._backend = backend or LocalHostBackend()
 
-    def _run(self, *a, **kw):
+    def _run(self, pty, *a, **kw):
         if kw.get('use_sudo', False):
-            self._ensure_password_is_known()
-        return Host._run(self, *a, **kw)
+            self._ensure_password_is_known(pty)
+        return Host._run(self, pty, *a, **kw)
 
     def clone(self):
         # Clone state of this host into a new Host instance.
@@ -940,13 +946,14 @@ class LocalHost(Host):
         return new_host
 
     def expand_path(self, path):
-        return os.path.expanduser(path)
+        return os.path.expanduser(path) # TODO: expansion like with SSHHost!!!!
 
-    def _ensure_password_is_known(self):
+    def _ensure_password_is_known(self, pty):
         # Make sure that we know the localhost password, before running sudo.
         tries = 0
         while not self._backend.password:
-            self._backend.password = read_input('[sudo] password for %s at %s' % (self.username, self.slug), True)
+            self._backend.password = Console(pty).input('[sudo] password for %s at %s' %
+                        (self.username, self.slug), is_password=True)
 
             # Check password
             try:

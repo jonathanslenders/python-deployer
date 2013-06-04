@@ -228,18 +228,20 @@ def start(settings_module):
     """
     Client startup point.
     """
-    make_stdin_unbuffered()
-
     cd_path = None
     socket_name = ''
+    interactive = True
+    single_threaded = False
 
     def print_usage():
         print 'Usage:'
         print '    ./client.py [-h|--help] [ -c|--connect "socket number" ] [ -p|--path "path" ] [ -l | --list-sessions ]'
+        print '                [--interactive|--non-interactive] [ -s|--single-threaded]'
 
     # Parse command line arguments.
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hp:c:l', ['help', 'path=', 'connect=', 'list-sessions'])
+        opts, args = getopt.getopt(sys.argv[1:], 'hp:c:ls', ['help', 'path=', 'connect=', 'list-sessions',
+                            'interactive', 'non-interactive', 'single-threaded'])
     except getopt.GetoptError, err:
         print str(err)
         print_usage()
@@ -260,17 +262,34 @@ def start(settings_module):
         elif o in ('-p', '--path'):
             cd_path = a.split('.')
 
-    # If no socket has been given. Start a daemonized server in the
-    # background, and use that socket instead.
-    if not socket_name:
-        from deployer.run.socket_server import start
-        socket_name = start(settings_module, daemonized=True, shutdown_on_last_disconnect=True)
+        elif o in ('--non-interactive', ):
+            interactive = False
 
-    # The socket path can be an absolute path, or an integer.
-    if not socket_name.startswith('/'):
-        socket_name = '/tmp/deployer.sock.%s.%s' % (getpass.getuser(), socket_name)
+        elif o in ('--interactive', ):
+            interactive = True
 
-    DeploymentClient(socket_name).run(cd_path=cd_path)
+        elif o in ('-s', '--single-threaded'):
+            single_threaded = True
+
+    if single_threaded:
+        # == Single threaded ==
+        from deployer.run.standalone_shell import start as start_standalone
+        start_standalone(settings_module, interactive=interactive)
+    else:
+        # == Multithreaded ==
+
+        # If no socket has been given. Start a daemonized server in the
+        # background, and use that socket instead.
+        if not socket_name:
+            from deployer.run.socket_server import start
+            socket_name = start(settings_module, daemonized=True, shutdown_on_last_disconnect=True, interactive=interactive)
+
+        # The socket path can be an absolute path, or an integer.
+        if not socket_name.startswith('/'):
+            socket_name = '/tmp/deployer.sock.%s.%s' % (getpass.getuser(), socket_name)
+
+        make_stdin_unbuffered()
+        DeploymentClient(socket_name).run(cd_path=cd_path)
 
 
 if __name__ == '__main__':

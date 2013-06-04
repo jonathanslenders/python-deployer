@@ -17,7 +17,7 @@ import time
 from twisted.internet import fdesc
 from deployer.pty import select
 from deployer.std import raw_mode
-from deployer.console import in_columns, lesspipe
+from deployer.console import Console
 
 
 def commonprefix(*strings):
@@ -165,7 +165,8 @@ class CLInterface(object):
                 length = len(w[0]) + len(handler_type.postfix)
                 yield text, length
 
-        lesspipe(in_columns(column_items(), self.pty), self.pty)
+        c = Console(self.pty)
+        c.lesspipe(c.in_columns(column_items()))
 
     def ctrl_c(self):
         # Initialize new read

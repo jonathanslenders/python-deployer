@@ -1,4 +1,3 @@
-from deployer.console import input
 from deployer.contrib.services.apt_get import AptGet
 from deployer.exceptions import ExecCommandFailed
 from deployer.service import Service, default_action, isolate_host, isolate_one_only
@@ -10,8 +9,7 @@ class Tmux(Service):
     """
     Open SSH connection to host
     """
-    #url = 'http://downloads.sourceforge.net/project/tmux/tmux/tmux-1.6/tmux-1.6.tar.gz'
-    url = 'http://downloads.sourceforge.net/tmux/tmux-1.7.tar.gz'
+    url = 'http://downloads.sourceforge.net/tmux/tmux-1.8.tar.gz'
 
     @default_action
     @isolate_one_only # It does not make much sense to open interactive shells to all hosts at the same time.
@@ -21,7 +19,7 @@ class Tmux(Service):
             self.host.run('which tmux > /dev/null')
         except ExecCommandFailed:
             # Not installed -> ask for compiling tmux
-            if input('Tmux binary not found. Do you want to compile tmux on %s?' % self.host.slug, answers=['y', 'n']) == 'y':
+            if self.console.confirm('Tmux binary not found. Do you want to compile tmux on %s?' % self.host.slug, default=True):
                 setup = self.initialize_service(TmuxSetup, host=self.host)
                 setup.install()
             else:

@@ -1,5 +1,4 @@
 from deployer.service import Service, default_action
-from deployer.console import input
 
 
 class SCP(Service):
@@ -10,10 +9,10 @@ class SCP(Service):
     def scp(self):
         # TODO: Add progress bar for large files.
 
-        host1 = input('Host 1')
-        host2 = input('Host 2')
-        path1 = input('Path 1')
-        path2 = input('Path 2')
+        host1 = self.console.input('Host 1')
+        host2 = self.console.input('Host 2')
+        path1 = self.console.input('Path 1')
+        path2 = self.console.input('Path 2')
 
         host1 = self.hosts.get_from_slug(host1)
         host2 = self.hosts.get_from_slug(host2)

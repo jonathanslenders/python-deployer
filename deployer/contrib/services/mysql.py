@@ -1,7 +1,7 @@
 from deployer.service import Service, required_property, isolate_host, isolate_one_only
 from deployer.utils import esc1
 from deployer.contrib.services.apt_get import AptGet
-from deployer.console import input
+from deployer.exceptions import ExecCommandFailed
 
 
 class MySQL(Service):
@@ -18,9 +18,23 @@ class MySQLClient(Service):
     password = required_property()
     database = required_property()
 
+    def ensure_database_exists(self):
+        """
+        Create this database in MySQL if it wasn't created yet.
+        """
+        name = self.database
+        try:
+            # Try connect.
+            self.hosts.run("echo 'CONNECT %s;' | /usr/bin/mysql --user '%s' --password='%s' --host '%s' " %
+                    (name, esc1(self.username), esc1(self.password), esc1(self.hostname)))
+        except ExecCommandFailed, e:
+            # Connect raised error, so create it.
+            self.hosts.run("echo 'CREATE DATABASE %s;' | /usr/bin/mysql --user '%s' --password='%s' --host '%s' " %
+                    (name, esc1(self.username), esc1(self.password), esc1(self.hostname)))
+
     @isolate_one_only
     def restore_backup_from_url(self):
-        backup_url = input('Enter the URL of the backup location (an .sql.gz file)')
+        backup_url = self.console.input('Enter the URL of the backup location (an .sql.gz file)')
         self.hosts.run("curl '%s' | gunzip | /usr/bin/mysql --user '%s' --password='%s' --host '%s' '%s' " %
                     (esc1(backup_url), esc1(self.username), esc1(self.password), esc1(self.hostname), esc1(self.database)))
 

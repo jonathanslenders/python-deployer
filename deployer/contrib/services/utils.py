@@ -1,7 +1,6 @@
 from deployer.contrib.services.django import Django
 from deployer.contrib.services.virtualenv import VirtualEnv
 from deployer.service import Service, default_action, supress_action_result, isolate_host
-from deployer.console import input
 
 from pygments import highlight
 from pygments.formatters import TerminalFormatter as Formatter
@@ -21,7 +20,7 @@ class Utils(Service):
         """
         host = self.host
 
-        if input('Do you really want to set the hostname for %s to %s' % (host.address, host.slug), answers=['y', 'n']) == 'y':
+        if self.console.confirm('Do you really want to set the hostname for %s to %s' % (host.address, host.slug)):
             host.sudo("echo '%s' > /etc/hostname" % host.slug)
             host.sudo("echo '127.0.0.1  %s' >> /etc/hosts" % host.slug)
             host.sudo("hostname -F /etc/hostname")

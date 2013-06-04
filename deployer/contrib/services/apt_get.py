@@ -43,7 +43,8 @@ class AptGet(Service):
         self.install_dpkg_packages()
 
     def update(self):
-        self.host.sudo('apt-get update')
+        with self.host.env('DEBIAN_FRONTEND', 'noninteractive'):
+            self.host.sudo('apt-get update')
 
     def add_key_url(self, key_url):
         self.host.sudo("wget '%s' -O - | apt-key add -" % esc1(key_url))

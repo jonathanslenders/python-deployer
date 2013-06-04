@@ -12,10 +12,14 @@ class Pty(object):
 
     Contains helper function, for opening an additional Pty,
     if parallel deployments are supported.
+
+    When `interactive` is False, we should never ask for input, after
+    any deploy command has been started.
     """
-    def __init__(self, stdin=None, stdout=None):
+    def __init__(self, stdin=None, stdout=None, interactive=True):
         self.stdin = stdin or sys.__stdin__
         self.stdout = stdout or sys.__stdout__
+        self.interactive = interactive
         self.set_ssh_channel_size = None
 
     def get_size(self):
