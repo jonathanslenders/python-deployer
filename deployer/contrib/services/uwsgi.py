@@ -24,7 +24,6 @@ init_d_template = """\
 do_start() {
     # Only start if PID file does not exists or PID inside is invalid.
     if [ ! -f %(pidfile)s ] || ! kill -0 ` cat '%(pidfile)s'  ` 2> /dev/null; then
-        cd %(run_from_directory)s
         %(start_command)s
     else
         echo "Already running..."
@@ -32,12 +31,10 @@ do_start() {
 }
 
 do_reload() {
-    cd %(run_from_directory)s
     %(reload_command)s
 }
 
 do_stop() {
-    cd %(run_from_directory)s
     %(stop_command)s
 }
 
@@ -63,14 +60,14 @@ esac
 class Uwsgi(Service):
     virtual_env_location = required_property()
     slug = required_property()
-    uwsgi_socket = 'localhost:3032' # Can be either a tcp socket or unix file socket
-    wsgi_app_location = required_property()
+    socket = 'localhost:3032' # Can be either a tcp socket or unix file socket
+    wsgi_module = required_property()
     run_from_directory = required_property()
-    uwsgi_threads = 10
-    uwsgi_workers = 2
+    threads = 10
+    workers = 2
     username = required_property()
 
-    uwsgi_download_url = 'http://projects.unbit.it/downloads/uwsgi-1.9.8.tar.gz'
+    uwsgi_download_url = 'http://projects.unbit.it/downloads/uwsgi-1.9.12.tar.gz'
 
     # HTTP
     use_http = False
@@ -117,23 +114,35 @@ class Uwsgi(Service):
         Because of --daemonize, we don't need upstart anymore.
         """
         if self.use_http:
-            socket = '--http 127.0.0.1:%s' % self.http_port
+            socket = '--http=0.0.0.0:%s' % self.http_port
         else:
-            socket = '-s %s' % self.uwsgi_socket
+            socket = '--socket=%s' % self.socket
 
-        return '%(virtual_env)s/bin/uwsgi -H %(virtual_env)s %(uwsgi_socket)s --threads %(threads)i --workers %(workers)i --stats %(stats)s ' \
-                '%(pidfile)s %(daemonize)s %(log)s --logfile-chown %(username)s -M %(wsgi_app)s --uid %(username)s --chmod-socket %(chmod_socket)s' % {
-                    'virtual_env': self.virtual_env_location,
-                    'uwsgi_socket': socket,
-                    'pidfile': ('--pidfile=%s' % self.pidfile if daemonize else ''),
-                    'daemonize': '--daemonize' if daemonize else '',
-                    'log': self.logfile,
-                    'wsgi_app': self.wsgi_app_location,
-                    'threads': self.uwsgi_threads,
-                    'workers': self.uwsgi_workers,
-                    'stats': self.stats_socket,
-                    'username': self.username,
-                    'chmod_socket': 666,
+        return '\\\n   '.join([
+                    '%(virtual_env)s/bin/uwsgi',
+                                    '--chdir=%(chdir)s',
+                                    '--module=%(wsgi_module)s',
+                                    '%(uwsgi_socket)s',
+                                    '--threads=%(threads)i',
+                                    '--processes=%(workers)i',
+                                    '--stats=%(stats)s',
+                                    '%(pidfile)s',
+                                    '--uid=%(username)s',
+                                    '--chmod-socket=%(chmod_socket)s',
+                                    '--home=%(virtual_env)s',
+                                    '%(daemonize)s',
+                    ]) % {
+                                    'chdir': self.run_from_directory,
+                                    'virtual_env': self.virtual_env_location,
+                                    'uwsgi_socket': socket,
+                                    'pidfile': ('--pidfile=%s' % self.pidfile if daemonize else ''),
+                                    'daemonize': '--daemonize=%s' % self.logfile if daemonize else '',
+                                    'wsgi_module': self.wsgi_module,
+                                    'threads': self.threads,
+                                    'workers': self.workers,
+                                    'stats': self.stats_socket,
+                                    'username': self.username,
+                                    'chmod_socket': 666,
                     }
 
     @property
@@ -163,8 +172,7 @@ class Uwsgi(Service):
         """
         for h in self.hosts:
             if not h.exists(self.pidfile):
-                with h.cd(self.run_from_directory):
-                    h.sudo(self._get_start_command(daemonize))
+                h.sudo(self._get_start_command(daemonize))
             else:
                 print 'Pidfile %s already exists' % self.pidfile
 

@@ -113,11 +113,11 @@ class Django(Service):
     __metaclass__ = DjangoBase
 
     # Location of the virtual env
-    virtual_env_location = ''
+    virtual_env_location = required_property()
 
     # Django project location. This is the directory which contains the
     # manage.py file.
-    django_project = ''
+    django_project = required_property()
 
     # Django commands (mapping from command name, to ./manage.py parameter)
     commands = { }
@@ -125,18 +125,9 @@ class Django(Service):
     # User for the upstart service
     username = required_property()
     slug = 'default-django-app'
-    uwsgi_socket = 'localhost:3032' # Can be either a tcp socket or unix file socket
-    uwsgi_threads = 10
-    uwsgi_workers = 2
-    uwsgi_use_http = False # When true, we will use the same port as runserver.
-                           # this has the advantage that Django's runserver and
-                           # uwsgi can be used interchangable.
 
     # HTTP Server
     http_port = 8000
-
-
-    uwsgi_auto_reload = False
 
     def _get_management_command(self, command):
         """
@@ -162,23 +153,18 @@ class Django(Service):
     def settings_module(self):
         return self.django_project.rstrip('/').rsplit('/', 1)[-1] + '.settings'
 
-    @property
-    def wsgi_app_location(self):
-        return '/etc/wsgi-apps/%s.py' % self.slug
-
 
     # ===========[ WSGI setup ]============
 
     @map_roles.just_one
     class uwsgi(Uwsgi):
-        uwsgi_socket = Q.parent.uwsgi_socket
         slug = Q.parent.slug
-        wsgi_app_location = Q.parent.wsgi_app_location
-        uwsgi_threads = Q.parent.uwsgi_threads
-        uwsgi_workers = Q.parent.uwsgi_workers
+        wsgi_app_location = Q.parent.wsgi_app.remote_path
         virtual_env_location = Q.parent.virtual_env_location
         username = Q.parent.username
-        use_http = Q.parent.uwsgi_use_http
+
+        use_http = True
+        wsgi_module = Q('%s_wsgi:application') % Q.parent.slug
 
         @property
         def run_from_directory(self):
@@ -190,14 +176,14 @@ class Django(Service):
 
     @map_roles.just_one
     class wsgi_app(Config):
-        remote_path = Q.parent.wsgi_app_location
+        remote_path = Q("%s/%s_wsgi.py") % (Q.parent.uwsgi.run_from_directory, Q.parent.slug)
+        auto_reload = False
 
         @property
         def content(self):
-            self = self.parent
             return wsgi_app_template % {
-                'auto_reload': repr(self.uwsgi_auto_reload),
-                'settings_module': repr(self.settings_module),
+                'auto_reload': repr(self.auto_reload),
+                'settings_module': repr(self.parent.settings_module),
             }
 
         def setup(self):
