@@ -5,7 +5,7 @@ from twisted.internet.protocol import ServerFactory
 
 from deployer import std
 from deployer.cli import HandlerType
-from deployer.console import NoInput, input
+from deployer.console import NoInput, Console
 from deployer.loggers import Actions
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger
@@ -421,7 +421,7 @@ class NotAuthenticated(Exception):
     pass
 
 
-def pty_based_auth():
+def pty_based_auth(pty):
     """
     Show a username/password login prompt.
     Return username when authentication succeeded.
@@ -436,8 +436,9 @@ def pty_based_auth():
             sys.stdout.write(colored('  Authentication failed, try again\r\n', 'red'))
 
         try:
-            username = input('Username', False)
-            password = input('Password', True)
+            console = Console(self.pty)
+            username = console.input('Username', False)
+            password = console.input('Password', True)
         except NoInput:
             raise NotAuthenticated
 
@@ -521,7 +522,7 @@ class Session(object):
                 # Authentication
                 if self.requires_authentication:
                     try:
-                        self.username = pty_based_auth()
+                        self.username = pty_based_auth(self.pty)
                         authenticated = True
                     except NotAuthenticated:
                         authenticated = False

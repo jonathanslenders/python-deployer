@@ -236,12 +236,12 @@ def start(settings_module):
     def print_usage():
         print 'Usage:'
         print '    ./client.py [-h|--help] [ -c|--connect "socket number" ] [ -p|--path "path" ] [ -l | --list-sessions ]'
-        print '                [--interactive|--non-interactive] [ -s|--single-threaded]'
+        print '                [--interactive|--non-interactive ] [ -s|--single-threaded ] [ -m|--multithreaded ]'
 
     # Parse command line arguments.
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hp:c:ls', ['help', 'path=', 'connect=', 'list-sessions',
-                            'interactive', 'non-interactive', 'single-threaded'])
+        opts, args = getopt.getopt(sys.argv[1:], 'hp:c:lsm', ['help', 'path=', 'connect=', 'list-sessions',
+                            'interactive', 'non-interactive', 'single-threaded', 'multithreaded'])
     except getopt.GetoptError, err:
         print str(err)
         print_usage()
@@ -270,6 +270,9 @@ def start(settings_module):
 
         elif o in ('-s', '--single-threaded'):
             single_threaded = True
+
+        elif o in ('-m', '--multithreaded'):
+            single_threaded = False
 
     if single_threaded:
         # == Single threaded ==
