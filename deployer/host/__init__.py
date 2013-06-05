@@ -665,6 +665,7 @@ class Host(object):
         Returns True when this file exists.
         """
         try:
+            filename = self.expand_path(filename)
             self._run_silent_sudo("test -f '%s' || test -d '%s'" % (esc1(filename), esc1(filename)))
             return True
         except ExecCommandFailed:
