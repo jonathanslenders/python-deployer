@@ -78,35 +78,35 @@ class Git(Service):
         afterwards.
         """
         # Checkout on every host.
-        for host in self.hosts:
-            existed = host.exists(self.repository_location)
+        host = self.host
+        existed = host.exists(self.repository_location)
 
-            if not existed:
-                # Do a new checkout
-                host.run('git clone --recursive %s %s' % (self.repository, self.repository_location))
+        if not existed:
+            # Do a new checkout
+            host.run('git clone --recursive %s %s' % (self.repository, self.repository_location))
 
-            with host.cd(self.repository_location):
-                host.run('git fetch --all --prune')
+        with host.cd(self.repository_location):
+            host.run('git fetch --all --prune')
 
-                # Stash
-                if existed:
-                    host.run('git stash')
+            # Stash
+            if existed:
+                host.run('git stash')
 
-                # Checkout
+            # Checkout
+            try:
+                host.run("git checkout '%s'" % esc1(commit))
+                host.run("git submodule update --init") # Also load submodules.
+            finally:
+                # Pop stash
                 try:
-                    host.run("git checkout '%s'" % esc1(commit))
-                    host.run("git submodule update --init") # Also load submodules.
-                finally:
-                    # Pop stash
-                    try:
-                        if existed:
-                            host.run('git stash pop 2>&1', interactive=False) # will fail when checkout had no local changes
-                    except ExecCommandFailed, e:
-                        result = e.result
-                        if result.strip() not in ('Nothing to apply', 'No stash found.'):
-                            print result
-                            if not self.console.confirm('Should we continue?', default=True):
-                                raise Exception('Problem with popping your stash, please check logs and try again.')
+                    if existed:
+                        host.run('git stash pop 2>&1', interactive=False) # will fail when checkout had no local changes
+                except ExecCommandFailed, e:
+                    result = e.result
+                    if result.strip() not in ('Nothing to apply', 'No stash found.'):
+                        print result
+                        if not self.console.confirm('Should we continue?', default=True):
+                            raise Exception('Problem with popping your stash, please check logs and try again.')
 
 class GitOverview(Service):
     """
