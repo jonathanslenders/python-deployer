@@ -274,10 +274,14 @@ def start(settings_module):
         elif o in ('-m', '--multithreaded'):
             single_threaded = False
 
+        else:
+            print 'Unknown option: %s' % o
+            sys.exit(2)
+
     if single_threaded:
         # == Single threaded ==
         from deployer.run.standalone_shell import start as start_standalone
-        start_standalone(settings_module, interactive=interactive)
+        start_standalone(settings_module, interactive=interactive, cd_path=cd_path)
     else:
         # == Multithreaded ==
 

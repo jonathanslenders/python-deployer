@@ -133,7 +133,7 @@ class StandaloneShell(Shell):
         return { 'history': History, }
 
 
-def start(settings, interactive=True):
+def start(settings, interactive=True, cd_path=None):
     """
     Start the deployment shell in standalone modus. (No parrallel execution,
     no server/client. Just one interface, and everything sequential.)
@@ -165,7 +165,10 @@ def start(settings, interactive=True):
 
     # Start shell command loop
     print 'Running single threaded shell...'
-    StandaloneShell(settings, pty, logger_interface, history_logger.history).cmdloop()
+    shell = StandaloneShell(settings, pty, logger_interface, history_logger.history)
+    if cd_path is not None:
+        shell.cd(cd_path)
+    shell.cmdloop()
 
     for l in extra_loggers:
         logger_interface.detach(l)
