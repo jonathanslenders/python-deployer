@@ -116,7 +116,7 @@ class TracePrinter(object):
                             [ '%s=%s' % (k, repr(v)) for k,v in self.trace.kwargs.items() ])
         if self.trace.items:
             return (f('%s(%s)\n[\n' % (self.trace.func_name, params)) +
-                    ''.join([ indent(self._print_item_color(i), prefix='  ') for i in self.trace.items ]) +
+                    '\n'.join([ indent(self._print_item_color(i), prefix='  ') for i in self.trace.items ]) +
                     f(']'))
         else:
             return f('%s(%s)' % (self.trace.func_name, params))

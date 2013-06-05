@@ -24,7 +24,7 @@ def indent(string, prefix='    '):
     """
     Indent every line of this string.
     """
-    return ''.join('%s%s\n' % (prefix, s) for s in string.split('\n'))
+    return '\n'.join('%s%s' % (prefix, s) for s in string.split('\n'))
 
 
 class capture(object):
