@@ -166,6 +166,8 @@ class Django(Service):
     def wsgi_app_location(self):
         return '/etc/wsgi-apps/%s.py' % self.slug
 
+    def execute_code(self, code):
+        self.hosts.run(self._get_management_command('shell --plain') + " <<__HEREDOC__\n" + code + "\n__HEREDOC__")
 
     # ===========[ WSGI setup ]============
 
