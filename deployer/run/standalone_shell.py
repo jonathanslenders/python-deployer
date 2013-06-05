@@ -155,9 +155,11 @@ def start(settings, interactive=True, cd_path=None):
 
     # Loggers
     history_logger = HistoryLogger()
+    in_shell_logger = DefaultLogger(print_group=False)
     extra_loggers = settings.Meta.extra_loggers
 
     logger_interface = LoggerInterface()
+    logger_interface.attach(in_shell_logger)
     logger_interface.attach(history_logger)
 
     for l in extra_loggers:
@@ -172,6 +174,9 @@ def start(settings, interactive=True, cd_path=None):
 
     for l in extra_loggers:
         logger_interface.detach(l)
+
+    logger_interface.detach(in_shell_logger)
+    logger_interface.detach(history_logger)
 
 
 if __name__ == '__main__':
