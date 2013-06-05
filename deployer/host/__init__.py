@@ -878,7 +878,10 @@ class SSHHost(Host):
                 return p
 
         # Expand remote path, using the start path and cwd
-        return os.path.join(expand_tilde(self.start_path), expand_tilde(self.cwd), expand_tilde(path))
+        if self.start_path:
+            return os.path.join(expand_tilde(self.start_path), expand_tilde(self.cwd), expand_tilde(path))
+        else:
+            return os.path.join(expand_tilde(self.cwd), expand_tilde(path))
 
     def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
         """
