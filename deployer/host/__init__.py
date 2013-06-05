@@ -870,15 +870,15 @@ class SSHHost(Host):
         return paramiko.SFTPClient.from_transport(transport)
 
     def expand_path(self, path):
+        def expand_tilde(p):
+            if p.startswith('~/') or p == '~':
+                home = self.sftp.normalize('.')
+                return p.replace('~', home, 1)
+            else:
+                return p
+
         # Expand remote path, using the start path and cwd
-        path = os.path.join(self.start_path, self.cwd, path)
-
-        # Tilde expansion
-        if path.startswith('~/' or path == '~'):
-            home = self.sftp.normalize('.')
-            path = path.replace('~', home, 1)
-
-        return path
+        return os.path.join(expand_tilde(self.start_path), expand_tilde(self.cwd), expand_tilde(path))
 
     def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
         """

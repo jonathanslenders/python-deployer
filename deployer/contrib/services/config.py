@@ -112,4 +112,4 @@ class Config(Service):
         """
         Edit this configuration manually in Vim.
         """
-        self.host.sudo("vim '%s'" % esc1(self.remote_path))
+        self.host.sudo("vim '%s'" % esc1(self.host.expand_path(self.remote_path)))
