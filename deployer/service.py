@@ -994,7 +994,7 @@ def get_isolations(service):
         else:
             hosts = service.hosts
 
-        def create_isolation(name, hosts_dict):
+        def create_isolation(name, hosts_dict, made_array_cell=False):
             """
             Isolation creator helper. Creates instances of Service classes,
             passing a new hosts dictionary.
@@ -1014,7 +1014,8 @@ def get_isolations(service):
                                     name=service_name,
                                     path=service_path,
                                     parent=parent_isolation.service,
-                                    creator_service=service, is_isolated=True))
+                                    creator_service=service, is_isolated=True,
+                                    made_array_cell=made_array_cell))
 
         isolate_role = service.Meta.isolate_role
 
@@ -1024,7 +1025,7 @@ def get_isolations(service):
                 hosts_in_isolation_role = len(hosts.filter(isolate_role))
 
                 if hosts_in_isolation_role == 1:
-                    yield create_isolation(parent_name, hosts)
+                    yield create_isolation(parent_name, hosts, made_array_cell=True)
                 else:
                     # When @map_roles.just_one fails, we don't yield this
                     # service, and so disallow access due to invalid mapping.
@@ -1036,7 +1037,7 @@ def get_isolations(service):
                 # Yield all isolations of this service.
                 if len(hosts.filter(isolate_role)):
                     for h, hosts2 in hosts.iterate_isolations(isolate_role):
-                        yield create_isolation(parent_name + [h.slug], hosts2)
+                        yield create_isolation(parent_name + [h.slug], hosts2, made_array_cell=True)
         else:
             # Just link to new parent.
             yield create_isolation(parent_name, hosts)
@@ -1123,7 +1124,7 @@ class Service(object):
     # class Hosts(object):
     #     pass
 
-    def __init__(self, hosts=None, name=None, path=None, parent=None, creator_service=None, is_isolated=False):
+    def __init__(self, hosts=None, name=None, path=None, parent=None, creator_service=None, is_isolated=False, made_array_cell=False):
         """
         'hosts` should always be a HostContainer object.
         'name` is the string of the property, how we got to this service.
@@ -1131,13 +1132,14 @@ class Service(object):
                     (Note that equels not necessary [.parent/.parent.parent/etc... ].)
         'parent` can be a Service instance.
         'creator` can be a Service instance.
+        'made_array_cell` True when moved from a not-isolated ArrayService, to the isolated version.
         """
         # When a Hosts object exists in this service, use that one, and ignore
         # the hosts which are passed in this constructor. So, any host
         # mappings do not apply
         # Note that when is_isolated=True, we always accept the hosts parameter, we asume that
         # the non-isolated base defines the correct Hosts
-        if hasattr(self.__class__, 'Hosts') and not is_isolated:
+        if hasattr(self.__class__, 'Hosts') and not made_array_cell:
             def get_hosts_container():
                 hosts = { }
                 for k in dir(self.__class__.Hosts):
