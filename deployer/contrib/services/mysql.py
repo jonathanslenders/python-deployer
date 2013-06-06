@@ -33,10 +33,11 @@ class MySQLClient(Service):
                     (name, esc1(self.username), esc1(self.password), esc1(self.hostname)))
 
     @isolate_one_only
-    def restore_backup_from_url(self):
-        backup_url = self.console.input('Enter the URL of the backup location (an .sql.gz file)')
+    def restore_backup_from_url(self, url=None):
+        if not url:
+            url = self.console.input('Enter the URL of the backup location (an .sql.gz file)')
         self.hosts.run("curl '%s' | gunzip | /usr/bin/mysql --user '%s' --password='%s' --host '%s' '%s' " %
-                    (esc1(backup_url), esc1(self.username), esc1(self.password), esc1(self.hostname), esc1(self.database)))
+                    (esc1(url), esc1(self.username), esc1(self.password), esc1(self.hostname), esc1(self.database)))
 
     @isolate_one_only
     def shell(self):
