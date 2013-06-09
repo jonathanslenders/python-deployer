@@ -791,42 +791,38 @@ class SSHBackend(object):
         """
         # Lock: be sure not to create this connection from several threads at
         # the same time.
-        self._lock.acquire()
+        with self._lock:
+            if not (self._ssh_cache and self._ssh_cache._transport and self._ssh_cache._transport.is_active()):
+                h = self._get_host_instance()
 
-        if not (self._ssh_cache and self._ssh_cache._transport and self._ssh_cache._transport.is_active()):
-            h = self._get_host_instance()
+                # Show connecting message (in current stdout)
+                sys.stdout.write('*** Connecting to %s (%s)...\n' % (h.address, h.slug))
+                sys.stdout.flush()
 
-            # Show connecting message (in current stdout)
-            sys.stdout.write('*** Connecting to %s (%s)...\n' % (h.address, h.slug))
-            sys.stdout.flush()
+                # Connect
+                self._ssh_cache = paramiko.SSHClient()
 
-            # Connect
-            self._ssh_cache = paramiko.SSHClient()
+                if not h.reject_unknown_hosts:
+                    self._ssh_cache.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-            if not h.reject_unknown_hosts:
-                self._ssh_cache.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                try:
+                    # Paramiko's authentication method can be either a public key, public key file, or password.
+                    if h.rsa_key:
+                        # RSA key
+                        rsa_key_file_obj = StringIO.StringIO(h.rsa_key)
+                        kw = { "pkey": paramiko.RSAKey.from_private_key(rsa_key_file_obj, h.rsa_key_password) }
+                    elif h.key_filename:
+                        kw = { "key_filename": h.key_filename }
+                    else:
+                        kw = { "password": h.password }
 
-            try:
-                # Paramiko's authentication method can be either a public key, public key file, or password.
-                if h.rsa_key:
-                    # RSA key
-                    rsa_key_file_obj = StringIO.StringIO(h.rsa_key)
-                    kw = { "pkey": paramiko.RSAKey.from_private_key(rsa_key_file_obj, h.rsa_key_password) }
-                elif h.key_filename:
-                    kw = { "key_filename": h.key_filename }
-                else:
-                    kw = { "password": h.password }
+                    self._ssh_cache.connect(h.address, port=h.port, username=h.username, timeout=h.timeout, **kw)
 
-                self._ssh_cache.connect(h.address, port=h.port, username=h.username, timeout=h.timeout, **kw)
+                except (paramiko.SSHException, Exception) as e:
+                    self._ssh_cache = None
+                    raise Exception('Could not connect to host %s (%s)\n%s' % (h.slug, h.address, unicode(e)))
 
-            except (paramiko.SSHException, Exception) as e:
-                self._ssh_cache = None
-                raise Exception('Could not connect to host %s (%s)\n%s' % (h.slug, h.address, unicode(e)))
-
-        # Release lock
-        self._lock.release()
-
-        return self._ssh_cache
+            return self._ssh_cache
 
 
 class SSHHost(Host):
