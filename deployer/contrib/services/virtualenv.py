@@ -35,7 +35,6 @@ class VirtualEnv(Service):
         """
         Setup virtualenv
         """
-
         if force_upgrade or not self.host.exists('/usr/local/bin/virtualenvwrapper.sh'):
             # Install packages
             self.packages.install()
