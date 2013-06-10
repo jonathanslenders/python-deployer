@@ -328,7 +328,7 @@ class Host(object):
         try:
             # Set terminal raw
             if raw:
-                tty.setraw(pty.stdin.fileno())
+                #tty.setraw(pty.stdin.fileno())
                 tty.setcbreak(pty.stdin.fileno())
             chan.settimeout(0.0)
 
@@ -411,7 +411,7 @@ class Host(object):
                     time.sleep(0.01)
         finally:
             # Restore terminal
-            termios.tcsetattr(pty.stdin, termios.TCSADRAIN, oldtty)
+            termios.tcsetattr(pty.stdin, termios.TCSANOW, oldtty)
 
             # Set blocking again
             fdesc.setBlocking(pty.stdin)

@@ -114,7 +114,10 @@ class raw_mode(object):
         self.attrs_before = termios.tcgetattr(self.stdin)
 
     def __enter__(self):
-        tty.setraw(self.stdin.fileno())
+        # NOTE: On os X systems, using pty.setraw() fails. Therefor we are using this:
+        newattr = termios.tcgetattr(self.stdin.fileno())
+        newattr[3] = newattr[3] & ~ termios.ICANON & termios.ECHO
+        termios.tcsetattr(self.stdin.fileno(), termios.TCSANOW, newattr)
 
     def __exit__(self, *a, **kw):
-        termios.tcsetattr(self.stdin, termios.TCSAFLUSH, self.attrs_before)
+        termios.tcsetattr(self.stdin.fileno(), termios.TCSANOW, self.attrs_before)
