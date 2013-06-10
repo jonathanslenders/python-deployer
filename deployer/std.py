@@ -2,6 +2,7 @@ import sys
 import threading
 import termios
 import tty
+import pty
 
 class TeeStd(object):
     """
@@ -116,7 +117,7 @@ class raw_mode(object):
     def __enter__(self):
         # NOTE: On os X systems, using pty.setraw() fails. Therefor we are using this:
         newattr = termios.tcgetattr(self.stdin.fileno())
-        newattr[3] = newattr[3] & ~ termios.ICANON & termios.ECHO
+        newattr[tty.LFLAG] = newattr[tty.LFLAG] & ~(termios.ECHO | termios.ICANON | termios.IEXTEN | termios.ISIG)
         termios.tcsetattr(self.stdin.fileno(), termios.TCSANOW, newattr)
 
     def __exit__(self, *a, **kw):

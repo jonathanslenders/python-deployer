@@ -27,6 +27,7 @@ from deployer.console import Console
 from deployer.exceptions import ExecCommandFailed
 from deployer.loggers import DummyLoggerInterface, Actions
 from deployer.pty import DummyPty, select
+from deployer.std import raw_mode
 from deployer.utils import esc1
 
 from twisted.internet import fdesc
@@ -325,98 +326,100 @@ class Host(object):
         # bytes as possible without blocking.)
         fdesc.setNonBlocking(pty.stdin)
 
-        try:
-            # Set terminal raw
-            if raw:
-                #tty.setraw(pty.stdin.fileno())
-                tty.setcbreak(pty.stdin.fileno())
-            chan.settimeout(0.0)
+        import contextlib
 
-            # When initial input has been given, send this first
-            if initial_input:
-                time.sleep(0.2) # Wait a very short while for the channel to be initialized, before sending.
-                chan.send(initial_input)
+        # Set terminal in raw mode
+        if raw:
+            context = raw_mode(pty.stdin)
+        else:
+            context = contextlib.nested()
 
-            # Read/write loop
-            while True:
-                # Don't wait for any input when an exit status code has been
-                # set already.
-                if chan.status_event.isSet():
-                    break;
+        with context:
+            try:
+                chan.settimeout(0.0)
 
-                r, w, e = select([pty.stdin, chan], [], [])
+                # When initial input has been given, send this first
+                if initial_input:
+                    time.sleep(0.2) # Wait a very short while for the channel to be initialized, before sending.
+                    chan.send(initial_input)
 
-                # Receive stream
-                if chan in r:
-                    try:
-                        x = chan.recv(1024)
+                # Read/write loop
+                while True:
+                    # Don't wait for any input when an exit status code has been
+                    # set already.
+                    if chan.status_event.isSet():
+                        break;
+
+                    r, w, e = select([pty.stdin, chan], [], [])
+
+                    # Receive stream
+                    if chan in r:
+                        try:
+                            x = chan.recv(1024)
+
+                            # Received length 0 -> end of stream
+                            if len(x) == 0:
+                                break
+
+                            # Log received characters
+                            log_entry.log_io(x)
+
+                            # Write received characters to stdout and flush
+                            while True:
+                                try:
+                                    pty.stdout.write(x)
+                                    break
+                                except IOError, e:
+                                    # Sometimes, when we have a lot of output, we get here:
+                                    # IOError: [Errno 11] Resource temporarily unavailable
+                                    # Just waiting a little, and retrying seems to work.
+                                    # See also: deployer.run.socket_client for a similar issue.
+                                    time.sleep(0.2)
+
+                            pty.stdout.flush()
+
+                            # Also remember received output.
+                            # We want to return what's written to stdout.
+                            result.append(x)
+
+                            # Do we need to send the sudo password? (It's when the
+                            # magic prompt has been detected in the stream) Note
+                            # that we only monitor the last part of 'result', it's
+                            # a bit fuzzy, but works.
+                            if not password_sent and self.magic_sudo_prompt in ''.join(result[-32:]):
+                                chan.send(self.password)
+                                chan.send('\n')
+                                password_sent = True
+                        except socket.timeout:
+                            pass
+
+                    # Send stream (one by one character)
+                    if pty.stdin in r:
+                        try:
+                            x = pty.stdin.read(1024)
+                        except IOError, e:
+                            # What to do with IOError exceptions?
+                            # (we see what happens in the next select-call.)
+                            continue
 
                         # Received length 0 -> end of stream
                         if len(x) == 0:
                             break
 
-                        # Log received characters
-                        log_entry.log_io(x)
+                        # Write to channel
+                        chan.send(x)
 
-                        # Write received characters to stdout and flush
-                        while True:
-                            try:
-                                pty.stdout.write(x)
-                                break
-                            except IOError, e:
-                                # Sometimes, when we have a lot of output, we get here:
-                                # IOError: [Errno 11] Resource temporarily unavailable
-                                # Just waiting a little, and retrying seems to work.
-                                # See also: deployer.run.socket_client for a similar issue.
-                                time.sleep(0.2)
+                        # Not sure about this. Sometimes, when pasting large data
+                        # in the command line, the many concecutive read or write
+                        # commands will make Paramiko hang somehow...  (This was
+                        # the case, when still using a blocking pty.stdin.read(1)
+                        # instead of a non-blocking readmany.
+                        time.sleep(0.01)
+            finally:
+                # Set blocking again
+                fdesc.setBlocking(pty.stdin)
 
-                        pty.stdout.flush()
-
-                        # Also remember received output.
-                        # We want to return what's written to stdout.
-                        result.append(x)
-
-                        # Do we need to send the sudo password? (It's when the
-                        # magic prompt has been detected in the stream) Note
-                        # that we only monitor the last part of 'result', it's
-                        # a bit fuzzy, but works.
-                        if not password_sent and self.magic_sudo_prompt in ''.join(result[-32:]):
-                            chan.send(self.password)
-                            chan.send('\n')
-                            password_sent = True
-                    except socket.timeout:
-                        pass
-
-                # Send stream (one by one character)
-                if pty.stdin in r:
-                    try:
-                        x = pty.stdin.read(1024)
-                    except IOError, e:
-                        # What to do with IOError exceptions?
-                        # (we see what happens in the next select-call.)
-                        continue
-
-                    # Received length 0 -> end of stream
-                    if len(x) == 0:
-                        break
-
-                    # Write to channel
-                    chan.send(x)
-
-                    # Not sure about this. Sometimes, when pasting large data
-                    # in the command line, the many concecutive read or write
-                    # commands will make Paramiko hang somehow...  (This was
-                    # the case, when still using a blocking pty.stdin.read(1)
-                    # instead of a non-blocking readmany.
-                    time.sleep(0.01)
-        finally:
-            # Restore terminal
-            termios.tcsetattr(pty.stdin, termios.TCSANOW, oldtty)
-
-            # Set blocking again
-            fdesc.setBlocking(pty.stdin)
-
-        return ''.join(result)
+            return ''.join(result)
 
 
     # =====[ Actions which are also available in non-sandbox mode ]====
