@@ -582,7 +582,7 @@ class CLInterface(object):
                     else:
                         c = self.stdin.read(1)
 
-                    if c == '[': # (91)
+                    if c in ('[', 'O'): # (91, 68)
                         c = self.stdin.read(1)
 
                         # Cursor to left
@@ -638,17 +638,6 @@ class CLInterface(object):
                             self.home()
 
                         # End (xterm)
-                        elif c == 'F':
-                            self.end()
-
-                    elif c == 'O':
-                        c = self.stdin.read(1)
-
-                        # Home
-                        if c == 'H':
-                            self.home()
-
-                        # End
                         elif c == 'F':
                             self.end()
 
