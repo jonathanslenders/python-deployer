@@ -126,6 +126,7 @@ class Redis(Service):
                     self.host.sudo('make install')
 
         self.config.setup()
+        self.upstart_service.setup()
         self.touch_logfile()
 
     def tail_logfile(self):
