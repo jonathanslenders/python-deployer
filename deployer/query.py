@@ -83,16 +83,17 @@ class Query(object):
         return 'Q'
 
     # You cannot override and, or and not:
+    # Instead, we override the bitwise operators
     # http://stackoverflow.com/questions/471546/any-way-to-override-the-and-operator-in-python
 
-    #def __and__(self, other):
-    #    return operator(self, other, lambda a, b: a and b)
+    def __and__(self, other):
+        return operator(self, other, lambda a, b: a and b)
 
-    #def __or__(self, other):
-    #    return operator(self, other, lambda a, b: a or b)
+    def __or__(self, other):
+        return operator(self, other, lambda a, b: a or b)
 
-    #def __not__(self):
-    #    return operator(self, None, lambda a, b: not a)
+    def __invert__(self):
+        return invert(self)
 
 def _resolve(query_object, instance):
     """
@@ -113,6 +114,21 @@ def _resolve(query_object, instance):
     else:
         return query_object
 
+class invert(Query):
+    """
+    Implementation of the invert operator
+    """
+    def __init__(self, part):
+        self.part = part
+
+    @property
+    def _query(self):
+        def result(instance):
+            return not instance
+        return result
+
+    def __str__(self):
+        return u'~ %s' % str(self.part)
 
 class operator(Query):
     """
