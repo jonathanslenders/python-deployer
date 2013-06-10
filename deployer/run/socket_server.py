@@ -16,6 +16,7 @@ from twisted.internet.error import CannotListenError
 import StringIO
 import datetime
 import getpass
+import logging
 import os
 import pickle
 import sys
@@ -505,7 +506,7 @@ class CliClientProtocol(Protocol):
                 self.transport.loseConnection()
 
             elif action == 'open-new-window':
-                print 'opening new window...'
+                logging.info('Opening new window')
                 # When the client wants to open a new shell (Ctrl-N press for
                 # instance), check whether we are in an interactive session,
                 # and if so, copy this shell.
@@ -515,7 +516,7 @@ class CliClientProtocol(Protocol):
                     self._handle('open-new-window', { 'focus': True })
 
             elif action == '_start-interaction':
-                print 'creating session'
+                logging.info('Starting session')
 
                 cd_path = data.get('cd_path', None)
 
@@ -550,7 +551,7 @@ class CliClientProtocol(Protocol):
         """
         Disconnected from client.
         """
-        print 'Connection lost'
+        logging.info('Client connection lost')
 
         # Remove current connection from the factory's connection pool.
         self.factory.connectionPool.remove(self.connection)
@@ -558,7 +559,7 @@ class CliClientProtocol(Protocol):
 
         # When no more connections are left, close the reactor.
         if len(self.factory.connectionPool) == 0 and self.factory.shutdownOnLastDisconnect:
-            print 'Stopping server.'
+            logging.info('Stopping server.')
             reactor.stop()
 
     def _handle(self, action, data):
@@ -596,7 +597,7 @@ def startSocketServer(settings, shutdownOnLastDisconnect, interactive):
 
             # When 100 times failed, cancel server
             if i == 100:
-                print '100 times failed to listen on posix socket. Please clean up old sockets.'
+                logging.warning('100 times failed to listen on posix socket. Please clean up old sockets.')
                 raise
 
     return path
@@ -604,7 +605,7 @@ def startSocketServer(settings, shutdownOnLastDisconnect, interactive):
 
 # =================[ Startup]=================
 
-def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50, interactive=True):
+def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50, interactive=True, logfile=None):
     """
     Start web server
     If daemonized, this will start the server in the background,
@@ -617,6 +618,10 @@ def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_
     path = startSocketServer(settings, shutdownOnLastDisconnect=shutdown_on_last_disconnect, interactive=interactive)
 
     def run_server():
+        # Set logging
+        if logfile:
+            logging.basicConfig(filename=logfile, level=logging.DEBUG)
+
         # Thread sensitive interface for stdout/stdin
         std.setup()
 

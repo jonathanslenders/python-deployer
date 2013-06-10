@@ -10,6 +10,7 @@
 import StringIO
 import copy
 import getpass
+import logging
 import os
 import paramiko
 import pexpect
@@ -216,6 +217,9 @@ class Host(object):
                 command = "bash -n -c '%s' " % esc1(command)
                 command = "%s;echo '%s'" % (command, esc1(command))
 
+            logging.info('Running "%s" on host "%s" sudo=%r, interactive=%r' %
+                            (command, self.slug, use_sudo, interactive))
+
             # Execute
             if use_sudo:
                 # We use 'sudo su' instead of 'sudo -u', because shell expension
@@ -227,21 +231,27 @@ class Host(object):
                 # 2. This shows the home directory of the user postgres:
                 # sudo su postgres -c 'echo $HOME '
                 if interactive:
-                    chan.exec_command(self._wrap_command(
+                    wrapped_command = self._wrap_command(
                                 "sudo -p '%s' su '%s' -c '%s'" % (esc1(self.magic_sudo_prompt), esc1(user), esc1(command))
                                 #"sudo -u '%s' bash -c '%s'" % (user, esc1(command))
                                 if user else
                                 "sudo -p '%s' bash -c '%s' " % (esc1(self.magic_sudo_prompt), esc1(command))
-                                ))
+                                )
+
+                    logging.debug('Running wrapped command "%s"' % wrapped_command)
+                    chan.exec_command(wrapped_command)
 
                 # Some commands, like certain /etc/init.d scripts cannot be
                 # run interactively. They won't work in a ssh pty.
                 else:
-                    chan.exec_command(self._wrap_command(
+                    wrapped_command = self._wrap_command(
                         "echo '%s' | sudo -p '(passwd)' -u '%s' -P %s " % (esc1(self.password), esc1(user), command)
                         if user else
                         "echo '%s' | sudo -p '(passwd)' -S %s " % (esc1(self.password), command)
-                        ))
+                        )
+
+                    logging.debug('Running wrapped command "%s" interactive' % wrapped_command)
+                    chan.exec_command(wrapped_command)
             else:
                 chan.exec_command(self._wrap_command(command))
 

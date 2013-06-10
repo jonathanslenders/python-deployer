@@ -9,6 +9,7 @@ from deployer.pty import Pty
 from deployer.shell import Shell, ShellHandler, GroupHandler, BuiltinType
 
 import codecs
+import logging
 import os
 import random
 import signal
@@ -133,11 +134,15 @@ class StandaloneShell(Shell):
         return { 'history': History, }
 
 
-def start(settings, interactive=True, cd_path=None):
+def start(settings, interactive=True, cd_path=None, logfile=None):
     """
     Start the deployment shell in standalone modus. (No parrallel execution,
     no server/client. Just one interface, and everything sequential.)
     """
+    # Enable logging
+    if logfile:
+        logging.basicConfig(filename=logfile, level=logging.DEBUG)
+
     # Make sure that stdin and stdout are unbuffered
     # The alternative is to start Python with the -u option
     sys.stdin = os.fdopen(sys.stdin.fileno(), 'r', 0)

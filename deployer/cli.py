@@ -13,6 +13,7 @@ import sys
 import termcolor
 import termios
 import time
+import logging
 
 from twisted.internet import fdesc
 from deployer.pty import select
@@ -106,6 +107,8 @@ class CLInterface(object):
         original_parts = parts
         h = self.root
         parts = parts[:]
+
+        logging.info('Handle command line action "%s"' % ' '.join(parts))
 
         while h and parts:# and not h.is_leaf:
             try:

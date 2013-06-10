@@ -232,16 +232,18 @@ def start(settings_module):
     socket_name = ''
     interactive = True
     single_threaded = False
+    logfile = None
 
     def print_usage():
         print 'Usage:'
         print '    ./client.py [-h|--help] [ -c|--connect "socket number" ] [ -p|--path "path" ] [ -l | --list-sessions ]'
         print '                [--interactive|--non-interactive ] [ -s|--single-threaded ] [ -m|--multithreaded ]'
+        print '                [--log]'
 
     # Parse command line arguments.
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'hp:c:lsm', ['help', 'path=', 'connect=', 'list-sessions',
-                            'interactive', 'non-interactive', 'single-threaded', 'multithreaded'])
+                            'interactive', 'non-interactive', 'single-threaded', 'multithreaded', 'log='])
     except getopt.GetoptError, err:
         print str(err)
         print_usage()
@@ -274,6 +276,9 @@ def start(settings_module):
         elif o in ('-m', '--multithreaded'):
             single_threaded = False
 
+        elif o in ('--log',):
+            logfile = a
+
         else:
             print 'Unknown option: %s' % o
             sys.exit(2)
@@ -281,7 +286,7 @@ def start(settings_module):
     if single_threaded:
         # == Single threaded ==
         from deployer.run.standalone_shell import start as start_standalone
-        start_standalone(settings_module, interactive=interactive, cd_path=cd_path)
+        start_standalone(settings_module, interactive=interactive, cd_path=cd_path, logfile=a)
     else:
         # == Multithreaded ==
 
@@ -289,7 +294,7 @@ def start(settings_module):
         # background, and use that socket instead.
         if not socket_name:
             from deployer.run.socket_server import start
-            socket_name = start(settings_module, daemonized=True, shutdown_on_last_disconnect=True, interactive=interactive)
+            socket_name = start(settings_module, daemonized=True, shutdown_on_last_disconnect=True, interactive=interactive, logfile=a)
 
         # The socket path can be an absolute path, or an integer.
         if not socket_name.startswith('/'):
