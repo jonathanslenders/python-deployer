@@ -294,7 +294,7 @@ def start(settings_module):
         # background, and use that socket instead.
         if not socket_name:
             from deployer.run.socket_server import start
-            socket_name = start(settings_module, daemonized=True, shutdown_on_last_disconnect=True, interactive=interactive, logfile=a)
+            socket_name = start(settings_module, daemonized=True, shutdown_on_last_disconnect=True, interactive=interactive, logfile=logfile)
 
         # The socket path can be an absolute path, or an integer.
         if not socket_name.startswith('/'):
