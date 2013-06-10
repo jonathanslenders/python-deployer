@@ -957,7 +957,13 @@ class LocalHost(Host):
 
             # Check password
             try:
-                Host._run_silent_sudo(self, '/bin/true')
+                if self.exists('/bin/true'):
+                    Host._run_silent_sudo(self, '/bin/true')
+                elif self.exists('/usr/bin/true'):
+                    # On OS X, we have /usr/bin/true.
+                    Host._run_silent_sudo(self, '/usr/bin/true')
+                else:
+                    print 'Warning: could not find /bin/true or /usr/bin/true.'
             except ExecCommandFailed:
                 print 'Incorrect password'
                 self._backend.password = None
