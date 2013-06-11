@@ -141,8 +141,8 @@ class Connection(object):
     for either an interactive session, for logging,
     or for a second parallel deployment.
     """
-    def __init__(self, settings, transportHandle, doneCallback, interactive):
-        self.settings = settings
+    def __init__(self, root_service, transportHandle, doneCallback, interactive):
+        self.root_service = root_service
         self.transportHandle = transportHandle
         self.doneCallback = doneCallback
         self.connection_shell = None
@@ -368,7 +368,7 @@ class ConnectionShell(object):
         self.logger_interface = LoggerInterface()
 
         # Run shell
-        self.shell = SocketShell(connection.settings, connection.pty,
+        self.shell = SocketShell(connection.root_service, connection.pty,
                                 self.logger_interface, clone_shell=clone_shell)
         self.cd_path = cd_path
 
@@ -413,7 +413,7 @@ class ConnectionShell(object):
         self.shell.session = self # Assign session to shell
 
         in_shell_logger = DefaultLogger(print_group=False)
-        extra_loggers = self.connection.settings.Meta.extra_loggers
+        extra_loggers = self.connection.root_service.Meta.extra_loggers
 
                 # in_shell_logger: Displaying of events in shell
         self.logger_interface.attach(in_shell_logger)
@@ -497,11 +497,18 @@ class CliClientProtocol(Protocol):
                 self.connection.pty.set_size(*data)
 
             elif action == '_get_info':
-                # Return information to client.
+                # Return information about the current server state
+                processes = [ {
+                            'service_name': c.connection_shell.shell.state._service.__class__.__name__,
+                            'service_module': c.connection_shell.shell.state._service.__module__,
+                            'running': c.connection_shell.shell.currently_running or '(Idle)'
+                    } for c in self.factory.connectionPool if c.connection_shell and c.connection_shell.shell ]
+
                 self._handle('_info', {
                             'created': self.created.isoformat(),
-                            # TODO: also return information about running ConnectionShell
-                            # objects.
+                            'root_service_name': self.connection.root_service.__class__.__name__,
+                            'root_service_module': self.connection.root_service.__module__,
+                            'processes': processes,
                     })
                 self.transport.loseConnection()
 
@@ -566,12 +573,12 @@ class CliClientProtocol(Protocol):
         self.transport.write(pickle.dumps((action, data)) )
 
     def connectionMade(self):
-        self.connection = Connection(self.factory.settings, self._handle, self.transport.loseConnection,
+        self.connection = Connection(self.factory.root_service, self._handle, self.transport.loseConnection,
                         interactive=self.factory.interactive)
         self.factory.connectionPool.add(self.connection)
 
 
-def startSocketServer(settings, shutdownOnLastDisconnect, interactive):
+def startSocketServer(root_service, shutdownOnLastDisconnect, interactive):
     """
     Bind the first available unix socket.
     Return the path.
@@ -581,7 +588,7 @@ def startSocketServer(settings, shutdownOnLastDisconnect, interactive):
     factory.connectionPool = set() # List of currently, active connections
     factory.protocol = CliClientProtocol
     factory.shutdownOnLastDisconnect = shutdownOnLastDisconnect
-    factory.settings = settings
+    factory.root_service = root_service
     factory.interactive = interactive
 
     # Search for a socket to listen on.
@@ -605,22 +612,26 @@ def startSocketServer(settings, shutdownOnLastDisconnect, interactive):
 
 # =================[ Startup]=================
 
-def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50, interactive=True, logfile=None):
+def start(root_service, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50, interactive=True, logfile=None):
     """
     Start web server
     If daemonized, this will start the server in the background,
     and return the socket path.
     """
-    # Create settings instance
-    settings = settings()
+    # Create service instance
+    root_service = root_service()
 
     # Start server
-    path = startSocketServer(settings, shutdownOnLastDisconnect=shutdown_on_last_disconnect, interactive=interactive)
+    path = startSocketServer(root_service, shutdownOnLastDisconnect=shutdown_on_last_disconnect, interactive=interactive)
 
     def run_server():
         # Set logging
         if logfile:
             logging.basicConfig(filename=logfile, level=logging.DEBUG)
+        elif not daemonized:
+            logging.basicConfig(filename='/dev/stdout', level=logging.DEBUG)
+
+        logging.info('Socket server started at %s' % path)
 
         # Thread sensitive interface for stdout/stdin
         std.setup()
@@ -642,8 +653,3 @@ def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_
             return path
     else:
         run_server()
-
-
-if __name__ == '__main__':
-    from deployer.contrib.default_config import example_settings
-    start(settings=example_settings)

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """
 Start a deployment shell client.
 """
@@ -10,7 +8,6 @@ from twisted.internet import fdesc
 import array
 import errno
 import fcntl
-import getopt
 import getpass
 import glob
 import inspect
@@ -143,8 +140,16 @@ class DeploymentClient(object):
 
             elif action == '_info':
                 print termcolor.colored(self.socket_path, 'cyan')
-                print '     created: %s' % data['created']
-                #print '|%s|' % data # TODO: print more nicely formatted.
+                print '     Created:             %s' % data['created']
+                print '     Root service name:   %s' % data['root_service_name']
+                print '     Root service module: %s' % data['root_service_module']
+                print '     Processes: (%i)' % len(data['processes'])
+
+                for i, process in enumerate(data['processes']):
+                    print '     %i' % i
+                    print '     - Service name    %s' % process['service_name']
+                    print '     - Service module  %s' % process['service_module']
+                    print '     - Running         %s' % process['running']
 
             # Keep the remainder for the next time
             remainder = io.read()
@@ -217,6 +222,9 @@ class DeploymentClient(object):
 
 
 def list_sessions():
+    """
+    List all the servers that are running.
+    """
     for path in glob.glob('/tmp/deployer.sock.%s.*' % getpass.getuser()):
         try:
             DeploymentClient(path).ask_info()
@@ -224,86 +232,9 @@ def list_sessions():
             pass
 
 
-def start(settings_module):
+def start(socket_name, cd_path=None):
     """
-    Client startup point.
+    Start a socket client.
     """
-    cd_path = None
-    socket_name = ''
-    interactive = True
-    single_threaded = False
-    logfile = None
-
-    def print_usage():
-        print 'Usage:'
-        print '    ./client.py [-h|--help] [ -c|--connect "socket number" ] [ -p|--path "path" ] [ -l | --list-sessions ]'
-        print '                [--interactive|--non-interactive ] [ -s|--single-threaded ] [ -m|--multithreaded ]'
-        print '                [--log]'
-
-    # Parse command line arguments.
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hp:c:lsm', ['help', 'path=', 'connect=', 'list-sessions',
-                            'interactive', 'non-interactive', 'single-threaded', 'multithreaded', 'log='])
-    except getopt.GetoptError, err:
-        print str(err)
-        print_usage()
-        sys.exit(2)
-
-    for o, a in opts:
-        if o in ('-h', '--help'):
-            print_usage()
-            sys.exit()
-
-        elif o in ('-l', '--list-sessions',):
-            list_sessions()
-            sys.exit()
-
-        elif o in ('-c', '--connect'):
-            socket_name = a
-
-        elif o in ('-p', '--path'):
-            cd_path = a.split('.')
-
-        elif o in ('--non-interactive', ):
-            interactive = False
-
-        elif o in ('--interactive', ):
-            interactive = True
-
-        elif o in ('-s', '--single-threaded'):
-            single_threaded = True
-
-        elif o in ('-m', '--multithreaded'):
-            single_threaded = False
-
-        elif o in ('--log',):
-            logfile = a
-
-        else:
-            print 'Unknown option: %s' % o
-            sys.exit(2)
-
-    if single_threaded:
-        # == Single threaded ==
-        from deployer.run.standalone_shell import start as start_standalone
-        start_standalone(settings_module, interactive=interactive, cd_path=cd_path, logfile=a)
-    else:
-        # == Multithreaded ==
-
-        # If no socket has been given. Start a daemonized server in the
-        # background, and use that socket instead.
-        if not socket_name:
-            from deployer.run.socket_server import start
-            socket_name = start(settings_module, daemonized=True, shutdown_on_last_disconnect=True, interactive=interactive, logfile=logfile)
-
-        # The socket path can be an absolute path, or an integer.
-        if not socket_name.startswith('/'):
-            socket_name = '/tmp/deployer.sock.%s.%s' % (getpass.getuser(), socket_name)
-
-        make_stdin_unbuffered()
-        DeploymentClient(socket_name).run(cd_path=cd_path)
-
-
-if __name__ == '__main__':
-    from deployer.contrib.default_config import example_settings
-    start(settings_module=example_settings)
+    make_stdin_unbuffered()
+    DeploymentClient(socket_name).run(cd_path=cd_path)

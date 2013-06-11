@@ -125,8 +125,8 @@ class StandaloneShell(Shell):
     The shell that we provide via telnet/http exposes some additional
     commands for session and user management and logging.
     """
-    def __init__(self, settings, pty, logger_interface, history):
-        Shell.__init__(self, settings, pty, logger_interface)
+    def __init__(self, root_service, pty, logger_interface, history):
+        Shell.__init__(self, root_service, pty, logger_interface)
         self.history = history
 
     @property
@@ -134,7 +134,7 @@ class StandaloneShell(Shell):
         return { 'history': History, }
 
 
-def start(settings, interactive=True, cd_path=None, logfile=None):
+def start(root_service, interactive=True, cd_path=None, logfile=None):
     """
     Start the deployment shell in standalone modus. (No parrallel execution,
     no server/client. Just one interface, and everything sequential.)
@@ -155,13 +155,13 @@ def start(settings, interactive=True, cd_path=None, logfile=None):
         pty.trigger_resize()
     signal.signal(signal.SIGWINCH, sigwinch_handler)
 
-    # Initialize settings
-    settings = settings()
+    # Initialize service
+    root_service = root_service()
 
     # Loggers
     history_logger = HistoryLogger()
     in_shell_logger = DefaultLogger(print_group=False)
-    extra_loggers = settings.Meta.extra_loggers
+    extra_loggers = root_service.Meta.extra_loggers
 
     logger_interface = LoggerInterface()
     logger_interface.attach(in_shell_logger)
@@ -172,7 +172,7 @@ def start(settings, interactive=True, cd_path=None, logfile=None):
 
     # Start shell command loop
     print 'Running single threaded shell...'
-    shell = StandaloneShell(settings, pty, logger_interface, history_logger.history)
+    shell = StandaloneShell(root_service, pty, logger_interface, history_logger.history)
     if cd_path is not None:
         shell.cd(cd_path)
     shell.cmdloop()
@@ -182,8 +182,3 @@ def start(settings, interactive=True, cd_path=None, logfile=None):
 
     logger_interface.detach(in_shell_logger)
     logger_interface.detach(history_logger)
-
-
-if __name__ == '__main__':
-    from deployer.contrib.default_config import example_settings
-    start(settings=example_settings)
