@@ -53,28 +53,37 @@ class Query(object):
 
     @property
     def parent(self):
-        """
-        Go the to current parent of this service.
-        """
+        """ Go the to current parent of this service.  """
         return parent(self)
 
+    # Operator overloads
     def __mod__(self, other):
-        """
-        Module operator between two Q objects:
-
-        class service(Service):
-            my_property = Q('Some string with %s placeholder') % Q.parent.property_to_be_inserted
-        """
         return operator(self, other, lambda a, b: a % b, '%')
 
     def __add__(self, other):
-        """
-        Plus operator between two Q objects.
-
-        class service(Service):
-            my_property = Q(20) % Q.parent.add_this_property
-        """
         return operator(self, other, lambda a, b: a+b, '+')
+
+    def __sub__(self, other):
+        return operator(self, other, lambda a, b: a-b, '-')
+
+    def __mul__(self, other):
+        return operator(self, other, lambda a, b: a*b, '*')
+
+    def __div__(self, other):
+        return operator(self, other, lambda a, b: a/b, '/')
+
+    # Reverse operator overloads
+    def __radd__(self, other):
+        return operator(other, self, lambda a, b: a + b, '+')
+
+    def __rsub__(self, other):
+        return operator(other, self, lambda a, b: a - b, '-')
+
+    def __rmul__(self, other):
+        return operator(other, self, lambda a, b: a*b, '*')
+
+    def __rdiv__(self, other):
+        return operator(other, self, lambda a, b: a/b, '/')
 
     def __repr__(self):
         return '<Query: %s>' % self.__str__()
