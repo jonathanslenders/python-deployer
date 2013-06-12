@@ -14,6 +14,7 @@ from deployer.pty import Pty
 from deployer.shell import Shell, ShellHandler, GroupHandler
 
 from operator import attrgetter
+from termcolor import colored
 
 import datetime
 import logging
@@ -25,7 +26,6 @@ import string
 import struct
 import sys
 import threading
-from termcolor import colored
 
 
 __doc__ = """
@@ -131,74 +131,64 @@ class Session(object):
         self.master, self.slave = os.openpty()
 
         # File descriptors for the shell
-        self.shell_in = os.fdopen(self.master, 'w', 0)
-        self.shell_out = os.fdopen(self.master, 'r', 0)
+        self.shell_in = self.shell_out = os.fdopen(self.master, 'r+w', 0)
 
         # File descriptors for slave pty.
-        stdin = os.fdopen(self.slave, 'r', 0)
-        stdout = os.fdopen(self.slave, 'w', 0)
+        stdin = stdout = os.fdopen(self.slave, 'r+w', 0)
 
         # Create pty object, for passing to deployment enviroment.
         self.pty = Pty(stdin, stdout)
 
-    def __del__(self):
-        # TODO: somehow this Session destructor is never called
-        #       when a session quits... Fix memory leak.
-        logging.info('Calling session destructor')
-
     def start(self):
-        # Run command in other thread
-        class shellThread(threading.Thread):
+        def thread():
             """
-            Run the shell in another thread
+            Run the shell in a normal synchronous thread.
             """
-            def run(thr):
-                # Set stdin/out pair for this thread.
-                sys.stdout.set_handler(self.pty.stdout)
-                sys.stdin.set_handler(self.pty.stdin)
+            # Set stdin/out pair for this thread.
+            sys.stdout.set_handler(self.pty.stdout)
+            sys.stdin.set_handler(self.pty.stdin)
 
-                # Authentication
-                try:
-                    self.username = pty_based_auth(self.auth_backend, self.pty) if self.auth_backend else ''
-                    authenticated = True
-                except NotAuthenticated:
-                    authenticated = False
+            # Authentication
+            try:
+                self.username = pty_based_auth(self.auth_backend, self.pty) if self.auth_backend else ''
+                authenticated = True
+            except NotAuthenticated:
+                authenticated = False
 
-                if authenticated:
-                    # Create loggers
-                    logger_interface = LoggerInterface()
-                    in_shell_logger = DefaultLogger(self.pty.stdout, print_group=False)
+            if authenticated:
+                # Create loggers
+                logger_interface = LoggerInterface()
+                in_shell_logger = DefaultLogger(self.pty.stdout, print_group=False)
 
-                    # Run shell
-                    shell = WebShell(self.root_service, self.pty, logger_interface, username=self.username)
+                # Run shell
+                shell = WebShell(self.root_service, self.pty, logger_interface, username=self.username)
 
-                    shell.session = self # Assign session to shell
-                    self.shell = shell
+                shell.session = self # Assign session to shell
+                self.shell = shell
 
-                    logger_interface.attach(in_shell_logger)
-                    shell.cmdloop()
-                    logger_interface.detach(in_shell_logger)
+                logger_interface.attach(in_shell_logger)
+                shell.cmdloop()
+                logger_interface.detach(in_shell_logger)
 
-                    # Remove references (shell and session had circular reference)
-                    self.shell = None
-                    shell.session = None
+                # Remove references (shell and session had circular reference)
+                self.shell = None
+                shell.session = None
 
-                # Write last dummy character to trigger the session_closed.
-                # (telnet session will otherwise wait for enter keypress.)
-                sys.stdout.write(' ')
+            # Write last dummy character to trigger the session_closed.
+            # (telnet session will otherwise wait for enter keypress.)
+            sys.stdout.write(' ')
 
-                # Remove std handlers for this thread.
-                sys.stdout.del_handler()
-                sys.stdin.del_handler()
+            # Remove std handlers for this thread.
+            sys.stdout.del_handler()
+            sys.stdin.del_handler()
 
-                if self.doneCallback:
-                    self.doneCallback()
+            if self.doneCallback:
+                self.doneCallback()
 
-                # Stop IO reader
-                self.reader.stopReading()
+            # Stop IO reader
+            reactor.callFromThread(self.reader.stopReading)
 
-        self.thread = shellThread() # TODO: use deferToThread!!!
-        self.thread.start()
+        deferToThread(thread)
 
         # Start IO reader
         self.reader = SelectableFile(self.shell_out, self.writeCallback)
@@ -304,14 +294,14 @@ def start(root_service, auth_backend=None, telnet_port=8023, logfile=None):
     """
     Start telnet server
     """
-    # Thread sensitive interface for stdout/stdin
-    std.setup()
-
     # Set logging
     if logfile:
         logging.basicConfig(filename=logfile, level=logging.DEBUG)
     else:
         logging.basicConfig(filename='/dev/stdout', level=logging.DEBUG)
+
+    # Thread sensitive interface for stdout/stdin
+    std.setup()
 
     # Telnet
     factory = ServerFactory()

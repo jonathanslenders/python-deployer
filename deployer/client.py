@@ -7,6 +7,7 @@ import getpass
 from deployer.run.socket_client import start as start_client
 from deployer.run.socket_client import list_sessions
 from deployer.run.socket_server import start as start_server
+from deployer.run.telnet_server import start as start_telnet_server
 from deployer.run.standalone_shell import start as start_standalone
 
 from deployer.contrib.default_config import example_settings
@@ -17,22 +18,23 @@ def start(root_service):
     Client startup point.
     """
     cd_path = None
-    socket_name = ''
     interactive = True
-    single_threaded = False
     logfile = None
+    single_threaded = False
+    socket_name = ''
     socket_server = False
+    telnet_server = False
 
     def print_usage():
         print 'Usage:'
         print '    ./client.py [-h|--help] [ -c|--connect "socket number" ] [ -p|--path "path" ] [ -l | --list-sessions ]'
         print '                [--interactive|--non-interactive ] [ -s|--single-threaded ] [ -m|--multithreaded ]'
-        print '                [--log] [--server]'
+        print '                [--log] [--server] [--telnet-server]'
 
     # Parse command line arguments.
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'hp:c:lsm', ['help', 'path=', 'connect=', 'list-sessions',
-                            'interactive', 'non-interactive', 'single-threaded', 'multithreaded', 'log=', 'server'])
+                            'interactive', 'non-interactive', 'single-threaded', 'multithreaded', 'log=', 'server', 'telnet-server'])
     except getopt.GetoptError, err:
         print str(err)
         print_usage()
@@ -71,16 +73,25 @@ def start(root_service):
         elif o in ('--server',):
             socket_server = True
 
+        elif o in ('--telnet-server',):
+            telnet_server = True
+
         else:
             print 'Unknown option: %s' % o
             sys.exit(2)
 
-    if socket_server:
+    if telnet_server:
+        # == Telnet server ==
+        start_telnet_server(root_service, logfile=logfile)
+
+    elif socket_server:
         # == Socket server ==
         socket_name = start_server(root_service, daemonized=False, shutdown_on_last_disconnect=False, interactive=interactive, logfile=logfile)
+
     elif single_threaded:
         # == Single threaded ==
         start_standalone(root_service, interactive=interactive, cd_path=cd_path, logfile=a)
+
     else:
         # == Multithreaded ==
 
