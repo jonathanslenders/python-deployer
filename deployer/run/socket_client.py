@@ -5,6 +5,8 @@ Start a deployment shell client.
 from StringIO import StringIO
 from twisted.internet import fdesc
 
+from deployer.utils import esc1
+
 import array
 import errno
 import fcntl
@@ -72,8 +74,7 @@ class DeploymentClient(object):
         """
         # Note: we use inspect, instead of __file__, because __file can
         # return pyc files.
-        path = inspect.getfile(inspect.currentframe())
-        return "python %s -c %s" % (path, self.socket_path)
+        return "python -c 'from deployer.run.socket_client import start; import sys; start(sys.argv[1])' '%s' " % esc1(self.socket_path)
 
     def _open_new_window(self, focus=False):
         """
