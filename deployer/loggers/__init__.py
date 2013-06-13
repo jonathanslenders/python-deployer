@@ -68,7 +68,7 @@ class LoggerInterface(object):
                 entry.command = command
                 entry.sandboxing = sandboxing
 
-                entry.result = None
+                entry.result = None # TODO: Remove result parameter, not used.
                 entry.succeeded = None
                 entry.exception = None
 
@@ -83,9 +83,8 @@ class LoggerInterface(object):
                 for c in entry._callbacks:
                     c.completed()
 
-            def set_succeeded(entry, result):
+            def set_succeeded(entry):
                 entry.time_ended = datetime.datetime.now()
-                entry.result = result
                 entry.succeeded = True
 
                 for c in entry._callbacks:

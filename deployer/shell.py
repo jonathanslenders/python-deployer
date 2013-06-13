@@ -497,11 +497,11 @@ class Action(Handler):
 
         try:
             if sandbox:
-                result = self.action(*self.args, _trace_action=True).sandbox(pty, logger_interface)
+                result = self.action(*self.args).sandbox(pty, logger_interface)
             else:
-                result = self.action(*self.args, _trace_action=True).run(pty, logger_interface)
+                result = self.action(*self.args).run(pty, logger_interface)
 
-            action_callback.set_succeeded(result)
+            action_callback.set_succeeded()
 
             # When the result is a subservice, start a subshell.
             def handle_result(result):
@@ -516,7 +516,7 @@ class Action(Handler):
 
             if isinstance(result, list):
                 for r in result:
-                    handle_result(r.result)
+                    handle_result(r)
             else:
                 handle_result(result)
 

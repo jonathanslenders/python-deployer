@@ -593,9 +593,6 @@ class Env(object):
 
         return ForkProxy(getobj, getname)
 
-    def isinstance(self, class_):
-        return isinstance(self._service, class_)
-
     def __call__(self, *a, **kw):
         self._service(*a, **kw).run(self._pty, self._logger)
 
@@ -783,12 +780,6 @@ class Action(object):
         Call the action:
         >> Service('...').action()
         """
-        # Extract _trace_action from kwargs
-        trace_action = kwargs.get('_trace_action', False)
-        kwargs = kwargs.copy()
-        if trace_action:
-            del kwargs['_trace_action']
-
         # Name of this action call, to be passed to the loggers.
         service = self._service
         func = self.full_name
@@ -912,10 +903,7 @@ class Action(object):
                                 if self._is_property:
                                     return result
 
-                                elif trace_action:
-                                    return ActionResult(result, capt.value, trace.first_trace) # TODO: include isolation name.
-                                else:
-                                    return result
+                                return result
 
                             # When something goes wrong, wrap exception in
                             # 'ActionException', this allows inspection of the
@@ -1050,29 +1038,6 @@ def get_isolations(service):
         else:
             # Just link to new parent.
             yield create_isolation(parent_name, hosts)
-
-
-class ActionResult(object):
-    """
-    When an action within a service is called and the _trace_action parameter
-    is given, it will return an ActionResult, This is a wrapper around the
-    real return value, which contains also the captured stdout.
-    """
-    def __init__(self, result, output, trace):
-        # Return value
-        self.result = result
-
-        # Output written to stdout
-        self.output = output
-
-        # Trace of executed actions within this block
-        self.trace = trace
-
-    def __unicode__(self):
-        return unicode(self.result)
-
-    def __str__(self):
-        return str(self.result)
 
 
 class ActionException(Exception):
