@@ -428,6 +428,15 @@ class ServiceBase(type):
         wrapped_attribute = self._wrap_attribute(name, value, self.__name__)
         type.__setattr__(self, name, wrapped_attribute)
 
+    def __instancecheck__(self, instance):
+        """
+        Override isinstance operator.
+        We consider an Env object in instance of this class as well if
+        env._service is an instance.
+        """
+        return type.__instancecheck__(self, instance) or (
+                    isinstance(instance, Env) and isinstance(instance._service, self))
+
 
 class Env(object):
     """
