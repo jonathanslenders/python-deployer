@@ -6,6 +6,10 @@ from functools import wraps
 
 __all__ = ('HostContainer', 'HostsContainer', )
 
+# TODO: the get_instance() does not work correctly!!
+#       When any action is started from an Env, we should reset the host status. (create instance.)
+#       when a new thread is forked from there, a clone of the hosts should be created. (Can be lazy.)
+
 
 class HostsContainer(object):
     """
@@ -60,6 +64,8 @@ class HostsContainer(object):
                 hosts[k] = [ v ]
             elif isinstance(v, (list, tuple)):
                 hosts[k] = [ host for host in v ]
+            elif isinstance(v, HostsContainer):
+                hosts[k] = v._all
 
         return cls(hosts)
 
@@ -307,7 +313,7 @@ class HostContainer(HostsContainer):
 
     def start_interactive_shell(self, command=None, initial_input=None):
         if not self._is_sandbox:
-            return self._host.start_interactive_shell(self._pty, command=command, initial_input=initial_input)
+            return self._host.get_instance().start_interactive_shell(self._pty, command=command, initial_input=initial_input)
         else:
             print 'Interactive shell is not available in sandbox mode.'
 

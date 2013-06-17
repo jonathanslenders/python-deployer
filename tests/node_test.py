@@ -60,7 +60,7 @@ class NodeTest(unittest.TestCase):
         s = Root()
         insp = Inspector(s)
 
-        # get_childnodes
+        # get_childnodes and get_actions
         self.assertEqual(repr(insp.get_childnodes()), '[<Node Root.A>, <Node Root.B>]')
         self.assertEqual(repr(insp.get_actions()), '[<Action Root.a>, <Action Root.b>, <Action Root.c>]')
 
@@ -68,10 +68,24 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(insp.has_childnode('A'), True)
         self.assertEqual(insp.has_childnode('C'), False)
         self.assertEqual(repr(insp.get_childnode('A')), '<Node Root.A>')
+        self.assertRaises(AttributeError, insp.get_childnode, 'unknown_childnode')
+
+        # has_action and get_action
+        self.assertEqual(insp.has_action('a'), True)
+        self.assertEqual(insp.has_action('d'), False)
+        self.assertEqual(repr(insp.get_action('a')), '<Action Root.a>')
+        self.assertRaises(AttributeError, insp.get_action, 'unknown_action')
 
         # get_path
         self.assertEqual(repr(Inspector(s.A).get_path()), "[(<Node Root>, 'Root'), (<Node Root.A>, 'A')]")
         self.assertEqual(repr(Inspector(s.B.C).get_path()), "[(<Node Root>, 'Root'), (<Node Root.B>, 'B'), (<Node Root.B.C>, 'C')]")
+
+        # get_name and get_full_name
+        self.assertEqual(Inspector(s.A).get_name(), 'A')
+        self.assertEqual(Inspector(s.B.C).get_name(), 'C')
+
+        self.assertEqual(Inspector(s.A).get_full_name(), 'Root.A')
+        self.assertEqual(Inspector(s.B.C).get_full_name(), 'Root.B.C')
 
         # is_callable
         self.assertEqual(Inspector(s.A).is_callable(), False)
@@ -80,6 +94,22 @@ class NodeTest(unittest.TestCase):
         # Inspector.__repr__
         self.assertEqual(repr(Inspector(s)), 'Inspector(node=Root)')
         self.assertEqual(repr(Inspector(s.B.C)), 'Inspector(node=Root.B.C)')
+
+    def test_node_inspection_on_env_object(self):
+        class Root(Node):
+            class A(Node):
+                pass
+            class B(Node):
+                def action(self):
+                    return 'action-b'
+            def action(self):
+                return 'action-root'
+
+        s = Root()
+        env = Env(Root())
+        insp = Inspector(env)
+        self.assertEqual(repr(insp.get_childnodes()), '[Env(Root.A), Env(Root.B)]')
+        self.assertEqual(insp.get_childnode('B').action(), 'action-b')
 
     def test_node_initialisation(self):
         class S(Node):
@@ -261,6 +291,19 @@ class NodeTest(unittest.TestCase):
         s = MyNode()
         env = Env(s)
         self.assertEqual(env.my_action(), 'value')
+
+    def test_wrapping_middle_node_in_env(self):
+        class S(Node):
+            class Hosts:
+                role1 = LocalHost1, LocalHost2
+
+            class T(Node):
+                def action(self):
+                    return len(self.hosts)
+
+        s = S()
+        env = Env(s.T)
+        self.assertEqual(env.action(), 2)
 
 class Q_ObjectTest(unittest.TestCase):
     def test_q_expressions(self):
@@ -514,6 +557,27 @@ class Q_ObjectTest(unittest.TestCase):
                 host = LocalHost1, LocalHost2
         n = N()
         self.assertRaises(TypeError, lambda:n[0])
+
+    def test_getitem_between_simplenodes(self):
+        # We often go from one simplenode to another one by using
+        # self.host as the index parameter.
+        class Root(Node):
+            class Hosts:
+                role = LocalHost1, LocalHost2
+
+            @map_roles('role')
+            class A(SimpleNode.Array):
+                def action(self):
+                    return self.parent.B[self.host].action()
+
+            @map_roles('role')
+            class B(SimpleNode.Array):
+                def action(self):
+                    return '%s in b' % self.host.slug
+
+        env = Env(Root())
+        self.assertEqual(set(env.A.action()), set(['localhost2 in b', 'localhost1 in b']))
+        self.assertIn(env.A[0].action(), ['localhost1 in b', 'localhost2 in b'])
 
     def test_dont_isolate_yet(self):
         once = [0]
@@ -822,20 +886,101 @@ class Q_ObjectTest(unittest.TestCase):
         env = Env(A())
         env.C.test()
 
+    def test_super_call(self):
+        # Calling the superclass
+        class A(Node):
+            def action(self):
+                return 'result'
+
+        class B(A):
+            def action(self):
+                return 'The result was %s' % A.action(self)
+
+        env = Env(B())
+        self.assertEqual(env.action(), 'The result was result')
+
+    def test_default_action(self):
+        class A(Node):
+            class Hosts:
+                role = LocalHost1, LocalHost2
+
+            def __call__(self):
+                return 'A.call'
+
+            class B(Node):
+                def __call__(self):
+                    return 'B.call'
+
+            @map_roles('role')
+            class C(SimpleNode.Array):
+                def __call__(self):
+                    return 'C.call'
+
+        env = Env(A())
+        self.assertEqual(env(), 'A.call')
+        self.assertEqual(env.B(), 'B.call')
+        self.assertEqual(env.C(), ['C.call', 'C.call'])
+        self.assertEqual(env.C[0](), 'C.call')
+
+    def test_going_from_isolated_to_parent(self):
+        # When both B and C are a SimpleNode,
+        # Going doing ``A.B.C[0].parent``, that should return a SimpleNode item.
+        this = self
+
+        class A(Node):
+            class Hosts:
+                role = LocalHost1, LocalHost2
+
+            @map_roles('role')
+            class B(SimpleNode.Array):
+                def action2(self):
+                    this.assertEqual(len(self.hosts), 1)
+                    this.assertEqual(self._isolated, True)
+
+                class C(SimpleNode):
+                    def action(self):
+                        this.assertEqual(len(self.hosts), 1)
+                        self.parent.action2()
+
+        env = Env(A())
+        env.B.C.action()
+        env.B.C[0].action()
+        env.B.C[1].action()
+
+    def test_initialize_node(self):
+        class A(Node):
+            class Hosts:
+                role1 = LocalHost2
+                role2 = LocalHost4, LocalHost5
+
+            def action(self):
+                # Define a new Node-tree
+                class B(Node):
+                    class Hosts:
+                        role2 = self.hosts.filter('role2')
+
+                    def action2(self):
+                        return len(self.hosts)
+
+                # Initialize it in the current Env, and call an action of that one.
+                return self.initialize_node(B).action2()
+
+        env = Env(A())
+        self.assertEqual(env.action(), 2)
+
     def test_invalid_nesting(self):
         """
         TODO:
-            - Config.setup() broken -> it doesn't write anything?
             - Test everything in host_container.
             - Take $TERM from the client terminal. (In case of a fuse-filesystem-system, we can
               easily have another $TERM for each connection.)
-            - test 'super' proxy.  (self.super.blabla)
-            - A.B.C[0].parent -> should return the isolated B, when both B and C are SimpleNode
             - test 'hosts' vs. 'host'
-            - Maybe rename @dont_isolate_yet to @take_one_host
-            - test __call__
             - test whether Node.node_group is a Group class.
             - test exceptions in action.
+            - test mapping invalid roles to SimpleNode
+
+            We need to have a HostContext, where we save the cd/env/... from a host.
+            and a Host should become a singleton instance again.
         """
 
 if __name__ == '__main__':

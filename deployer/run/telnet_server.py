@@ -74,6 +74,20 @@ class WebShell(Shell):
     def extensions(self):
         return { 'w': ActiveSessionsHandler, }
 
+    def __init__(self, *a, **kw):
+        username = kw.pop('username')
+        Shell.__init__(self, *a, **kw)
+        self.username = username
+
+    @property
+    def prompt(self):
+        """
+        Return a list of [ (text, color) ] tuples representing the prompt.
+        """
+        if self.username:
+            return [ (self.username, 'cyan'), ('@', None) ] + super(WebShell, self).prompt
+        else:
+            return super(WebShell, self).prompt
 
 # =================[ Text based authentication ]=================
 

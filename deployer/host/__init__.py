@@ -26,7 +26,7 @@ import tty
 from deployer.console import Console
 from deployer.exceptions import ExecCommandFailed
 from deployer.loggers import DummyLoggerInterface, Actions
-from deployer.pty import DummyPty, select
+from deployer.pseudo_terminal import DummyPty, select
 from deployer.std import raw_mode
 from deployer.utils import esc1
 

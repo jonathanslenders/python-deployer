@@ -162,26 +162,31 @@ def Connect(self):
     """
     from deployer.contrib.nodes import connect
     from deployer.host_container import HostsContainer
-    c = connect.Connect(HostsContainer({ 'host': self.node.hosts._all }))
+
+    class Connect(connect.Connect):
+        class Hosts:
+            host = self.node.hosts._all
+
+    env = Env(Connect(), pty=self.shell.pty)
 
     # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
-    Action(c.with_host, self.shell, False)()
+    env.with_host()
 
 
 @create_navigable_handler
 def Find(self):
     def _list_nested_nodes(node, prefix):
-        for name, action in node.get_actions():
-            yield '%s %s' % (prefix, termcolor.colored(name, node.get_group().color))
+        for a in Inspector(node).get_actions():
+            yield '%s %s' % (prefix, termcolor.colored(a.name, Inspector(a.node).get_group().color))
 
         for c in Inspector(node).get_childnodes():
             # Check the parent, to avoid loops.
             if c.parent == node:
                 name = Inspector(c).get_name()
-                for i in _list_nested_nodes(c, '%s %s' % (prefix, termcolor.colored(name, subnode.get_group().color))):
+                for i in _list_nested_nodes(c, '%s %s' % (prefix, termcolor.colored(name, Inspector(c).get_group().color))):
                     yield i
 
-    lesspipe(_list_nested_nodes(self.node, ''), self.shell.pty)
+    Console(self.shell.pty).lesspipe(_list_nested_nodes(self.node, ''))
 
 
 @create_navigable_handler
@@ -438,8 +443,8 @@ class Node(Handler):
             return Node(find_root_node(self.node), self.shell, self.sandbox)
 
         elif Inspector(self.node).has_childnode(name):
-            subnode = self.node.get_subnode(name)
-            return Node(subnode, self.shell, self.sandbox)
+            child = Inspector(self.node).get_childnode(name)
+            return Node(child, self.shell, self.sandbox)
 
         elif Inspector(self.node).has_action(name):
             return Action(self.node, name, self.shell, self.sandbox)
@@ -448,7 +453,7 @@ class Node(Handler):
             return Action(self.node, '__call__', self.shell, self.sandbox, fork=True)
 
     def __call__(self):
-        if self.node._default_action:
+        if self.is_leaf:
             return Action(self.node, '__call__', self.shell, self.sandbox).__call__()
 
 
@@ -677,10 +682,9 @@ class Shell(CLInterface):
     """
     Deployment shell.
     """
-    def __init__(self, root_node, pty, logger_interface, clone_shell=None, username=None):
+    def __init__(self, root_node, pty, logger_interface, clone_shell=None):
         self.root_node = root_node
         self.pty = pty
-        self._username = username
         self.logger_interface = logger_interface
 
         if clone_shell:
@@ -723,19 +727,4 @@ class Shell(CLInterface):
         """
         Return a list of [ (text, color) ] tuples representing the prompt.
         """
-        return ([
-                    # Username part
-                    (self._username if self._username else '', 'cyan'),
-                    (' @ ' if self._username else '', 'green'),
-
-                    # 'deployment'
-                    (self.root_node.__class__.__name__, 'cyan')
-                ]
-
-                # Path
-                + self.state.prompt +
-
-                # Prompt sign
-                [
-                    (' > ', 'cyan')
-                ])
+        return self.state.prompt + [ (' > ', 'cyan') ]

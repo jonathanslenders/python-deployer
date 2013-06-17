@@ -16,7 +16,7 @@ import time
 import logging
 
 from twisted.internet import fdesc
-from deployer.pty import select
+from deployer.pseudo_terminal import select
 from deployer.std import raw_mode
 from deployer.console import Console
 

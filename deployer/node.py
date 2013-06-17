@@ -3,13 +3,14 @@ from inspect import isfunction
 from deployer.host_container import HostsContainer, HostContainer
 from deployer.query import Query
 from deployer.utils import isclass
-from deployer.pty import DummyPty, Pty
+from deployer.pseudo_terminal import DummyPty, Pty
 from deployer.loggers import DummyLoggerInterface
 from deployer.host import Host
 from deployer.node_groups import Group
 
 import datetime
 import logging
+import traceback
 from functools import wraps
 
 """
@@ -24,6 +25,22 @@ class ActionException(Exception):
     def __init__(self, inner_exception, traceback):
         self.inner_exception = inner_exception
         self.traceback = traceback
+
+class required_property(property):
+    """
+    Placeholder for properties which are required
+    when a service is inherit.
+    """
+    def __init__(self, description=''):
+        self.description = description
+        self.name = ''
+        self.owner = ''
+
+        def fget(obj):
+            raise NotImplementedError('Property %s of %s is not defined: %s' % (self.name, self.owner, self.description))
+
+        property.__init__(self, fget)
+
 
 
 
@@ -220,7 +237,7 @@ class Env(object):
 
                 # Exactly one host.
                 elif len(isolations) == 1:
-                    return [ run_on_node(isolation[0]) ]
+                    return [ run_on_node(isolations[0]) ]
 
                 # Multiple hosts, but isolate_one_only flag set.
                 elif getattr(action._func, 'isolate_one_only', False):
@@ -278,6 +295,17 @@ class Env(object):
             return func()
         else:
             return func
+
+
+    def initialize_node(self, node_class):
+        """
+        Dynamically initialize a node from within another node.
+        This will make sure that the node class is initialized with the
+        correct logger, sandbox and pty settings.
+
+        - node_class, on object, inheriting from Node
+        """
+        return self.__wrap_node(node_class())
 
     def __wrap_node(self, node):
         return Env(node, self._pty, self._logger, self._is_sandbox)
@@ -579,6 +607,13 @@ class SimpleNode(Node):
     _node_type = NodeTypes.SIMPLE
     _isolated = False
 
+    @property
+    def host(self):
+        if self._isolated:
+            return self.hosts.get('host')
+        else:
+            raise AttributeError
+
     def __getitem__(self, index):
         """
         When this is a not-yet-isolated SimpleNode,
@@ -591,13 +626,18 @@ class SimpleNode(Node):
         # The parent reference stays exactly the same.
 
         if isinstance(index, int):
-            this_host = self.hosts[index]
+            this_host = self.hosts[index]._all
             new_name = '%s[%s]' % (self.__class__.__name__, index)
 
         elif isclass(index) and issubclass(index, Host):
             if index not in self.hosts:
                 raise IndexError('Unknown Host')
             this_host = index
+            new_name = '%s[%s]' % (self.__class__.__name__, index.slug)
+        elif isinstance(index, HostContainer):
+            if index._host not in self.hosts:
+                raise IndexError('Unknown Host')
+            this_host = index._host
             new_name = '%s[%s]' % (self.__class__.__name__, index.slug)
         else:
             raise IndexError
@@ -629,8 +669,14 @@ class Action(object):
         self._func = func # TODO: wrap _func in something that checks whether the first argument is an Env instance.
         self.is_property = is_property
 
-    def __call__(self):
-        raise TypeError('Action is not callable. '
+    def __call__(self, env, *a, **kw):
+        """
+        Call this action using the unbound method.
+        """
+        if self._node_instance is None and isinstance(env, Env):
+            return env._Env__wrap_action(self)(*a, **kw)
+        else:
+            raise TypeError('Action is not callable. '
                 'Please wrap the Node instance in an Env object first.')
 
     def __repr__(self):
@@ -651,22 +697,6 @@ class Action(object):
     @property
     def node_group(self):
         return self._node_instance.node_group or Group()
-
-
-class required_property(property):
-    """
-    Placeholder for properties which are required
-    when a service is inherit.
-    """
-    def __init__(self, description=''):
-        self.description = description
-        self.name = ''
-        self.owner = ''
-
-        def fget(obj):
-            raise NotImplementedError('Property %s of %s is not defined: %s' % (self.name, self.owner, self.description))
-
-        property.__init__(self, fget)
 
 
 def supress_action_result(action):
@@ -733,25 +763,35 @@ class Inspector(object):
     Introspection of a Node object.
     """
     def __init__(self, node):
-        assert isinstance(node, Node)
-        self.node = node
+        if isinstance(node, Env):
+            self.env = node
+            self.node = node._node
+            self.__class__ = _EnvInspector
+        elif isinstance(node, Node):
+            self.env = None
+            self.node = node
+        else:
+            raise Exception('Expecting a Node object')
 
     def __repr__(self):
         return 'Inspector(node=%s)' % self.node.__class__.__name__
 
-    def _filter(self, filter):
+    def _filter(self, include_private, filter):
         childnodes = []
         for name in dir(self.node.__class__):
             if not name.startswith('__'):
-                attr = getattr(self.node, name)
-
-                if filter(attr):
-                    childnodes.append(attr)
+                if include_private or not name.startswith('_'):
+                    try:
+                        attr = getattr(self.node, name)
+                        if filter(attr):
+                            childnodes.append(attr)
+                    except AttributeError: # TODO: this shouldn't happen, but it does... ('host' attribute?)
+                        pass
         return childnodes
 
-    def get_childnodes(self, include_private=True): # TODO: implement include_private
+    def get_childnodes(self, include_private=True):
         # TODO: order by _node_creation_counter
-        return self._filter(lambda i: isinstance(i, Node))
+        return self._filter(include_private, lambda i: isinstance(i, Node))
 
     def has_childnode(self, name):
         try:
@@ -767,7 +807,7 @@ class Inspector(object):
         raise AttributeError('Childnode not found.')
 
     def get_actions(self, include_private=True):
-        return self._filter(lambda i: isinstance(i, Action)) # TODO: implement include_private
+        return self._filter(include_private, lambda i: isinstance(i, Action))
 
     def has_action(self, name):
         try:
@@ -811,6 +851,28 @@ class Inspector(object):
 
     def is_callable(self):
         return hasattr(self.node, '__call__')
+
+class _EnvInspector(Inspector):
+    """
+    When doing the introspection on an Env object, this acts like a proxy and
+    makes sure that the result is Env-compatible.
+    """
+    def get_childnodes(self, include_private=True):
+        nodes = Inspector.get_childnodes(self, include_private)
+        return map(self.env._Env__wrap_node, nodes)
+
+    def get_childnode(self, name):
+        for c in self.get_childnodes():
+            if Inspector(c).get_name() == name:
+                return c
+        raise AttributeError('Childnode not found.')
+
+    def get_actions(self, include_private=True):
+        # TODO: determine first a clean API for what this function should return.
+        raise NotImplementedError
+
+    def get_action(self, name):
+        raise NotImplementedError
 
     # --> Walk should be done on node instances, because a nested node class is useless without it role mappings.
 
