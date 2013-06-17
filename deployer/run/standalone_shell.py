@@ -5,7 +5,7 @@ from deployer.loggers import Logger, CliActionCallback
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger, IndentedDefaultLogger
 from deployer.loggers.trace import TracePrinter
-from deployer.pty import Pty
+from deployer.pseudo_terminal import Pty
 from deployer.shell import Shell, ShellHandler, GroupHandler, BuiltinType
 
 import codecs
@@ -125,8 +125,8 @@ class StandaloneShell(Shell):
     The shell that we provide via telnet/http exposes some additional
     commands for session and user management and logging.
     """
-    def __init__(self, root_service, pty, logger_interface, history):
-        Shell.__init__(self, root_service, pty, logger_interface)
+    def __init__(self, root_node, pty, logger_interface, history):
+        Shell.__init__(self, root_node, pty, logger_interface)
         self.history = history
 
     @property
@@ -134,7 +134,7 @@ class StandaloneShell(Shell):
         return { 'history': History, }
 
 
-def start(root_service, interactive=True, cd_path=None, logfile=None):
+def start(root_node, interactive=True, cd_path=None, logfile=None):
     """
     Start the deployment shell in standalone modus. (No parrallel execution,
     no server/client. Just one interface, and everything sequential.)
@@ -155,30 +155,23 @@ def start(root_service, interactive=True, cd_path=None, logfile=None):
         pty.trigger_resize()
     signal.signal(signal.SIGWINCH, sigwinch_handler)
 
-    # Initialize service
-    root_service = root_service()
+    # Initialize root node
+    root_node = root_node()
 
     # Loggers
     history_logger = HistoryLogger()
     in_shell_logger = DefaultLogger(print_group=False)
-    extra_loggers = root_service.Meta.extra_loggers
 
     logger_interface = LoggerInterface()
     logger_interface.attach(in_shell_logger)
     logger_interface.attach(history_logger)
 
-    for l in extra_loggers:
-        logger_interface.attach(l)
-
     # Start shell command loop
     print 'Running single threaded shell...'
-    shell = StandaloneShell(root_service, pty, logger_interface, history_logger.history)
+    shell = StandaloneShell(root_node, pty, logger_interface, history_logger.history)
     if cd_path is not None:
         shell.cd(cd_path)
     shell.cmdloop()
-
-    for l in extra_loggers:
-        logger_interface.detach(l)
 
     logger_interface.detach(in_shell_logger)
     logger_interface.detach(history_logger)

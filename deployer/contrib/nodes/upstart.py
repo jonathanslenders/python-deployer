@@ -1,6 +1,6 @@
 from deployer.contrib.services.config import Config
 from deployer.query import Q
-from deployer.service import Service, required_property, isolate_host, map_roles
+from deployer.node import SimpleNode, required_property
 from deployer.utils import esc1, indent
 
 from pygments.lexers import BashLexer
@@ -22,8 +22,7 @@ respawn
 %(extra_scripts)s
 """
 
-@isolate_host
-class UpstartService(Service):
+class UpstartService(SimpleNode):
     chdir = '/'
     user = 'root'
     author = '(author)'
@@ -52,7 +51,6 @@ class UpstartService(Service):
         else:
             return self.command
 
-    @map_roles.just_one # The parent, UpstartService already has host isolation.
     class config(Config):
         remote_path = Q.parent.config_file
         use_sudo = True

@@ -1,5 +1,6 @@
 from contextlib import nested
 from deployer.host import Host
+from deployer.utils import isclass
 from functools import wraps
 
 
@@ -29,13 +30,13 @@ class HostsContainer(object):
         # Make set of all hosts.
         all_hosts = set()
         for h in hosts.values():
-            if isinstance(h, Host):
+            if isclass(h) and issubclass(h, Host):
                 all_hosts.add(h)
             else:
                 for i in h:
                     all_hosts.add(i)
 
-        self._all = list(all_hosts)
+        self._all = list(all_hosts) # TODO: Why is this a set???
 
         # Validate hosts. No two host with the same slug can occur in a
         # container.
@@ -46,10 +47,39 @@ class HostsContainer(object):
             else:
                 slugs.add(h.slug)
 
+    @classmethod
+    def from_definition(cls, hosts_class):
+        """
+        Create a host container from a Hosts class.
+        """
+        hosts = { }
+        for k in dir(hosts_class):
+            v = getattr(hosts_class, k)
+
+            if isclass(v) and issubclass(v, Host):
+                hosts[k] = [ v ]
+            elif isinstance(v, (list, tuple)):
+                hosts[k] = [ host for host in v ]
+
+        return cls(hosts)
+
     def __repr__(self):
         return ('<%s\n' % self.__class__.__name__ +
                 ''.join('   %s: [%s]\n' % (r, ','.join(h.slug for h in self.filter(r))) for r in self.roles) +
                 '>')
+
+    def __eq__(self, other):
+        """
+        Return True when the roles/hosts are the same.
+        """
+        if self.roles != other.roles:
+            return False
+
+        for r in self.roles:
+            if set(self.filter(r)._all) != set(other.filter(r)._all):
+                return False
+
+        return True
 
     def _new(self, hosts):
         return HostsContainer(hosts, self._pty, self._logger, self._is_sandbox)
@@ -68,17 +98,13 @@ class HostsContainer(object):
 
     @property
     def roles(self):
-        return self._hosts.keys()
+        return sorted(self._hosts.keys())
 
-    def contains(self, host):
+    def __contains__(self, host):
         """
         Return true when this host appears in this host container.
         """
-        for h in self._all:
-            #if h in host._all:
-            if any(h.slug == host.slug for h in host._all):
-                return True
-        return False
+        return host in self._all
 
     def get_from_slug(self, host_slug):
         for h in self._all:
@@ -102,10 +128,8 @@ class HostsContainer(object):
             host.filter('role1', MyHostClass) # This means: take 'role1' from this container, but add an instance of this class
 
         """
-        # TODO: deprecate this line.
         if len(roles) == 1 and any(isinstance(roles[0], t) for t in (tuple, list)):
             roles = roles[0]
-            import warnings; warnings.warn('DeprecationWarning: called hosts.filter([...]) with tuple parameter.')
 
         return self._new(_filter_hosts(self._hosts, roles))
 
@@ -165,7 +189,7 @@ class HostsContainer(object):
             def closure(host):
                 def call(pty):
                     with self._sandbox_if_required(host):
-                        return host.run(pty, *args, **kwargs)
+                        return host.get_instance().run(pty, *args, **kwargs)
                 return call
 
             callables = [ closure(h.clone()) for h in self._all ]
@@ -188,7 +212,7 @@ class HostsContainer(object):
             output = []
             for h in self._all:
                 with self._sandbox_if_required(h):
-                    output.append(h.run(self._pty, *args, **kwargs))
+                    output.append(h.get_instance().run(self._pty, *args, **kwargs))
 
             return output
 
@@ -243,9 +267,10 @@ class HostContainer(HostsContainer):
     @wraps(Host.get)
     def get(self, *args,**kwargs):
         if len(self) == 1:
+            host = self._host.get_instance()
             kwargs['logger'] = self._logger # TODO: maybe also pass logger through with-context
 
-            with self._sandbox_if_required(self._host):
+            with self._sandbox_if_required(host):
                 return self._host.get(*args, **kwargs)
         else:
             raise AttributeError
@@ -253,8 +278,10 @@ class HostContainer(HostsContainer):
     @wraps(Host.put)
     def put(self, *args,**kwargs):
         if len(self) == 1:
+            host = self._host.get_instance()
             kwargs['logger'] = self._logger
-            with self._sandbox_if_required(self._host):
+
+            with self._sandbox_if_required(host):
                 return self._host.put(*args, **kwargs)
         else:
             raise AttributeError
@@ -262,9 +289,10 @@ class HostContainer(HostsContainer):
     @wraps(Host.open)
     def open(self, *args,**kwargs):
         if len(self) == 1:
+            host = self._host.get_instance()
             kwargs['logger'] = self._logger
 
-            with self._sandbox_if_required(self._host):
+            with self._sandbox_if_required(host):
                 return self._host.open(*args, **kwargs)
         else:
             raise AttributeError

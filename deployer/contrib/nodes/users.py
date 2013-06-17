@@ -1,9 +1,8 @@
-from deployer.service import Service, isolate_host, required_property
+from deployer.node import SimpleNode, required_property
 from deployer.utils import esc1
 from deployer.query import Q
 
-@isolate_host
-class User(Service):
+class User(SimpleNode):
     """
     Unix/Linux user management.
     """

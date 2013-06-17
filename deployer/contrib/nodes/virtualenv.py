@@ -1,7 +1,7 @@
 from deployer.contrib.services.apt_get import AptGet
 from deployer.contrib.services.config import Config
 from deployer.exceptions import ExecCommandFailed
-from deployer.service import Service, isolate_host, supress_action_result, map_roles, dont_isolate_yet
+from deployer.node import SimpleNode, supress_action_result, dont_isolate_yet
 from deployer.query import Q
 from deployer.utils import esc1
 
@@ -11,8 +11,7 @@ import os
 def _pip_install(suffix=''):
     return "pip install --exists-action=w %s" % suffix
 
-@isolate_host
-class VirtualEnv(Service):
+class VirtualEnv(SimpleNode):
     """
     VirtualEnv/Python/Pip installation
     """
@@ -72,7 +71,6 @@ class VirtualEnv(Service):
                 # perfectly fine.
                 # ** predeactivate, postdeactivate, preactivate, postactivate, get_env_details
 
-    @map_roles.just_one
     class packages(AptGet):
         @property
         def packages(self):
@@ -157,7 +155,6 @@ class VirtualEnv(Service):
     def path_extensions_location(self):
         return os.path.join(self.site_packages_location, '_deployer_path_extensions.pth')
 
-    @map_roles.just_one
     class path_extensions_file(Config):
         remote_path = Q.parent.path_extensions_location
 

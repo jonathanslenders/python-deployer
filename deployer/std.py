@@ -2,7 +2,6 @@ import sys
 import threading
 import termios
 import tty
-import pty
 
 class TeeStd(object):
     """

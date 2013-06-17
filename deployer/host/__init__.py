@@ -96,7 +96,7 @@ class Host(object):
     def clone(self):
         """
         Return a new Host() instance, as a copy of this state.
-        (Every thread should its own state of every host.)
+        (Every thread should have its own state of a host.)
         """
         new_host = self.__class__()
         self._copy_state_to(new_host)

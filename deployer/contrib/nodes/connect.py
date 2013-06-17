@@ -1,8 +1,7 @@
-from deployer.service import Service, isolate_host, default_action, isolate_one_only
+from deployer.node import SimpleNode, isolate_one_only
 
 
-@isolate_host
-class Connect(Service):
+class Connect(SimpleNode):
     """
     Open SSH connection to host
     """
@@ -14,7 +13,6 @@ class Connect(Service):
         # over control to the user.
         return None
 
-    @default_action
     @isolate_one_only # It does not make much sense to open interactive shells to all hosts at the same time.
     def with_host(self):
         self.host.start_interactive_shell(initial_input=self.initial_input)
@@ -24,3 +22,5 @@ class Connect(Service):
     def as_root(self):
         self.host.sudo('/bin/bash')
         print
+
+    __call__ = with_host

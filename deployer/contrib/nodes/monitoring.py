@@ -1,10 +1,9 @@
-from deployer.service import Service, isolate_host, dont_isolate_yet
+from deployer.node import SimpleNode, dont_isolate_yet
 from deployer.exceptions import ExecCommandFailed
-from deployer.contrib.services.apt_get import AptGet
+from deployer.contrib.nodes.apt_get import AptGet
 
 
-@isolate_host
-class Monitor(Service):
+class Monitor(SimpleNode):
     """
     Various monitoring tools, like 'uptime'
     """

@@ -1,6 +1,6 @@
 from deployer.contrib.services.django import Django
 from deployer.contrib.services.virtualenv import VirtualEnv
-from deployer.service import Service, default_action, supress_action_result, isolate_host
+from deployer.node import SimpleNode, Node, default_action, supress_action_result
 
 from pygments import highlight
 from pygments.formatters import TerminalFormatter as Formatter
@@ -9,8 +9,7 @@ from pygments.lexers import DiffLexer
 import difflib
 
 
-@isolate_host
-class Utils(Service):
+class Utils(SimpleNode):
     """
     Various tools, like 'set_hostname'
     """
@@ -30,10 +29,10 @@ class Utils(Service):
 
 
 
-class _Diff(Service):
+class _Diff(Node):
     SERVICE_CLASSES = () # NOTE: Another reason for wrapping the class into a tuple here, is to
-                         #       work around the Service.__metaclass__ behaviour which wraps
-                         #       nested Service-classes
+                         #       work around the Node.__metaclass__ behaviour which wraps
+                         #       nested Node-classes
 
     def _print_output(self, output1, output2):
         output1 = output1.splitlines(1)
@@ -49,7 +48,6 @@ class _Diff(Service):
         return diff
 
     @supress_action_result
-    @default_action
     def diff(self, virtual_envs=None):
         from deployer.console import select_service
 
@@ -60,6 +58,7 @@ class _Diff(Service):
         s1 = select_service(self._pty, self.root, prompt=self.prompt, filter=filter)
         s2 = select_service(self._pty, self.root, prompt=self.prompt2, filter=filter)
         return self._print_output(self._call(s1), self._call(s2))
+    __call__ = diff
 
 
 class VirtualEnvDiff(_Diff):

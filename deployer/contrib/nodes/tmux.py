@@ -1,17 +1,15 @@
 from deployer.contrib.services.apt_get import AptGet
 from deployer.exceptions import ExecCommandFailed
-from deployer.service import Service, default_action, isolate_host, isolate_one_only
+from deployer.node import SimpleNode, default_action, isolate_one_only
 from deployer.utils import esc1
 
 
-@isolate_host
-class Tmux(Service):
+class Tmux(SimpleNode):
     """
     Open SSH connection to host
     """
     url = 'http://downloads.sourceforge.net/tmux/tmux-1.8.tar.gz'
 
-    @default_action
     @isolate_one_only # It does not make much sense to open interactive shells to all hosts at the same time.
     def attach(self):
         # Test whether tmux is installed
@@ -28,6 +26,7 @@ class Tmux(Service):
         # Attach or start tmux
         self.host.run('tmux attach-session || tmux')
 
+    __call__ = attach
 
 class TmuxSetup(AptGet):
     packages = ('libevent-dev', 'libncurses-dev', )

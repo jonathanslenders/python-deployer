@@ -1,13 +1,12 @@
 from deployer.contrib.commands import wget
 from deployer.exceptions import ExecCommandFailed
-from deployer.service import Service, isolate_host
+from deployer.node import SimpleNode
 from deployer.utils import esc1
 
 
 DEFAULT_KEYSERVER = 'hkp://keyserver.ubuntu.com:80/'
 
-@isolate_host
-class AptGet(Service):
+class AptGet(SimpleNode):
     packages = ()
     packages_if_available = ()
                 # Packages to be installed when they're available.  Don't

@@ -1,15 +1,14 @@
-from deployer.service import Service, required_property, isolate_host, isolate_one_only
+from deployer.node import Node, SimpleNode, required_property, isolate_one_only
 from deployer.utils import esc1
 from deployer.contrib.services.apt_get import AptGet
 from deployer.exceptions import ExecCommandFailed
 
 
-class MySQL(Service):
+class MySQL(Node):
     port = 3306
 
 
-@isolate_host
-class MySQLClient(Service):
+class MySQLClient(SimpleNode):
     """
     For simple Mysql operations, on a remote host.
     """
@@ -45,7 +44,7 @@ class MySQLClient(Service):
                     (esc1(self.username), esc1(self.password), esc1(self.hostname), esc1(self.database)))
 
 
-class PerconaToolkit(Service):
+class PerconaToolkit(SimpleNode):
     class packages(AptGet):
         packages = ( 'percona-toolkit', )
         extra_keys = ( '1C4CBDCDCD2EFD2A', )

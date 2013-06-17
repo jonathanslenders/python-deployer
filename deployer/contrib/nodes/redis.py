@@ -3,7 +3,7 @@ from deployer.contrib.services.apt_get import AptGet
 from deployer.contrib.services.config import Config
 from deployer.contrib.services.upstart import UpstartService
 from deployer.query import Q
-from deployer.service import Service, required_property, isolate_host
+from deployer.node import SimpleNode, required_property
 from pygments.lexers import IniLexer
 from deployer.utils import esc1
 
@@ -36,8 +36,7 @@ logfile %(logfile)s
 %(bind)s
 """
 
-@isolate_host
-class Redis(Service):
+class Redis(SimpleNode):
     """
     Key/Value storage server
     """

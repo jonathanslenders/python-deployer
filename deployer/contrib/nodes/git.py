@@ -1,12 +1,12 @@
 from deployer.exceptions import ExecCommandFailed
-from deployer.service import Service, isolate_host, dont_isolate_yet, ServiceBase, required_property, default_action
+from deployer.node import Node, SimpleNode, SimpleNodeBase, dont_isolate_yet, required_property, default_action
 from deployer.utils import esc1
 import termcolor
 
 __all__ = ('Git', 'GitOverview' )
 
 
-class GitBase(ServiceBase):
+class GitBase(SimpleNodeBase):
     _default_commands = {
         'branch': 'branch',
         'describe': 'describe',
@@ -35,7 +35,7 @@ class GitBase(ServiceBase):
             attrs[cmd_name] = cls._create_git_command(command,
                                         ignore_exit_status=command in cls._ignore_exit_status)
 
-        return ServiceBase.__new__(cls, name, bases, attrs)
+        return SimpleNodeBase.__new__(cls, name, bases, attrs)
 
     @staticmethod
     def _create_git_command(command, ignore_exit_status=False):
@@ -45,8 +45,7 @@ class GitBase(ServiceBase):
         return run
 
 
-@isolate_host
-class Git(Service):
+class Git(SimpleNode):
     """
     Manage the git checkout of a project
     """
@@ -108,11 +107,10 @@ class Git(Service):
                         if not self.console.confirm('Should we continue?', default=True):
                             raise Exception('Problem with popping your stash, please check logs and try again.')
 
-class GitOverview(Service):
+class GitOverview(Node):
     """
     Show a nice readable overview of all the git checkouts of all the services in the tree.
     """
-    @default_action
     def show(self):
         # Preparing results.
         result = { }
@@ -137,3 +135,5 @@ class GitOverview(Service):
 
             for host_slug, git_output in data.items():
                 print '      %-40s %s' % (termcolor.colored(host_slug, 'green'), git_output.strip())
+
+    __call__ = show

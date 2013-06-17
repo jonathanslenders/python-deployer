@@ -288,7 +288,7 @@ class ServiceBase(type):
         override = { } # { attr_to_override: { k->v } }
 
         # Split attributes in real attributes and "nested overrides".
-        for k,v in attrs.items():
+        for k, v in attrs.items():
             if '__' in k and not k.startswith('__'): # Allow name mangling.
                 # Split at __ (only split at the first __, type(...) below
                 # does it recursively.)
@@ -438,6 +438,39 @@ class ServiceBase(type):
                     isinstance(instance, Env) and isinstance(instance._service, self))
 
 
+import inspect
+
+class ServiceInspection(object):
+    """
+    Introspection of a Service object.
+    """
+    def __init__(self, service_class):
+        self.service_class = service_class
+        assert issubclass(service_class, Service)
+
+    def _filter(self, filter):
+        subservices = []
+        for name in dir(self.service_class):
+            if not name.startswith('__'):
+                attr = getattr(self.service_class, name)
+
+                if filter(attr):
+                    subservices.append(name)
+        return subservices
+
+    def get_subservices(self):
+        return self._filter(lambda i: inspect.isclass(i) and issubclass(i, Service))
+
+    def get_actions(self):
+        return self._filter(lambda i: isinstance(i, Action))
+
+    # --> Walk should be done on service instances, because a nested service class is useless without it role mappings.
+
+    # def walk_over_services(self, include_self=True, topdown=True):
+    #     for s in self.get_subservices():
+    #         yield self.service_class,
+
+
 class Env(object):
     """
     Instead of 'self', we give each Service method an instance of
@@ -448,6 +481,18 @@ class Env(object):
         self._pty = pty or DummyPty()
         self._logger = logger or DummyLoggerInterface()
         self._is_sandbox = is_sandbox
+
+        # TODO: add assertion that `service` is an Service instance, not a Service class.
+
+        # When the service is callable (when the service has a default action),
+        # make sure that this env becomes collable as well.
+        if callable(self._service):
+            # Per instance overriding
+            self.__class__ = type(self.__class__.__name__, (self.__class__,), { })
+            def call(self):
+                raise NotImplementedError
+                # TODO
+            self.__class__.__call__ = call
 
     def __repr__(self, path_only=False):
         path = self._service.__repr__(path_only=True)
@@ -593,8 +638,8 @@ class Env(object):
 
         return ForkProxy(getobj, getname)
 
-    def __call__(self, *a, **kw):
-        self._service(*a, **kw).run(self._pty, self._logger)
+    #def __call__(self, *a, **kw):
+    #    self._service(*a, **kw).run(self._pty, self._logger)
 
     def get_subservices(self, include_isolations=True):
         for name, subservice in self._service.get_subservices(include_isolations):
@@ -673,7 +718,7 @@ class Env(object):
         return Env(service_instance, self._pty, self._logger, self._is_sandbox)
 
     def __getattr__(self, name):
-        # When one action call another action within the same
+        # When one action calls another action within the same
         # service. Run it immediately.
         if self._service.has_action(name):
             return self.get_action(name)
@@ -706,9 +751,9 @@ class Action(object):
 
     def __repr__(self):
         if self._service:
-            return "<Action %s.%s>" % (self._service.__repr__(path_only=True), self._func.__name__)
+            return "<action %s.%s>" % (self._service.__repr__(path_only=True), self._func.__name__)
         else:
-            return "<UnboundAction %s>" % self._func.__name__
+            return "<unbound action %s>" % self._func.__name__
 
     @property
     def service(self):
@@ -839,7 +884,7 @@ class Action(object):
                         # Ask the end-user which one to use.
                         isolation_service = Console(pty).select_service_isolation(service)
 
-                        # This this action on the new service.
+                        # Run this action on the new service.
                         return [ a._run_on_service(pty, logger_interface, sandboxed, isolation_service) ]
 
                     # Otherwise, fork for each isolation.
@@ -1114,18 +1159,7 @@ class Service(object):
         # Note that when is_isolated=True, we always accept the hosts parameter, we asume that
         # the non-isolated base defines the correct Hosts
         if hasattr(self.__class__, 'Hosts') and not made_array_cell:
-            def get_hosts_container():
-                hosts = { }
-                for k in dir(self.__class__.Hosts):
-                    v = getattr(self.__class__.Hosts, k)
-
-                    if isclass(v) and issubclass(v, Host):
-                        hosts[k] = [ v.get_instance() ]
-                    elif isinstance(v, (list, tuple)):
-                        hosts[k] = [ i.get_instance() for i in v ]
-                return HostsContainer(hosts)
-
-            self.hosts = get_hosts_container()
+            self.hosts = HostsContainer.from_definition(self.Hosts)
 
         # Otherwise, take hosts from the parent host mapping.
         else:

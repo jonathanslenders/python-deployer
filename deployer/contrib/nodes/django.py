@@ -1,6 +1,6 @@
 from deployer.contrib.services.uwsgi import Uwsgi
 from deployer.query import Q
-from deployer.service import Service, isolate_host, ServiceBase, map_roles, supress_action_result, required_property, isolate_one_only, alias
+from deployer.node import SimpleNode, SimpleNodeBase, supress_action_result, required_property, isolate_one_only, alias
 from deployer.contrib.services.config import Config
 
 
@@ -46,7 +46,7 @@ def application(environ, start_response):
 """
 
 
-class DjangoBase(ServiceBase):
+class DjangoBase(SimpleNodeBase):
     _default_commands = {
         'clean_pyc': 'clean_pyc',
         'dbshell': 'dbshell',
@@ -74,7 +74,7 @@ class DjangoBase(ServiceBase):
         for cmd_name, command in commands.items():
             attrs[cmd_name] = cls._create_task(cmd_name, command)
 
-        return ServiceBase.__new__(cls, name, bases, attrs)
+        return SimpleNodeBase.__new__(cls, name, bases, attrs)
 
     @staticmethod
     def _create_task(name, task, one_only=True):
@@ -108,8 +108,7 @@ class DjangoBase(ServiceBase):
         return command
 
 
-@isolate_host
-class Django(Service):
+class Django(SimpleNode):
     __metaclass__ = DjangoBase
 
     # Location of the virtual env
@@ -156,7 +155,6 @@ class Django(Service):
 
     # ===========[ WSGI setup ]============
 
-    @map_roles.just_one
     class uwsgi(Uwsgi):
         slug = Q.parent.slug
         wsgi_app_location = Q.parent.wsgi_app.remote_path
@@ -174,7 +172,6 @@ class Django(Service):
             Uwsgi.setup(self)
             self.parent.wsgi_app.setup()
 
-    @map_roles.just_one
     class wsgi_app(Config):
         remote_path = Q("%s/%s_wsgi.py") % (Q.parent.uwsgi.run_from_directory, Q.parent.slug)
         auto_reload = False

@@ -2,14 +2,13 @@ from pygments import highlight
 from pygments.lexers import TextLexer, DiffLexer
 from pygments.formatters import TerminalFormatter as Formatter
 
-from deployer.service import Service, required_property, supress_action_result, isolate_host
+from deployer.node import SimpleNode, required_property, supress_action_result, isolate_host
 from deployer.utils import esc1
 
 import difflib
 
 
-@isolate_host
-class Config(Service):
+class Config(SimpleNode):
     """
     Base class for all configuration files.
     """

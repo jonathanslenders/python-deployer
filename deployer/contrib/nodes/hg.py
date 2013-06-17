@@ -1,7 +1,7 @@
-from deployer.service import Service, required_property, isolate_host, dont_isolate_yet, ServiceBase
+from deployer.service import SimpleNode, required_property, isolate_host, dont_isolate_yet, SimpleNodeBase
 from deployer.utils import esc1
 
-class HgBase(ServiceBase):
+class HgBase(SimpleNodeBase):
     _default_commands = {
         'id': 'id',
         'log': 'log',
@@ -17,7 +17,7 @@ class HgBase(ServiceBase):
         for cmd_name, command in cls._default_commands.items() + commands.items():
             attrs[cmd_name] = cls._create_hg_command(command)
 
-        return ServiceBase.__new__(cls, name, bases, attrs)
+        return SimpleNodeBase.__new__(cls, name, bases, attrs)
 
     @staticmethod
     def _create_hg_command(command):
@@ -26,8 +26,7 @@ class HgBase(ServiceBase):
                 return self.host.run('hg %s' % command)
         return run
 
-@isolate_host
-class Hg(Service):
+class Hg(SimpleNode):
     """
     Mercurial repository.
     """

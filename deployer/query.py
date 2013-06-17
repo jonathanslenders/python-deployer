@@ -96,10 +96,10 @@ class Query(object):
     # http://stackoverflow.com/questions/471546/any-way-to-override-the-and-operator-in-python
 
     def __and__(self, other):
-        return operator(self, other, lambda a, b: a and b)
+        return operator(self, other, lambda a, b: a and b, '&')
 
     def __or__(self, other):
-        return operator(self, other, lambda a, b: a or b)
+        return operator(self, other, lambda a, b: a or b, '|')
 
     def __invert__(self):
         return invert(self)
@@ -127,13 +127,13 @@ class invert(Query):
     """
     Implementation of the invert operator
     """
-    def __init__(self, part):
-        self.part = part
+    def __init__(self, query_before):
+        self.query_before = query_before
 
     @property
     def _query(self):
         def result(instance):
-            return not instance
+            return not self.query_before._query(instance)
         return result
 
     def __str__(self):

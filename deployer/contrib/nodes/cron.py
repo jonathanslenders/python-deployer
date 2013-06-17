@@ -1,4 +1,4 @@
-from deployer.service import Service, isolate_host, required_property
+from deployer.node import SimpleNode, required_property
 
 
 class cron_intervals:
@@ -9,8 +9,7 @@ class cron_intervals:
     every_day = '1 4 * * *'
 
 
-@isolate_host
-class Cron(Service):
+class Cron(SimpleNode):
     # ===============[ Cron config ]================
 
     interval = '20 * * * *' # Every hour by default

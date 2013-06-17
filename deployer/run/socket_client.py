@@ -142,15 +142,15 @@ class DeploymentClient(object):
             elif action == '_info':
                 print termcolor.colored(self.socket_path, 'cyan')
                 print '     Created:             %s' % data['created']
-                print '     Root service name:   %s' % data['root_service_name']
-                print '     Root service module: %s' % data['root_service_module']
+                print '     Root node name:      %s' % data['root_node_name']
+                print '     Root node module:    %s' % data['root_node_module']
                 print '     Processes: (%i)' % len(data['processes'])
 
                 for i, process in enumerate(data['processes']):
                     print '     %i' % i
-                    print '     - Service name    %s' % process['service_name']
-                    print '     - Service module  %s' % process['service_module']
-                    print '     - Running         %s' % process['running']
+                    print '     - Node name    %s' % process['node_name']
+                    print '     - Node module  %s' % process['node_module']
+                    print '     - Running      %s' % process['running']
 
             # Keep the remainder for the next time
             remainder = io.read()

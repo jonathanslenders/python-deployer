@@ -10,7 +10,7 @@ from deployer.console import NoInput, Console
 from deployer.loggers import Actions
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger
-from deployer.pty import Pty
+from deployer.pseudo_terminal import Pty
 from deployer.shell import Shell, ShellHandler, GroupHandler
 
 from operator import attrgetter

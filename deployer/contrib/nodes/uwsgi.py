@@ -2,7 +2,7 @@ from deployer.contrib.services.apt_get import AptGet
 from deployer.contrib.services.config import Config
 from deployer.contrib.services.virtualenv import VirtualEnv
 from deployer.query import Q
-from deployer.service import Service, required_property, isolate_host, map_roles
+from deployer.node import SimpleNode, required_property
 from deployer.utils import esc1
 
 from pygments.lexers import BashLexer
@@ -56,8 +56,7 @@ esac
 """
 
 
-@isolate_host
-class Uwsgi(Service):
+class Uwsgi(SimpleNode):
     virtual_env_location = required_property()
     slug = required_property()
     socket = 'localhost:3032' # Can be either a tcp socket or unix file socket
@@ -73,13 +72,11 @@ class Uwsgi(Service):
     use_http = False
     http_port = 80
 
-    @map_roles.just_one
     class _packages(AptGet):
         # libxml2-dev is required for compiling uwsgi
         packages = ('libxml2-dev',)
 
 
-    @map_roles.just_one
     class virtual_env(VirtualEnv):
         @property
         def requirements(self):

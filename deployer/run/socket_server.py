@@ -6,7 +6,7 @@ from deployer.daemonize import daemonize
 from deployer.shell import Shell, ShellHandler
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger, IndentedDefaultLogger
-from deployer.pty import Pty
+from deployer.pseudo_terminal import Pty
 
 from twisted.internet import reactor, defer, abstract, fdesc
 from twisted.internet import threads
@@ -141,8 +141,8 @@ class Connection(object):
     for either an interactive session, for logging,
     or for a second parallel deployment.
     """
-    def __init__(self, root_service, transportHandle, doneCallback, interactive):
-        self.root_service = root_service
+    def __init__(self, root_node, transportHandle, doneCallback, interactive):
+        self.root_node = root_node
         self.transportHandle = transportHandle
         self.doneCallback = doneCallback
         self.connection_shell = None
@@ -368,7 +368,7 @@ class ConnectionShell(object):
         self.logger_interface = LoggerInterface()
 
         # Run shell
-        self.shell = SocketShell(connection.root_service, connection.pty,
+        self.shell = SocketShell(connection.root_node, connection.pty,
                                 self.logger_interface, clone_shell=clone_shell)
         self.cd_path = cd_path
 
@@ -413,12 +413,9 @@ class ConnectionShell(object):
         self.shell.session = self # Assign session to shell
 
         in_shell_logger = DefaultLogger(print_group=False)
-        extra_loggers = self.connection.root_service.Meta.extra_loggers
 
                 # in_shell_logger: Displaying of events in shell
         self.logger_interface.attach(in_shell_logger)
-        for l in extra_loggers:
-            self.logger_interface.attach(l)
 
         # Start at correct location
         if self.cd_path:
@@ -426,8 +423,6 @@ class ConnectionShell(object):
         self.shell.cmdloop()
 
         self.logger_interface.detach(in_shell_logger)
-        for l in extra_loggers:
-            self.logger_interface.detach(l)
 
         # Remove references (shell and session had circular reference)
         self.shell.session = None
@@ -499,15 +494,15 @@ class CliClientProtocol(Protocol):
             elif action == '_get_info':
                 # Return information about the current server state
                 processes = [ {
-                            'service_name': c.connection_shell.shell.state._service.__class__.__name__,
-                            'service_module': c.connection_shell.shell.state._service.__module__,
+                            'node_name': c.connection_shell.shell.state._node.__class__.__name__,
+                            'node_module': c.connection_shell.shell.state._node.__module__,
                             'running': c.connection_shell.shell.currently_running or '(Idle)'
                     } for c in self.factory.connectionPool if c.connection_shell and c.connection_shell.shell ]
 
                 self._handle('_info', {
                             'created': self.created.isoformat(),
-                            'root_service_name': self.connection.root_service.__class__.__name__,
-                            'root_service_module': self.connection.root_service.__module__,
+                            'root_node_name': self.connection.root_node.__class__.__name__,
+                            'root_node_module': self.connection.root_node.__module__,
                             'processes': processes,
                     })
                 self.transport.loseConnection()
@@ -573,12 +568,12 @@ class CliClientProtocol(Protocol):
         self.transport.write(pickle.dumps((action, data)) )
 
     def connectionMade(self):
-        self.connection = Connection(self.factory.root_service, self._handle, self.transport.loseConnection,
+        self.connection = Connection(self.factory.root_node, self._handle, self.transport.loseConnection,
                         interactive=self.factory.interactive)
         self.factory.connectionPool.add(self.connection)
 
 
-def startSocketServer(root_service, shutdownOnLastDisconnect, interactive):
+def startSocketServer(root_node, shutdownOnLastDisconnect, interactive):
     """
     Bind the first available unix socket.
     Return the path.
@@ -588,7 +583,7 @@ def startSocketServer(root_service, shutdownOnLastDisconnect, interactive):
     factory.connectionPool = set() # List of currently, active connections
     factory.protocol = CliClientProtocol
     factory.shutdownOnLastDisconnect = shutdownOnLastDisconnect
-    factory.root_service = root_service
+    factory.root_node = root_node
     factory.interactive = interactive
 
     # Search for a socket to listen on.
@@ -612,17 +607,17 @@ def startSocketServer(root_service, shutdownOnLastDisconnect, interactive):
 
 # =================[ Startup]=================
 
-def start(root_service, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50, interactive=True, logfile=None):
+def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50, interactive=True, logfile=None):
     """
     Start web server
     If daemonized, this will start the server in the background,
     and return the socket path.
     """
-    # Create service instance
-    root_service = root_service()
+    # Create node instance
+    root_node = root_node()
 
     # Start server
-    path = startSocketServer(root_service, shutdownOnLastDisconnect=shutdown_on_last_disconnect, interactive=interactive)
+    path = startSocketServer(root_node, shutdownOnLastDisconnect=shutdown_on_last_disconnect, interactive=interactive)
 
     def run_server():
         # Set logging

@@ -1,9 +1,7 @@
-from deployer.service import Service, required_property, isolate_host
+from deployer.node import SimpleNode, required_property, isolate_host
 from deployer.utils import esc1
 
-
-@isolate_host
-class SysVInitService(Service):
+class SysVInitService(SimpleNode):
     slug = required_property()
     no_pty = False
 

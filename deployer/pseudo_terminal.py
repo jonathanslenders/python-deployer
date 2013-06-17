@@ -5,6 +5,7 @@ import os
 import select as _select
 import sys
 import termios
+import logging
 
 
 class Pty(object):
@@ -72,9 +73,10 @@ class Pty(object):
         """
         Open an additional terminal, and call this function with the
         new 'pty' as parameter. The callback can run in another thread.
+        (The default behaviour is not in parallel, but has a compatible API
+        which runs everything sequential.)
         """
-        from deployer.console import warning
-        warning('Can not open auxiliary pseudo terminal. Running commands in here.') # TODO: Maybe rather info, than warning
+        logging.info('Could not open auxiliary pty. Running sequential.')
 
         # This should be overriden by other PTY objects, for environments
         # which support parallellism.

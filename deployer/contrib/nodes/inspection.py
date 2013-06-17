@@ -1,13 +1,11 @@
-from deployer.service import Service, default_action, isolate_host
+from deployer.service import SimpleNode, Node, default_action
 import termcolor
 
 
-@isolate_host
-class AnalyseHost(Service):
+class AnalyseHost(SimpleNode):
     """
     Analyze a host and find out what it's used for.
     """
-    @default_action
     def analyise(self):
         """
         Discover what a host is used for, which role mappings it has
@@ -19,7 +17,7 @@ class AnalyseHost(Service):
             # Grather roles which contain this host in the current service.
             roles = []
             for role in service.hosts.roles:
-                if service.hosts.filter(role).contains(self.host):
+                if self.host in service.hosts.filter(role):
                     roles.append(role)
 
             # If roles were found, print result
@@ -31,9 +29,10 @@ class AnalyseHost(Service):
                     process_service(subservice)
 
         process_service(self.root)
+    __call__ = analyise
 
 
-class Inspection(Service):
+class Inspection(Node):
     """
     Inspection of all services
     """
