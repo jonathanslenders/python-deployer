@@ -837,12 +837,13 @@ class Action(object):
             # instance, a CalledAction will be returned. If it is an Env
             # instance, we suppose calling from within another 'env',
             # and will call it, using the same environment settings.
-            if isinstance(args[0], Service):
-                service = args[0]
-            else:
+            if isinstance(args[0], Env):
                 # args[0] should be a Env instance
                 from_env = args[0]
                 service = args[0]._service
+            else:
+                service = args[0]
+
             args = args[1:]
 
         class CalledAction(object):
