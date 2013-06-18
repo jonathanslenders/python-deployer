@@ -42,8 +42,6 @@ class required_property(property):
         property.__init__(self, fget)
 
 
-
-
 class RoleMapping(object):
     """
     A role mapping defines which hosts from a parent Node will used in the childnode,
@@ -110,9 +108,21 @@ class ChildNodeDescriptor(object):
         if parent_instance:
             new_name = '%s.%s' % (owner.__name__, self.attr_name)
 
-            # When the parent instance is a SimpleNode and isolated, this one
-            # should be isolated as well.
-            if isinstance(parent_instance, SimpleNode) and parent_instance._isolated:
+            # When we have a SimpleNode inside a SimpleNode or a NormalNode
+            # inside a NormalNode, and the parent instance is isolated,
+            # this one should be isolated as well.
+            # Or when we have a NormalNode parent and a SimpleNode.JustOne.
+            auto_isolate = [
+                    # Parent-child
+                    (NodeTypes.SIMPLE, NodeTypes.SIMPLE),
+                    (NodeTypes.NORMAL, NodeTypes.NORMAL),
+                    (NodeTypes.NORMAL, NodeTypes.SIMPLE_ONE),
+
+                    (NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE),
+                    (NodeTypes.SIMPLE_ONE, NodeTypes.SIMPLE),
+            ]
+
+            if parent_instance._isolated and (parent_instance._node_type, self._node_class._node_type) in auto_isolate:
                 class_ = type(new_name, (self._node_class, ), { '_isolated': True })
             else:
                 #class_ = self._node_class
@@ -220,6 +230,7 @@ class Env(object):
                     except ActionException, e:
                         raise ActionException(e.inner_exception, e.traceback)
                     except Exception, e:
+                        print traceback.format_exc() # TODO: remove
                         raise ActionException(e, traceback.format_exc())
 
             if isinstance(self, SimpleNode) and not self._isolated and \
@@ -351,6 +362,7 @@ class NodeTypes:
     NORMAL = 'NORMAL_NODE'
     SIMPLE = 'SIMPLE_NODE'
     SIMPLE_ARRAY = 'SIMPLE_NODE.ARRAY'
+    SIMPLE_ONE = 'SIMPLE_NODE.ONE'
 
 class MappingOptions:
     REQUIRED = 'MAPPING_REQUIRED'
@@ -362,8 +374,14 @@ class NodeNestingRules:
             # Parent - Child
             (NodeTypes.NORMAL, NodeTypes.NORMAL): MappingOptions.OPTIONAL,
             (NodeTypes.NORMAL, NodeTypes.SIMPLE_ARRAY): MappingOptions.REQUIRED,
+            (NodeTypes.NORMAL, NodeTypes.SIMPLE_ONE): MappingOptions.REQUIRED,
             (NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
+            (NodeTypes.SIMPLE_ONE, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
             (NodeTypes.SIMPLE, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
+
+            (NodeTypes.SIMPLE, NodeTypes.NORMAL): MappingOptions.REQUIRED, # TODO: do we allow this?
+            (NodeTypes.SIMPLE_ARRAY, NodeTypes.NORMAL): MappingOptions.REQUIRED, # TODO: do we allow this?
+            (NodeTypes.SIMPLE_ONE, NodeTypes.NORMAL): MappingOptions.REQUIRED, # TODO: do we allow this?
     }
     @classmethod
     def check(cls, parent, child):
@@ -490,16 +508,6 @@ class NodeBase(type):
             # Validate node type
             if not isclass(attribute) and not isinstance(attribute, RoleMapping):
                 raise Exception('Node.Hosts should be a class definition or a RoleMapping instance.')
-
-    #        # For simple nodes. Don't allow any other role than just 'host'.
-    #        if node_type in (NodeTypes.SIMPLE, NodeTypes.SIMPLE_ARRAY):
-    #            if isclass(attribute):
-    #                roles = HostsContainer.from_definition(attribute).roles
-    #            elif isinstance(attribute, RoleMapping):
-    #                roles = attribute._mappings.keys()
-    #            if set(roles) not in (set(['host']), set()):
-    #                raise Exception("Only the role 'host' is allowed for SimpleHost.")
-
             return attribute
 
         # Wrap functions into an ActionDescriptor
@@ -579,7 +587,6 @@ class SimpleNodeBase(NodeBase):
         raise 'TODO'
         class SimpleNode_One(self):
             _node_type = NodeTypes.SIMPLE_ONE
-            _isolated = True
 
             #def __init__(self, parent, ...):
             #    validate_host_class
@@ -589,9 +596,9 @@ class SimpleNodeBase(NodeBase):
 
 class Node(object):
     __metaclass__ = NodeBase
-    __slots__ = ('hosts', 'parent' )
+    __slots__ = ('hosts', 'parent')
     _node_type = NodeTypes.NORMAL
-    _isolated = True
+    _isolated = False
 
     node_group = None
     Hosts = None
@@ -599,8 +606,20 @@ class Node(object):
     def __repr__(self):
         return '<Node %s>' % self.__class__.__name__
 
+    def __new__(cls, parent=None):
+        """
+        When this is the root node, of type NORMAL, mark is isolated right away.
+        """
+        if not parent and cls._node_type == NodeTypes.NORMAL:
+            new_cls = type(cls.__name__, (cls,), { '_isolated': True })
+            return object.__new__(new_cls, parent)
+        else:
+            return object.__new__(cls, parent)
+
     def __init__(self, parent=None):
         self.parent = parent
+        if self._node_type in (NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE_ONE) and not parent:
+            raise Exception('Cannot initialize a node of type %s without a parent' % self._node_type)
 
         # Create host container (from hosts definition, or mapping from parent hosts.)
         Hosts = self.Hosts or DefaultRoleMapping()
@@ -609,6 +628,104 @@ class Node(object):
             self.hosts = Hosts.apply(parent) if parent else HostsContainer({ })
         else:
             self.hosts = HostsContainer.from_definition(Hosts)
+
+    def __getitem__(self, index):
+        """
+        When this is a not-yet-isolated SimpleNode,
+        __getitem__ retrieves the instance for this host.
+
+        This returns a specific isolation. In case of multiple dimensions
+        (multiple Node-SimpleNode.Array transitions, a tuple should be provided.)
+        """
+        if self._isolated:
+            raise TypeError('__getitem__ on isolated node is not allowed.')
+
+        if isinstance(index, HostContainer):
+            index = (index._host, )
+
+        if not isinstance(index, tuple):
+            index = (index, )
+
+        for identifier_type in [
+                        IsolationIdentifierType.INT_TUPLES,
+                        IsolationIdentifierType.HOST_TUPLES,
+                        IsolationIdentifierType.HOSTS_SLUG ]:
+
+            for key, node in iter_isolations(self, identifier_type):
+                if key == index:
+                    return node
+        raise KeyError
+
+    def __iter__(self):
+        for key, node in iter_isolations(self):
+            yield node
+
+class IsolationIdentifierType:
+    INT_TUPLES = 'INT_TUPLES'
+    HOST_TUPLES = 'HOST_TUPLES'
+    HOSTS_SLUG = 'HOSTS_SLUG'
+
+def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
+    """
+    Yield (index, Node) for each isolation of this node.
+    """
+    assert isinstance(node, Node) and not isinstance(node, Env)
+
+    if node._isolated:
+        yield (), node
+        return
+
+    def get_simple_node_cell(parent, host):
+        """
+        For a SimpleNode (or array cell), create a SimpleNode instance which
+        matches a single cell, that is one Host for the 'host'-role.
+        """
+        hosts2 = dict(**node.hosts._hosts)
+        hosts2['host'] = host
+
+        class SimpleNodeItem(node.__class__):
+            _isolated = True
+            Hosts = type('Hosts', (object,), hosts2)
+
+        SimpleNodeItem.__name__ = '%s[%s]' % (node.__class__.__name__, host.slug)
+        return SimpleNodeItem(parent=parent)
+
+    def get_identifiers(parent_identifier):
+        for i, host in enumerate(node.hosts.filter('host')._all):
+            if identifier_type == IsolationIdentifierType.INT_TUPLES:
+                identifier = (i,)
+            elif identifier_type == IsolationIdentifierType.HOST_TUPLES:
+                identifier = (host,)
+            elif identifier_type == IsolationIdentifierType.HOSTS_SLUG:
+                identifier = (host.slug, )
+
+            yield (parent_identifier + identifier, host)
+
+    # For a normal node, the isolation consists of the parent isolations.
+    if node._node_type == NodeTypes.NORMAL:
+        if node.parent:
+            for index, n in iter_isolations(node.parent, identifier_type):
+                yield (index, getattr(n, Inspector(node).get_name()))
+        else:
+            yield ((), node)
+
+    elif node._node_type == NodeTypes.SIMPLE_ARRAY:
+        assert node.parent
+
+        for parent_identifier, parent_node in iter_isolations(node.parent, identifier_type):
+            for identifier, host in get_identifiers(parent_identifier):
+                yield (identifier, get_simple_node_cell(parent_node, host))
+
+    elif node._node_type == NodeTypes.SIMPLE_ONE:
+        TODO
+
+    elif node._node_type == NodeTypes.SIMPLE:
+        if node.parent:
+            for index, n in iter_isolations(node.parent, identifier_type):
+                yield (index, getattr(n, Inspector(node).get_name()))
+        else:
+            for identifier, host in get_identifiers(()):
+                yield (identifier, get_simple_node_cell(None, host))
 
 
 class SimpleNode(Node):
@@ -619,7 +736,6 @@ class SimpleNode(Node):
     """
     __metaclass__ = SimpleNodeBase
     _node_type = NodeTypes.SIMPLE
-    _isolated = False
 
     @property
     def host(self):
@@ -627,52 +743,6 @@ class SimpleNode(Node):
             return self.hosts.get('host')
         else:
             raise AttributeError
-
-    def __getitem__(self, index):
-        """
-        When this is a not-yet-isolated SimpleNode,
-        __getitem__ retrieves the instance for this host.
-        """
-        if self._isolated:
-            raise TypeError('__getitem__ already applied on SimpleNode.')
-
-        # Create a new instance of 'self', using this host.
-        # The parent reference stays exactly the same.
-        hosts = self.hosts.filter('host')
-
-        if isinstance(index, int):
-            this_host = hosts[index]._all
-            new_name = '%s[%s]' % (self.__class__.__name__, index)
-
-        elif isclass(index) and issubclass(index, Host):
-            if index not in hosts:
-                raise IndexError('Unknown Host')
-            this_host = index
-            new_name = '%s[%s]' % (self.__class__.__name__, index.slug)
-
-        elif isinstance(index, HostContainer):
-            if index._host not in hosts:
-                raise IndexError('Unknown Host')
-            this_host = index._host
-            new_name = '%s[%s]' % (self.__class__.__name__, index.slug)
-        else:
-            raise IndexError
-
-        # Create Hosts object.
-        hosts2 = dict(**self.hosts._hosts)
-        hosts2['host'] = this_host
-
-        # Create class
-        class SimpleNodeItem(self.__class__):
-            _isolated = True
-            Hosts = type('Hosts', (object,), hosts2)
-
-        SimpleNodeItem.__name__ = new_name
-        return SimpleNodeItem(parent=self.parent)
-
-    def __iter__(self):
-        for host in self.hosts.filter('host')._all:
-            yield self[host]
 
 
 class Action(object):
@@ -793,6 +863,12 @@ class Inspector(object):
 
     def __repr__(self):
         return 'Inspector(node=%s)' % self.node.__class__.__name__
+
+    def get_isolations(self):
+        if self._isolated:
+            raise Exception('No isolations...') # TODO: better message
+        else:
+            raise NotImplementedError # TODO:...
 
     def _filter(self, include_private, filter):
         childnodes = []

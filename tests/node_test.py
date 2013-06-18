@@ -539,16 +539,16 @@ class Q_ObjectTest(unittest.TestCase):
         self.assertEqual(n[1]._isolated, True)
         self.assertEqual(n[LocalHost1]._isolated, True)
         self.assertEqual(n[LocalHost2]._isolated, True)
-        self.assertRaises(IndexError, lambda: n[2])
-        self.assertRaises(IndexError, lambda: n[LocalHost3])
+        self.assertRaises(KeyError, lambda: n[2])
+        self.assertRaises(KeyError, lambda: n[LocalHost3])
 
         # Calling the isolated item should not return an array
         env = Env(N())
         self.assertEqual(env.func(), ['result', 'result' ])
         self.assertEqual(env[0].func(), 'result')
         self.assertEqual(env[1].func(), 'result')
-        self.assertRaises(IndexError, lambda: env[2])
-        self.assertRaises(IndexError, lambda: env[LocalHost3])
+        self.assertRaises(KeyError, lambda: env[2])
+        self.assertRaises(KeyError, lambda: env[LocalHost3])
 
     def test_getitem_on_normal_node(self):
         # __getitem__ should not be possible on a normal node.
@@ -556,7 +556,7 @@ class Q_ObjectTest(unittest.TestCase):
             class Hosts:
                 host = LocalHost1, LocalHost2
         n = N()
-        self.assertRaises(TypeError, lambda:n[0])
+        self.assertRaises(TypeError, lambda:n[0]) # TODO: regex match: TypeError: __getitem__ on isolated node is not allowed.
 
     def test_getitem_between_simplenodes(self):
         # We often go from one simplenode to another one by using
@@ -673,6 +673,11 @@ class Q_ObjectTest(unittest.TestCase):
                         return 'func-x'
 
                     def do_tests(this):
+                        self.assertIn(repr(this.parent), [
+                                    'Env(N.M[localhost])',
+                                    'Env(N.M[localhost1])'])
+                        self.assertEqual(repr(this.parent.parent), 'Env(N)')
+
                         self.assertEqual(this.func(), 'func-x')
                         self.assertEqual(this.parent.parent.func(), 'func-n')
                         self.assertEqual(this.parent.parent.M.func(), ['func-m', 'func-m'])
@@ -688,7 +693,7 @@ class Q_ObjectTest(unittest.TestCase):
 
         class N(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost
+                role1 = LocalHost1, LocalHost2
                 role2 = LocalHost3
 
             class M(Node):
@@ -720,8 +725,8 @@ class Q_ObjectTest(unittest.TestCase):
         self.assertEqual(n.M.O.__class__.__name__, 'N.M.O')
         self.assertEqual(n.P.__class__.__name__, 'N.P')
 
-        self.assertEqual(n.P[0].__class__.__name__, 'N.P[0]')
-        self.assertEqual(n.P[1].__class__.__name__, 'N.P[1]')
+        self.assertIn(n.P[0].__class__.__name__, ['N.P[localhost1]', 'N.P[localhost2]'])
+        self.assertIn(n.P[1].__class__.__name__, ['N.P[localhost1]', 'N.P[localhost2]'])
 
         self.assertEqual(n.another_node.__class__.__name__, 'N.another_node')
         self.assertEqual(n.another_node2.__class__.__name__, 'N.another_node2')
@@ -729,13 +734,13 @@ class Q_ObjectTest(unittest.TestCase):
         # Test Node.__repr__
         self.assertEqual(repr(n), '<Node N>')
         self.assertEqual(repr(n.M.O), '<Node N.M.O>')
-        self.assertEqual(repr(n.P[1]), '<Node N.P[1]>')
+        self.assertIn(repr(n.P[1]), ['<Node N.P[localhost1]>', '<Node N.P[localhost2]>'])
 
         # Test Env.__repr__
         env = Env(n)
         self.assertEqual(repr(env), 'Env(N)')
         self.assertEqual(repr(env.M.O), 'Env(N.M.O)')
-        self.assertEqual(repr(env.P[1]), 'Env(N.P[1])')
+        self.assertIn(repr(env.P[1]), ['Env(N.P[localhost1])', 'Env(N.P[localhost2])'])
 
     def test_action_names(self):
         # Test Action.__repr__
