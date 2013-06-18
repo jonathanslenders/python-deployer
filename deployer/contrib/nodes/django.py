@@ -1,7 +1,7 @@
-from deployer.contrib.services.uwsgi import Uwsgi
+from deployer.contrib.nodes.uwsgi import Uwsgi
 from deployer.query import Q
 from deployer.node import SimpleNode, SimpleNodeBase, supress_action_result, required_property, isolate_one_only, alias
-from deployer.contrib.services.config import Config
+from deployer.contrib.nodes.config import Config
 
 
 wsgi_app_template = \

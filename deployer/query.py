@@ -258,7 +258,7 @@ class parent(Query):
 
 class find_parent_by_name(Query):
     """
-    Query which traverses the services tree, and searches for a parent having the given name.
+    Query which traverses the nodes in the tree, and searches for a parent having the given name.
 
     e.g.:
 

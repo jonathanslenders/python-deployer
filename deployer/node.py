@@ -230,7 +230,6 @@ class Env(object):
                     except ActionException, e:
                         raise ActionException(e.inner_exception, e.traceback)
                     except Exception, e:
-                        print traceback.format_exc() # TODO: remove
                         raise ActionException(e, traceback.format_exc())
 
             if isinstance(self, SimpleNode) and not self._isolated and \
@@ -375,13 +374,17 @@ class NodeNestingRules:
             (NodeTypes.NORMAL, NodeTypes.NORMAL): MappingOptions.OPTIONAL,
             (NodeTypes.NORMAL, NodeTypes.SIMPLE_ARRAY): MappingOptions.REQUIRED,
             (NodeTypes.NORMAL, NodeTypes.SIMPLE_ONE): MappingOptions.REQUIRED,
-            (NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
-            (NodeTypes.SIMPLE_ONE, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
-            (NodeTypes.SIMPLE, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
 
-            (NodeTypes.SIMPLE, NodeTypes.NORMAL): MappingOptions.REQUIRED, # TODO: do we allow this?
-            (NodeTypes.SIMPLE_ARRAY, NodeTypes.NORMAL): MappingOptions.REQUIRED, # TODO: do we allow this?
-            (NodeTypes.SIMPLE_ONE, NodeTypes.NORMAL): MappingOptions.REQUIRED, # TODO: do we allow this?
+            ##(NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
+            ##(NodeTypes.SIMPLE_ONE, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
+            ##(NodeTypes.SIMPLE, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
+            (NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE): MappingOptions.OPTIONAL,
+            (NodeTypes.SIMPLE_ONE, NodeTypes.SIMPLE): MappingOptions.OPTIONAL,
+            (NodeTypes.SIMPLE, NodeTypes.SIMPLE): MappingOptions.OPTIONAL,
+
+            (NodeTypes.SIMPLE, NodeTypes.NORMAL): MappingOptions.OPTIONAL, # TODO: do we allow this?
+            (NodeTypes.SIMPLE_ARRAY, NodeTypes.NORMAL): MappingOptions.OPTIONAL, # TODO: do we allow this?
+            (NodeTypes.SIMPLE_ONE, NodeTypes.NORMAL): MappingOptions.OPTIONAL, # TODO: do we allow this?
     }
     @classmethod
     def check(cls, parent, child):
@@ -396,6 +399,10 @@ class NodeNestingRules:
         else:
             return mapping_option in (MappingOptions.OPTIONAL, MappingOptions.NOT_ALLOWED)
 
+def _internal(func):
+    """ Mark this function as internal. """
+    func.internal = True
+    return func
 
 class NodeBase(type):
     """
@@ -443,6 +450,7 @@ class NodeBase(type):
                 original_node = getattr(base, attr)
 
                 if not issubclass(original_node, Node):
+                    import pdb; pdb.set_trace()
                     raise Exception('Node override %s__%s is not applied on a Node class.' %
                                     (attr, first_override))
                 else:
@@ -467,11 +475,11 @@ class NodeBase(type):
         else:
             node_type = bases[0]._node_type
 
-        if name != 'Node':
-            # Do not allow __init__ to be overriden
-            if '__init__' in attrs:
-                raise TypeError('A Node should not have its own __init__ function.')
+        # Do not allow __init__ to be overriden
+        if '__init__' in attrs and not getattr(attrs['__init__'], 'internal', False):
+            raise TypeError('A Node should not have its own __init__ function.')
 
+        if name != 'Node':
             # Replace actions/childnodes/properties by descriptors
             for attr_name, attr in attrs.items():
                 wrapped_attribute = cls._wrap_attribute(attr_name, attr, name, node_type)
@@ -524,7 +532,9 @@ class NodeBase(type):
                             attribute._node_type, node_type, attribute, node_name))
 
             if not NodeNestingRules.check_mapping(node_type, attribute._node_type, bool(attribute.Hosts)):
-                raise Exception('Invalid mapping.') # TODO: better exception...
+                raise Exception('The Node-attribute %s of type %s does not have a valid role_mapping.' %
+                                            (attr_name, attribute._node_type))
+
 
             return ChildNodeDescriptor(attr_name, attribute)
 
@@ -571,6 +581,9 @@ class SimpleNodeBase(NodeBase):
         'Arrayify' a SimpleNode. This is an explicit step
         to be taken before nesting SimpleNode into a normal Node.
         """
+        if self._node_type != NodeTypes.SIMPLE:
+            raise Exception('Second .Array operation is not allowed.')
+
         class SimpleNodeArray(self):
             _node_type = NodeTypes.SIMPLE_ARRAY
 
@@ -584,15 +597,22 @@ class SimpleNodeBase(NodeBase):
         say that we expect exactly one host for the mapped
         role, so don't act like an array.
         """
-        raise 'TODO'
+        if self._node_type != NodeTypes.SIMPLE:
+            raise Exception('Second .JustOne operation is not allowed.')
+
         class SimpleNode_One(self):
             _node_type = NodeTypes.SIMPLE_ONE
 
-            #def __init__(self, parent, ...):
-            #    validate_host_class
+            @_internal
+            def __init__(self, parent):
+                Node.__init__(self, parent)
+                if len(self.hosts.filter('host')) != 1:
+                    raise Exception('Invalid initialisation of SimpleNode.JustOne. %i hosts given.' %
+                            len(self.hosts.filter('host')))
 
-        SimpleNodeArray.__name__ = '%s.Array' % self.__name__
-        return SimpleNodeArray
+
+        SimpleNode_One.__name__ = '%s.Array' % self.__name__
+        return SimpleNode_One
 
 class Node(object):
     __metaclass__ = NodeBase
@@ -616,6 +636,7 @@ class Node(object):
         else:
             return object.__new__(cls, parent)
 
+    @_internal
     def __init__(self, parent=None):
         self.parent = parent
         if self._node_type in (NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE_ONE) and not parent:
@@ -628,6 +649,9 @@ class Node(object):
             self.hosts = Hosts.apply(parent) if parent else HostsContainer({ })
         else:
             self.hosts = HostsContainer.from_definition(Hosts)
+
+        # TODO: when this is a SimpleNode and a parent was given, do we have to make sure that the
+        #       the 'host' is the same, when a mapping was given? I don't think it's necessary.
 
     def __getitem__(self, index):
         """

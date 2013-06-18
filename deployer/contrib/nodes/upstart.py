@@ -1,4 +1,4 @@
-from deployer.contrib.services.config import Config
+from deployer.contrib.nodes.config import Config
 from deployer.query import Q
 from deployer.node import SimpleNode, required_property
 from deployer.utils import esc1, indent
@@ -88,25 +88,23 @@ end script
         self.config.setup()
 
     def start(self):
-        self.hosts.sudo('start "%s" || true' % self.slug)
+        self.host.sudo('start "%s" || true' % self.slug)
 
     def stop(self):
-        self.hosts.sudo('stop "%s" || true' % self.slug)
+        self.host.sudo('stop "%s" || true' % self.slug)
 
     def restart(self):
-        self.hosts.sudo('restart "%s" || true' % self.slug)
+        self.host.sudo('restart "%s" || true' % self.slug)
 
     def status(self):
-        self.hosts.sudo('status "%s"' % self.slug)
+        self.host.sudo('status "%s"' % self.slug)
 
     def run_in_shell(self):
-        with self.hosts.cd(self.chdir):
-            self.hosts.sudo(self.full_command)
+        with self.host.cd(self.chdir):
+            self.host.sudo(self.full_command)
 
     def is_already_installed(self):
         """
         True when this service is installed.
         """
-        # Note: thanks to @isolate_host, there can only be one host in
-        # self.hosts.filter('host')
-        return self.hosts.filter('host')[0].exists(self.config_file)
+        return self.host.exists(self.config_file)

@@ -1,6 +1,6 @@
 from deployer.node import Node, SimpleNode, required_property, isolate_one_only
 from deployer.utils import esc1
-from deployer.contrib.services.apt_get import AptGet
+from deployer.contrib.nodes.apt_get import AptGet
 from deployer.exceptions import ExecCommandFailed
 
 

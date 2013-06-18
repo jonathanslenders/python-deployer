@@ -1,5 +1,5 @@
 from deployer.exceptions import ExecCommandFailed
-from deployer.node import Node, SimpleNode, SimpleNodeBase, dont_isolate_yet, required_property, default_action
+from deployer.node import Node, SimpleNode, SimpleNodeBase, dont_isolate_yet, required_property
 from deployer.utils import esc1
 import termcolor
 

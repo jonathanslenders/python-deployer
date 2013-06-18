@@ -1,6 +1,6 @@
-from deployer.contrib.services.apt_get import AptGet
-from deployer.contrib.services.config import Config
-from deployer.contrib.services.virtualenv import VirtualEnv
+from deployer.contrib.nodes.apt_get import AptGet
+from deployer.contrib.nodes.config import Config
+from deployer.contrib.nodes.virtualenv import VirtualEnv
 from deployer.query import Q
 from deployer.node import SimpleNode, required_property
 from deployer.utils import esc1

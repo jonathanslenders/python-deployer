@@ -1,4 +1,4 @@
-from deployer.node import SimpleNode, required_property, isolate_host
+from deployer.node import SimpleNode, required_property
 from deployer.utils import esc1
 
 class SysVInitService(SimpleNode):

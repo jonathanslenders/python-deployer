@@ -1,6 +1,6 @@
-from deployer.contrib.services.apt_get import AptGet
+from deployer.contrib.nodes.apt_get import AptGet
 from deployer.exceptions import ExecCommandFailed
-from deployer.node import SimpleNode, default_action, isolate_one_only
+from deployer.node import SimpleNode, isolate_one_only
 from deployer.utils import esc1
 
 

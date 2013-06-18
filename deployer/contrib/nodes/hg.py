@@ -1,4 +1,4 @@
-from deployer.service import SimpleNode, required_property, isolate_host, dont_isolate_yet, SimpleNodeBase
+from deployer.node import SimpleNode, required_property, dont_isolate_yet, SimpleNodeBase
 from deployer.utils import esc1
 
 class HgBase(SimpleNodeBase):

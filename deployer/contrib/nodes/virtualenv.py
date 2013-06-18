@@ -1,5 +1,5 @@
-from deployer.contrib.services.apt_get import AptGet
-from deployer.contrib.services.config import Config
+from deployer.contrib.nodes.apt_get import AptGet
+from deployer.contrib.nodes.config import Config
 from deployer.exceptions import ExecCommandFailed
 from deployer.node import SimpleNode, supress_action_result, dont_isolate_yet
 from deployer.query import Q

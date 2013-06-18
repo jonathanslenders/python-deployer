@@ -1,5 +1,5 @@
 
-from deployer.service import Service
+from deployer.node import Node
 from deployer.query import Q
 
 from termcolor import colored
@@ -24,7 +24,7 @@ def test(description, expected, func, should_fail=False):
         print colored(' [FAILED]', 'failed')
 
 
-class UnitTest(Service):
+class UnitTest(Node):
     def fail_with_error(self):
         """
         This is an action which failes with an error.

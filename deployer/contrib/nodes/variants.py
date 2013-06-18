@@ -1,5 +1,5 @@
-from deployer.service import required_property
-from deployer.contrib.services.config import Config
+from deployer.node import required_property
+from deployer.contrib.nodes.config import Config
 from deployer.utils import esc1
 
 

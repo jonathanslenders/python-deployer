@@ -3,7 +3,7 @@ import unittest
 from deployer.query import Q
 from deployer.node import Node, SimpleNode, Env
 from deployer.host import LocalHost
-from deployer.pty import Pty, DummyPty
+from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
 from deployer.node import Inspector, map_roles, dont_isolate_yet, required_property, alias
 from deployer.host_container import HostsContainer
@@ -755,13 +755,13 @@ class Q_ObjectTest(unittest.TestCase):
 
     def test_nesting_normal_in_simple(self):
         # Node in simplenode
-        def run():
-            class A(SimpleNode):
-                class B(SimpleNode):
-                    class C(Node):
-                        pass
+    #    def run():
+    #        class A(SimpleNode):
+    #            class B(SimpleNode):
+    #                class C(Node):
+    #                    pass
 
-        self.assertRaises(Exception, run) # TODO: correct exception
+    #    self.assertRaises(Exception, run) # TODO: correct exception
 
         # Simplenode in Node without using .Array
         def run():
@@ -787,13 +787,13 @@ class Q_ObjectTest(unittest.TestCase):
                     pass
         self.assertRaises(Exception, run) # TODO: correct exception
 
-        # map_roles is not allowed between two SimpleNode classes.
-        def run():
-            class A(SimpleNode):
-                @map_roles('my_role')
-                class B(SimpleNode):
-                    pass
-        self.assertRaises(Exception, run) # TODO: correct exception
+   #     # map_roles is not allowed between two SimpleNode classes.
+   #     def run():
+   #         class A(SimpleNode):
+   #             @map_roles('my_role')
+   #             class B(SimpleNode):
+   #                 pass
+   #     self.assertRaises(Exception, run) # TODO: correct exception
 
  #   def test_invalid_roles_in_simple_node(self):
  #       # It should not be possible to use any other role name than just 'host'
@@ -1028,6 +1028,7 @@ class Q_ObjectTest(unittest.TestCase):
         self.assertEqual(env.B.C[0]._isolated, True)
         self.assertEqual(env.B.C[0].parent._isolated, True)
 
+        # TODO: test these...
         env.B[0].C
         env.B[0].C.D.E
         env.B[0].C.D.E[0]
@@ -1042,7 +1043,14 @@ class Q_ObjectTest(unittest.TestCase):
             - test 'hosts' vs. 'host'
             - test whether Node.node_group is a Group class.
             - test exceptions in action.
-            - test mapping invalid roles to SimpleNode
+            - test multidimentional nodes. (And (0,0)-like indexes.)
+            - we should have at least a role named 'host' in SimpleNode
+            - .Array.Array should not work.
+            - When applying map_roles in between two SimpleNode classes, it should be possible to use anything,
+              but you shouldn't be able to override 'host'.
+            - test JustOne
+
+            - It should not be possible to pass a custom Hosts to a SimpleNode when he has a parent.
 
             We need to have a HostContext, where we save the cd/env/... from a host.
             and a Host should become a singleton instance again.
