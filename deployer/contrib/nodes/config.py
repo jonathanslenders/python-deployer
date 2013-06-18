@@ -2,7 +2,7 @@ from pygments import highlight
 from pygments.lexers import TextLexer, DiffLexer
 from pygments.formatters import TerminalFormatter as Formatter
 
-from deployer.node import SimpleNode, required_property, supress_action_result, isolate_host
+from deployer.node import SimpleNode, required_property, supress_action_result
 from deployer.utils import esc1
 
 import difflib

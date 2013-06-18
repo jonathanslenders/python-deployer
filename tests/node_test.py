@@ -790,23 +790,23 @@ class Q_ObjectTest(unittest.TestCase):
                     pass
         self.assertRaises(Exception, run) # TODO: correct exception
 
-    def test_invalid_roles_in_simple_node(self):
-        # It should not be possible to use any other role name than just 'host'
-        # inside of a Simplenode.
-        def run():
-            class A(SimpleNode):
-                class Hosts:
-                    role1 = LocalHost1
+ #   def test_invalid_roles_in_simple_node(self):
+ #       # It should not be possible to use any other role name than just 'host'
+ #       # inside of a Simplenode.
+ #       def run():
+ #           class A(SimpleNode):
+ #               class Hosts:
+ #                   role1 = LocalHost1
 
-        self.assertRaises(Exception, run) # TODO: correct exception
+ #       self.assertRaises(Exception, run) # TODO: correct exception
 
-        def run():
-            class A(Node):
-                @map_roles(my_role='parent_role')
-                class B(SimpleNode.Array):
-                    pass
+ #       def run():
+ #           class A(Node):
+ #               @map_roles(my_role='parent_role')
+ #               class B(SimpleNode.Array):
+ #                   pass
 
-        self.assertRaises(Exception, run) # TODO: correct exception
+ #       self.assertRaises(Exception, run) # TODO: correct exception
 
     def test_invalid_hosts_object(self):
         # Hosts should be a role mapping or Hosts class definition
@@ -967,6 +967,66 @@ class Q_ObjectTest(unittest.TestCase):
 
         env = Env(A())
         self.assertEqual(env.action(), 2)
+
+    def test_additional_roles_in_simple_node(self):
+        # We should be able to pass additional roles to a SimpleNode, but
+        # isolation happens at the 'host' role.
+        this = self
+        counter = [0]
+
+        class A(Node):
+            class Hosts:
+                role1 = LocalHost1, LocalHost2, LocalHost3
+                role2 = LocalHost2, LocalHost4, LocalHost5
+
+            @map_roles('role1', extra='role2')
+            class B(SimpleNode.Array):
+                def action(self):
+                    this.assertEqual(len(self.hosts.filter('host')), 1)
+                    this.assertEqual(len(self.hosts.filter('extra')), 3)
+                    this.assertEqual(set(self.hosts.roles), set(['host', 'extra']))
+                    self.C.action2()
+                    counter[0] += 1
+
+                class C(SimpleNode):
+                    def action2(self):
+                        this.assertEqual(len(self.hosts.filter('host')), 1)
+                        this.assertEqual(len(self.hosts.filter('extra')), 3)
+                        this.assertEqual(set(self.hosts.roles), set(['host', 'extra']))
+                        counter[0] += 1
+
+        env = Env(A())
+        env.B.action()
+        self.assertEqual(counter[0], 6)
+
+    def test_nesting_normal_node_in_simple_node(self):
+        # It is possible to nest multiple sequences of Node-SimpleNode.Array
+        # inside each other. This behaves like a multi-dimensional array.
+        this = self
+
+        class A(Node):
+            class Hosts:
+                role1 = LocalHost1, LocalHost2, LocalHost3
+                role2 = LocalHost2, LocalHost4, LocalHost5
+
+            @map_roles('role1', extra='role2')
+            class B(SimpleNode.Array):
+                class C(SimpleNode):
+                    @map_roles(role='extra')
+                    class D(Node):
+                        @map_roles('role')
+                        class E(SimpleNode.Array):
+                            def action(self):
+                                pass
+
+        env = Env(A())
+        self.assertEqual(env.B.C[0]._isolated, True)
+        self.assertEqual(env.B.C[0].parent._isolated, True)
+
+        env.B[0].C
+        env.B[0].C.D.E
+        env.B[0].C.D.E[0]
+        env.B[0].C.D.E[0]
 
     def test_invalid_nesting(self):
         """

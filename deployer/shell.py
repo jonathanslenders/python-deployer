@@ -199,12 +199,7 @@ def Inspect(self):
     def inspect():
         # Print full name
         yield termcolor.colored('  Node:    ', 'cyan') + \
-              termcolor.colored(self.node.__repr__(path_only=True), 'yellow')
-
-        # Node class definition created on
-        yield termcolor.colored('  Created on: ', 'cyan') + \
-              termcolor.colored(self.node._creation_date, 'red')
-
+              termcolor.colored(Inspector(self.node).get_full_name(), 'yellow')
 
         # Print mro
         yield termcolor.colored('  Mro:', 'cyan')
@@ -248,8 +243,8 @@ def Inspect(self):
         yield termcolor.colored('  Actions:', 'cyan')
 
         def item_iterator():
-            for name, a in self.node.get_actions():
-                yield termcolor.colored(name, 'red'), len(name)
+            for a in Inspector(self.node).get_actions():
+                yield termcolor.colored(a.name, 'red'), len(a.name)
 
         for line in console.in_columns(item_iterator(), margin_left=13):
             yield line
@@ -258,19 +253,22 @@ def Inspect(self):
         yield termcolor.colored('  Sub nodes:', 'cyan')
 
             # Group by node group
-        grouper = lambda i:i[1].get_group()
-        for group, nodes in groupby(sorted(self.node.get_subnodes(), key=grouper), grouper):
-            yield termcolor.colored('         "%s"' % group.__name__, 'yellow')
+        grouper = lambda c:Inspector(c).get_group()
+        for group, nodes in groupby(sorted(Inspector(self.node).get_childnodes(), key=grouper), grouper):
+            yield termcolor.colored('         "%s"' % group.__class__.__name__, 'yellow')
 
             # Create iterator for all the items in this group
             def item_iterator():
-                for name, s in nodes:
-                    if s.parent == self.node:
-                        text = termcolor.colored(name, type_of_node(s).color)
+                for n in nodes:
+                    name = Inspector(n).get_name()
+
+                    if n.parent == self.node:
+                        text = termcolor.colored(name, type_of_node(n).color)
                         length = len(name)
                     else:
-                        text = termcolor.colored('%s -> %s' % (name, s.__repr__(path_only=True)), type_of_node(s).color)
-                        length = len('%s -> %s' % (name, s.__repr__(path_only=True)))
+                        full_name = Inspector(n).get_full_name()
+                        text = termcolor.colored('%s -> %s' % (name, full_name), type_of_node(n).color)
+                        length = len('%s -> %s' % (name, full_name))
                     yield text, length
 
             # Show in columns

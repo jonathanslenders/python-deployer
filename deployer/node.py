@@ -56,13 +56,10 @@ class RoleMapping(object):
         @map_roles('parent_role', 'another_parent_role')
     """
     def __init__(self, *host_mapping, **mappings):
-        if host_mapping and mappings:
-            raise Exception("Don't provide keyword arguments and normal arguments at the same time.")
-
         if host_mapping:
-            self._mappings = { 'host': host_mapping }
-        else:
-            self._mappings = mappings
+            mappings = dict(host=host_mapping, **mappings)
+
+        self._mappings = mappings
 
     def __call__(self, node_class):
         if not isclass(node_class) or not issubclass(node_class, Node):
@@ -494,14 +491,14 @@ class NodeBase(type):
             if not isclass(attribute) and not isinstance(attribute, RoleMapping):
                 raise Exception('Node.Hosts should be a class definition or a RoleMapping instance.')
 
-            # For simple nodes. Don't allow any other role than just 'host'.
-            if node_type in (NodeTypes.SIMPLE, NodeTypes.SIMPLE_ARRAY):
-                if isclass(attribute):
-                    roles = HostsContainer.from_definition(attribute).roles
-                elif isinstance(attribute, RoleMapping):
-                    roles = attribute._mappings.keys()
-                if set(roles) not in (set(['host']), set()):
-                    raise Exception("Only the role 'host' is allowed for SimpleHost.")
+    #        # For simple nodes. Don't allow any other role than just 'host'.
+    #        if node_type in (NodeTypes.SIMPLE, NodeTypes.SIMPLE_ARRAY):
+    #            if isclass(attribute):
+    #                roles = HostsContainer.from_definition(attribute).roles
+    #            elif isinstance(attribute, RoleMapping):
+    #                roles = attribute._mappings.keys()
+    #            if set(roles) not in (set(['host']), set()):
+    #                raise Exception("Only the role 'host' is allowed for SimpleHost.")
 
             return attribute
 
@@ -515,7 +512,8 @@ class NodeBase(type):
             has_mapping = bool(attribute.Hosts)
 
             if not NodeNestingRules.check(node_type, attribute._node_type):
-                raise Exception('Invalid nesting of nodes %r in %r.' % (attribute, node_name))
+                raise Exception('Invalid nesting of %s in %s (%r in %r).' % (
+                            attribute._node_type, node_type, attribute, node_name))
 
             if not NodeNestingRules.check_mapping(node_type, attribute._node_type, bool(attribute.Hosts)):
                 raise Exception('Invalid mapping.') # TODO: better exception...
@@ -571,6 +569,23 @@ class SimpleNodeBase(NodeBase):
         SimpleNodeArray.__name__ = '%s.Array' % self.__name__
         return SimpleNodeArray
 
+    @property
+    def JustOne(self):
+        """
+        When nesting SimpleNode inside a normal Node,
+        say that we expect exactly one host for the mapped
+        role, so don't act like an array.
+        """
+        raise 'TODO'
+        class SimpleNode_One(self):
+            _node_type = NodeTypes.SIMPLE_ONE
+            _isolated = True
+
+            #def __init__(self, parent, ...):
+            #    validate_host_class
+
+        SimpleNodeArray.__name__ = '%s.Array' % self.__name__
+        return SimpleNodeArray
 
 class Node(object):
     __metaclass__ = NodeBase
@@ -603,7 +618,6 @@ class SimpleNode(Node):
     during execution. This allows parallel executing of functions on each 'cell'.
     """
     __metaclass__ = SimpleNodeBase
-    __slots__ = ('host', 'parent' )
     _node_type = NodeTypes.SIMPLE
     _isolated = False
 
@@ -624,36 +638,40 @@ class SimpleNode(Node):
 
         # Create a new instance of 'self', using this host.
         # The parent reference stays exactly the same.
+        hosts = self.hosts.filter('host')
 
         if isinstance(index, int):
-            this_host = self.hosts[index]._all
+            this_host = hosts[index]._all
             new_name = '%s[%s]' % (self.__class__.__name__, index)
 
         elif isclass(index) and issubclass(index, Host):
-            if index not in self.hosts:
+            if index not in hosts:
                 raise IndexError('Unknown Host')
             this_host = index
             new_name = '%s[%s]' % (self.__class__.__name__, index.slug)
+
         elif isinstance(index, HostContainer):
-            if index._host not in self.hosts:
+            if index._host not in hosts:
                 raise IndexError('Unknown Host')
             this_host = index._host
             new_name = '%s[%s]' % (self.__class__.__name__, index.slug)
         else:
             raise IndexError
 
+        # Create Hosts object.
+        hosts2 = dict(**self.hosts._hosts)
+        hosts2['host'] = this_host
+
         # Create class
         class SimpleNodeItem(self.__class__):
             _isolated = True
-
-            class Hosts:
-                host = this_host
+            Hosts = type('Hosts', (object,), hosts2)
 
         SimpleNodeItem.__name__ = new_name
         return SimpleNodeItem(parent=self.parent)
 
     def __iter__(self):
-        for host in self.hosts._all:
+        for host in self.hosts.filter('host')._all:
             yield self[host]
 
 
