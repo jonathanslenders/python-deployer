@@ -662,7 +662,9 @@ class Node(object):
         (multiple Node-SimpleNode.Array transitions, a tuple should be provided.)
         """
         if self._isolated:
-            raise TypeError('__getitem__ on isolated node is not allowed.')
+            # TypeError, would also be a good, idea, but we choose to be compatible
+            # with the error class for when an item is not found.
+            raise KeyError('__getitem__ on isolated node is not allowed.')
 
         if isinstance(index, HostContainer):
             index = (index._host, )
@@ -701,7 +703,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
         yield (), node
         return
 
-    def get_simple_node_cell(parent, host):
+    def get_simple_node_cell(parent, host, identifier):
         """
         For a SimpleNode (or array cell), create a SimpleNode instance which
         matches a single cell, that is one Host for the 'host'-role.
@@ -713,10 +715,14 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
             _isolated = True
             Hosts = type('Hosts', (object,), hosts2)
 
-        SimpleNodeItem.__name__ = '%s[%s]' % (node.__class__.__name__, host.slug)
+        short_id = identifier[0] if len(identifier) == 1 else identifier
+        SimpleNodeItem.__name__ = '%s[%r]' % (node.__class__.__name__, short_id)
         return SimpleNodeItem(parent=parent)
 
-    def get_identifiers(parent_identifier):
+    def get_identifiers(node, parent_identifier):
+        # The `node` parameter here is one for which the parent is
+        # already isolated. This means that the roles are correct
+        # and we can iterate through it.
         for i, host in enumerate(node.hosts.filter('host')._all):
             if identifier_type == IsolationIdentifierType.INT_TUPLES:
                 identifier = (i,)
@@ -739,24 +745,26 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
         assert node.parent
 
         for parent_identifier, parent_node in iter_isolations(node.parent, identifier_type):
-            for identifier, host in get_identifiers(parent_identifier):
-                yield (identifier, get_simple_node_cell(parent_node, host))
+            new_node = getattr(parent_node, Inspector(node).get_name())
+            for identifier, host in get_identifiers(new_node, parent_identifier):
+                yield (identifier, get_simple_node_cell(parent_node, host, identifier))
 
     elif node._node_type == NodeTypes.SIMPLE_ONE:
         assert node.parent
         assert len(node.hosts.filter('host')) == 1
 
         for parent_identifier, parent_node in iter_isolations(node.parent, identifier_type):
-            for identifier, host in get_identifiers(parent_identifier):
-                yield (identifier, get_simple_node_cell(parent_node, host))
+            new_node = getattr(parent_node, Inspector(node).get_name())
+            for identifier, host in get_identifiers(new_node, parent_identifier):
+                yield (identifier, get_simple_node_cell(parent_node, host, identifier))
 
     elif node._node_type == NodeTypes.SIMPLE:
         if node.parent:
             for index, n in iter_isolations(node.parent, identifier_type):
                 yield (index, getattr(n, Inspector(node).get_name()))
         else:
-            for identifier, host in get_identifiers(()):
-                yield (identifier, get_simple_node_cell(None, host))
+            for identifier, host in get_identifiers(node, ()):
+                yield (identifier, get_simple_node_cell(None, host, identifier))
 
 
 class SimpleNode(Node):
@@ -896,9 +904,9 @@ class Inspector(object):
     def __repr__(self):
         return 'Inspector(node=%s)' % self.node.__class__.__name__
 
-    def get_isolations(self):
-        if self._isolated:
-            raise Exception('No isolations...') # TODO: better message
+    def get_isolations(self, identifier_type=IsolationIdentifierType.INT_TUPLES):
+        if not self.node._isolated:
+            return iter_isolations(self.node, identifier_type=identifier_type)
         else:
             raise NotImplementedError # TODO:...
 

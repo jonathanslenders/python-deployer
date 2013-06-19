@@ -4,7 +4,7 @@ from deployer.query import Q
 from deployer.node import Node, SimpleNode, Env
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
-from deployer.node import Inspector, map_roles, dont_isolate_yet, required_property, alias
+from deployer.node import Inspector, map_roles, dont_isolate_yet, required_property, alias, IsolationIdentifierType
 from deployer.host_container import HostsContainer
 
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
@@ -317,7 +317,7 @@ class NodeTest(unittest.TestCase):
             class Hosts:
                 host = LocalHost1, LocalHost2
         n = N()
-        self.assertRaises(TypeError, lambda:n[0]) # TODO: regex match: TypeError: __getitem__ on isolated node is not allowed.
+        self.assertRaises(KeyError, lambda:n[0]) # TODO: regex match: KeyError: __getitem__ on isolated node is not allowed.
 
     def test_getitem_between_simplenodes(self):
         # We often go from one simplenode to another one by using
@@ -435,8 +435,8 @@ class NodeTest(unittest.TestCase):
 
                     def do_tests(this):
                         self.assertIn(repr(this.parent), [
-                                    'Env(N.M[localhost])',
-                                    'Env(N.M[localhost1])'])
+                                    'Env(N.M[0])',
+                                    'Env(N.M[1])'])
                         self.assertEqual(repr(this.parent.parent), 'Env(N)')
 
                         self.assertEqual(this.func(), 'func-x')
@@ -486,8 +486,8 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(n.M.O.__class__.__name__, 'N.M.O')
         self.assertEqual(n.P.__class__.__name__, 'N.P')
 
-        self.assertIn(n.P[0].__class__.__name__, ['N.P[localhost1]', 'N.P[localhost2]'])
-        self.assertIn(n.P[1].__class__.__name__, ['N.P[localhost1]', 'N.P[localhost2]'])
+        self.assertIn(n.P[0].__class__.__name__, ['N.P[0]', 'N.P[1]'])
+        self.assertIn(n.P[1].__class__.__name__, ['N.P[0]', 'N.P[1]'])
 
         self.assertEqual(n.another_node.__class__.__name__, 'N.another_node')
         self.assertEqual(n.another_node2.__class__.__name__, 'N.another_node2')
@@ -495,13 +495,13 @@ class NodeTest(unittest.TestCase):
         # Test Node.__repr__
         self.assertEqual(repr(n), '<Node N>')
         self.assertEqual(repr(n.M.O), '<Node N.M.O>')
-        self.assertIn(repr(n.P[1]), ['<Node N.P[localhost1]>', '<Node N.P[localhost2]>'])
+        self.assertIn(repr(n.P[1]), ['<Node N.P[0]>', '<Node N.P[1]>'])
 
         # Test Env.__repr__
         env = Env(n)
         self.assertEqual(repr(env), 'Env(N)')
         self.assertEqual(repr(env.M.O), 'Env(N.M.O)')
-        self.assertIn(repr(env.P[1]), ['Env(N.P[localhost1])', 'Env(N.P[localhost2])'])
+        self.assertIn(repr(env.P[1]), ['Env(N.P[0])', 'Env(N.P[1])'])
 
 
     def test_auto_mapping_from_node_to_simplenode_array(self):
@@ -545,15 +545,6 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(repr(N.M.my_action), '<Unbound Action my_action>')
 
     def test_nesting_normal_in_simple(self):
-        # Node in simplenode
-    #    def run():
-    #        class A(SimpleNode):
-    #            class B(SimpleNode):
-    #                class C(Node):
-    #                    pass
-
-    #    self.assertRaises(Exception, run) # TODO: correct exception
-
         # Simplenode in Node without using .Array
         def run():
             class A(Node):
@@ -778,18 +769,66 @@ class NodeTest(unittest.TestCase):
                     class D(Node):
                         @map_roles('role')
                         class E(SimpleNode.Array):
-                            def action(self):
-                                pass
+                            # At this point, for each 'cell', there will be only
+                            # one host in the role 'host'. We are mapping this one
+                            # down in the following Node, and SimpleNode. But that
+                            # means that for any 'isolation', the host in E and G
+                            # will be the same.
+                            @map_roles(role='host')
+                            class F(Node):
+                                @map_roles('role')
+                                class G(SimpleNode.Array):
+                                    def action(self):
+                                        pass
 
         env = Env(A())
         self.assertEqual(env.B.C[0]._isolated, True)
         self.assertEqual(env.B.C[0].parent._isolated, True)
 
-        # TODO: test these...
-        env.B[0].C
-        env.B[0].C.D.E
-        env.B[0].C.D.E[0]
-        env.B[0].C.D.E[0]
+        # Test all possible kinds of indexes.
+        # Any transition from a normal Node to a SimpleNode.Array
+        # should add one dimension.
+        nodes = [
+            env.B[0].C,
+            env.B[0].C.D,
+            env.B[0].C.D.E[0],
+            env.B.C.D.E[(0, 0)],
+            env.B[0].C.D.E[0],
+            env.B[0].C.D.E[0].F.G[0],
+            env.B.C.D.E[(0,0)].F.G[0],
+            env.B.C.D[0].E[0].F.G[0],
+            env.B.C.D[(0,)].E[(0,)].F.G[(0,)],
+            env.B.C.D.E.F.G[(0,0,0)],
+
+            env.B[LocalHost1],
+            env.B[LocalHost2],
+            env.B[LocalHost1].C.D.E[0],
+            env.B[LocalHost1].C.D.E[LocalHost2],
+            env.B[LocalHost1].C.D.E[LocalHost4],
+            env.B[LocalHost1].C.D.E[LocalHost4],
+            env.B[LocalHost1].C.D.E[LocalHost4].F.G[LocalHost4],
+            env.B[LocalHost1].C.D.E.F.G[(LocalHost4, LocalHost4)],
+            env.B.C.D[LocalHost1].E.F.G[(LocalHost4, LocalHost4)],
+            env.B.C.D.E.F.G[(LocalHost1, LocalHost4, LocalHost4)],
+
+            env.B['localhost1'],
+            env.B.C.D.E.F.G[('localhost1', 'localhost4', 'localhost4')],
+        ]
+        for n in nodes:
+            self.assertIsInstance(n, Env)
+
+        for index, node in Inspector(env.B.C.D.E.F.G).get_isolations(IsolationIdentifierType.HOSTS_SLUG):
+            # See comment above in the Nodes. For this example the nodes in the second and third
+            # are the same.
+            self.assertEqual(index[1], index[2])
+
+        # Following are not possible
+        self.assertRaises(KeyError, lambda: env.B[0].C.D.E[0].F[0].G)
+        self.assertRaises(KeyError, lambda: env.B[0].C[0].D[0])
+        self.assertRaises(KeyError, lambda: env.B[(0, 1)])
+        self.assertRaises(KeyError, lambda: env.B[LocalHost4])
+        self.assertRaises(KeyError, lambda: env.B.C.D.E[LocalHost1].F.G[(LocalHost4, LocalHost4)])
+        self.assertRaises(KeyError, lambda: env.B['localhost5'])
 
     def test_simplenode_just_one(self):
         # In contrast with .Array, the .JustOne should
@@ -811,26 +850,6 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(env.B.action(), 'result')
 
 
-    def test_invalid_nesting(self):
-        """
-        TODO:
-            - Take $TERM from the client terminal. (In case of a fuse-filesystem-system, we can
-              easily have another $TERM for each connection.)
-            - test 'hosts' vs. 'host'
-            - test whether Node.node_group is a Group class.
-            - test exceptions in action.
-            - test multidimentional nodes. (And (0,0)-like indexes.)
-            - we should have at least a role named 'host' in SimpleNode
-            - .Array.Array should not work.
-            - When applying map_roles in between two SimpleNode classes, it should be possible to use anything,
-              but you shouldn't be able to override 'host'.
-            - test JustOne
-
-            - It should not be possible to pass a custom Hosts to a SimpleNode when he has a parent.
-
-            We need to have a HostContext, where we save the cd/env/... from a host.
-            and a Host should become a singleton instance again.
-        """
 
 if __name__ == '__main__':
     unittest.main()
