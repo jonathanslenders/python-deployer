@@ -251,7 +251,7 @@ class Env(object):
                 # Multiple hosts, but isolate_one_only flag set.
                 elif getattr(action._func, 'isolate_one_only', False):
                     # Ask the end-user which one to use.
-                    options = [ (i.hosts.host.slug, i) for i in isolations ]
+                    options = [ (i.host.slug, i) for i in isolations ]
                     i = Console(self._pty).choice('Choose a host', options, allow_random=True)
                     return run_on_node(i)
 
@@ -607,11 +607,11 @@ class SimpleNodeBase(NodeBase):
             def __init__(self, parent):
                 Node.__init__(self, parent)
                 if len(self.hosts.filter('host')) != 1:
-                    raise Exception('Invalid initialisation of SimpleNode.JustOne. %i hosts given.' %
-                            len(self.hosts.filter('host')))
+                    raise Exception('Invalid initialisation of SimpleNode.JustOne. %i hosts given to %r.' %
+                            (len(self.hosts.filter('host')), self))
 
 
-        SimpleNode_One.__name__ = '%s.Array' % self.__name__
+        SimpleNode_One.__name__ = '%s.JustOne' % self.__name__
         return SimpleNode_One
 
 class Node(object):
@@ -964,7 +964,8 @@ class Inspector(object):
         """
         Return the group to which this node belongs.
         """
-        return self.node.node_group or Group()
+        return self.node.node_group or (
+                Inspector(self.node.parent).get_group() if self.node.parent else Group())
 
     def get_name(self):
         return self.node.__class__.__name__.split('.')[-1]
