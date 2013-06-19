@@ -1,0 +1,18 @@
+0. implement __dir__
+2. drop redis as backend for web_frontend. (Add dummy text backend.)
+3. clean-up logging in standalone shell.
+4. add onHost logging for citylive-operations
+5. write documentation (sphinx)
+6. correct exceptions.
+7. Take $TERM from the client terminal. (In case of a fuse-filesystem-system, we can easily have another $TERM for each connection.)
+8. test 'hosts' vs. 'host'
+9. test Node.node_group is a Group class.
+10. test exceptions in action.
+12. we should have at least a role named 'host' in SimpleNode
+13. Array.Array should not work.
+14. When applying map_roles in between two SimpleNode classes, it should be possible to use anything, but you shouldn't be able to override 'host'.
+16. It should not be possible to pass a custom Hosts to a SimpleNode when he has a parent.
+17. When moving to another thread,  hostcontext should be aware of that. Guarantee thread safety.
+18. Implement walk-function
+19. don't use __name__ in inspection. use self._node_name instead.
+20. implement filesystem in userspace mapping.
