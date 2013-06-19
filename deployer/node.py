@@ -127,8 +127,8 @@ class ChildNodeDescriptor(object):
                     (NodeTypes.SIMPLE_ONE, NodeTypes.SIMPLE),
             ]
 
-            if parent_instance._isolated and (parent_instance._node_type, self._node_class._node_type) in auto_isolate:
-                class_ = type(new_name, (self._node_class, ), { '_isolated': True })
+            if parent_instance._node_is_isolated and (parent_instance._node_type, self._node_class._node_type) in auto_isolate:
+                class_ = type(new_name, (self._node_class, ), { '_node_is_isolated': True })
             else:
                 class_ = type(new_name, (self._node_class, ), { })
 
@@ -241,7 +241,7 @@ class Env(object):
                     except Exception, e:
                         raise ActionException(e, traceback.format_exc())
 
-            if isinstance(self, SimpleNode) and not self._isolated and \
+            if isinstance(self, SimpleNode) and not self._node_is_isolated and \
                                 not getattr(action._func, 'dont_isolate_yet', False):
 
                 isolations = list(self)
@@ -629,7 +629,7 @@ class Node(object):
     __metaclass__ = NodeBase
     __slots__ = ('hosts', 'parent')
     _node_type = NodeTypes.NORMAL
-    _isolated = False
+    _node_is_isolated = False
 
     node_group = None
     Hosts = None
@@ -642,7 +642,7 @@ class Node(object):
         When this is the root node, of type NORMAL, mark is isolated right away.
         """
         if not parent and cls._node_type == NodeTypes.NORMAL:
-            new_cls = type(cls.__name__, (cls,), { '_isolated': True })
+            new_cls = type(cls.__name__, (cls,), { '_node_is_isolated': True })
             return object.__new__(new_cls, parent)
         else:
             return object.__new__(cls, parent)
@@ -672,7 +672,7 @@ class Node(object):
         This returns a specific isolation. In case of multiple dimensions
         (multiple Node-SimpleNode.Array transitions, a tuple should be provided.)
         """
-        if self._isolated:
+        if self._node_is_isolated:
             # TypeError, would also be a good, idea, but we choose to be compatible
             # with the error class for when an item is not found.
             raise KeyError('__getitem__ on isolated node is not allowed.')
@@ -710,7 +710,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
     """
     assert isinstance(node, Node) and not isinstance(node, Env)
 
-    if node._isolated:
+    if node._node_is_isolated:
         yield (), node
         return
 
@@ -723,7 +723,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
         hosts2['host'] = host
 
         class SimpleNodeItem(node.__class__):
-            _isolated = True
+            _node_is_isolated = True
             Hosts = type('Hosts', (object,), hosts2)
 
         short_id = identifier[0] if len(identifier) == 1 else identifier
@@ -789,7 +789,7 @@ class SimpleNode(Node):
 
     @property
     def host(self):
-        if self._isolated:
+        if self._node_is_isolated:
             return self.hosts.get('host')
         else:
             raise AttributeError
@@ -912,7 +912,7 @@ class Inspector(object):
         return 'Inspector(node=%s)' % self.node.__class__.__name__
 
     def get_isolations(self, identifier_type=IsolationIdentifierType.INT_TUPLES):
-        if not self.node._isolated:
+        if not self.node._node_is_isolated:
             return iter_isolations(self.node, identifier_type=identifier_type)
         else:
             raise NotImplementedError # TODO:...

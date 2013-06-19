@@ -296,10 +296,10 @@ class NodeTest(unittest.TestCase):
         self.assertIsInstance(n[1], SimpleNode)
         self.assertIsInstance(n[LocalHost1], SimpleNode)
         self.assertIsInstance(n[LocalHost2], SimpleNode)
-        self.assertEqual(n[0]._isolated, True)
-        self.assertEqual(n[1]._isolated, True)
-        self.assertEqual(n[LocalHost1]._isolated, True)
-        self.assertEqual(n[LocalHost2]._isolated, True)
+        self.assertEqual(n[0]._node_is_isolated, True)
+        self.assertEqual(n[1]._node_is_isolated, True)
+        self.assertEqual(n[LocalHost1]._node_is_isolated, True)
+        self.assertEqual(n[LocalHost2]._node_is_isolated, True)
         self.assertRaises(KeyError, lambda: n[2])
         self.assertRaises(KeyError, lambda: n[LocalHost3])
 
@@ -709,7 +709,7 @@ class NodeTest(unittest.TestCase):
             class B(SimpleNode.Array):
                 def action2(self):
                     this.assertEqual(len(self.hosts), 1)
-                    this.assertEqual(self._isolated, True)
+                    this.assertEqual(self._node_is_isolated, True)
 
                 class C(SimpleNode):
                     def action(self):
@@ -803,8 +803,8 @@ class NodeTest(unittest.TestCase):
                                         pass
 
         env = Env(A())
-        self.assertEqual(env.B.C[0]._isolated, True)
-        self.assertEqual(env.B.C[0].parent._isolated, True)
+        self.assertEqual(env.B.C[0]._node_is_isolated, True)
+        self.assertEqual(env.B.C[0].parent._node_is_isolated, True)
 
         # Test all possible kinds of indexes.
         # Any transition from a normal Node to a SimpleNode.Array
@@ -867,7 +867,7 @@ class NodeTest(unittest.TestCase):
                     return 'result'
 
         env = Env(A())
-        self.assertEqual(env.B._isolated, True)
+        self.assertEqual(env.B._node_is_isolated, True)
         self.assertEqual(env.B.action(), 'result')
 
 
