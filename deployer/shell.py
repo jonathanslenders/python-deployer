@@ -170,7 +170,7 @@ def Connect(self):
     env = Env(Connect(), pty=self.shell.pty)
 
     # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
-    env.with_host()
+    Action(Connect(), 'with_host', self.shell, False).__call__()
 
 
 @create_navigable_handler
@@ -255,7 +255,7 @@ def Inspect(self):
             # Group by node group
         grouper = lambda c:Inspector(c).get_group()
         for group, nodes in groupby(sorted(Inspector(self.node).get_childnodes(), key=grouper), grouper):
-            yield termcolor.colored('         "%s"' % group.__class__.__name__, 'yellow')
+            yield termcolor.colored('         "%s"' % group.name, 'yellow')
 
             # Create iterator for all the items in this group
             def item_iterator():
