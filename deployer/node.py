@@ -927,9 +927,16 @@ class Inspector(object):
                         childnodes.append(attr)
         return childnodes
 
-    def get_childnodes(self, include_private=True):
+    def get_childnodes(self, include_private=True, verify_parent=True):
+        """
+        Return a list of childnodes.
+        include_private: ignore names starting with underscore.
+        verify_parent: check the parent pointer.
+        """
         # TODO: order by _node_creation_counter
-        return self._filter(include_private, lambda i: isinstance(i, Node))
+        def f(i):
+            return isinstance(i, Node) and (not verify_parent or i.parent == self.node)
+        return self._filter(include_private, f)
 
     def has_childnode(self, name):
         try:
