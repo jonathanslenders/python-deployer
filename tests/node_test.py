@@ -7,7 +7,7 @@ from deployer.loggers import LoggerInterface
 from deployer.node import Inspector, map_roles, dont_isolate_yet, required_property, alias
 from deployer.host_container import HostsContainer
 
-from tests.our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
+from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
 
 class NodeTest(unittest.TestCase):
     def test_assignments_to_node(self):
@@ -23,72 +23,6 @@ class NodeTest(unittest.TestCase):
         MyNode.s = S2
         self.assertEqual(MyNode.s, S2) # TODO: the same for methods is not true!!!
 
-    def test_node_inspection(self):
-        class Root(Node):
-            class A(Node):
-                pass
-            class B(Node):
-                class C(Node):
-                    def __call__(self):
-                        # __call__ is the default action
-                        pass
-            def a(self): pass
-            def b(self): pass
-            def c(self): pass
-
-        s = Root()
-        insp = Inspector(s)
-
-        # get_childnodes and get_actions
-        self.assertEqual(repr(insp.get_childnodes()), '[<Node Root.A>, <Node Root.B>]')
-        self.assertEqual(repr(insp.get_actions()), '[<Action Root.a>, <Action Root.b>, <Action Root.c>]')
-
-        # has_childnode and get_childnode
-        self.assertEqual(insp.has_childnode('A'), True)
-        self.assertEqual(insp.has_childnode('C'), False)
-        self.assertEqual(repr(insp.get_childnode('A')), '<Node Root.A>')
-        self.assertRaises(AttributeError, insp.get_childnode, 'unknown_childnode')
-
-        # has_action and get_action
-        self.assertEqual(insp.has_action('a'), True)
-        self.assertEqual(insp.has_action('d'), False)
-        self.assertEqual(repr(insp.get_action('a')), '<Action Root.a>')
-        self.assertRaises(AttributeError, insp.get_action, 'unknown_action')
-
-        # get_path
-        self.assertEqual(repr(Inspector(s.A).get_path()), "[(<Node Root>, 'Root'), (<Node Root.A>, 'A')]")
-        self.assertEqual(repr(Inspector(s.B.C).get_path()), "[(<Node Root>, 'Root'), (<Node Root.B>, 'B'), (<Node Root.B.C>, 'C')]")
-
-        # get_name and get_full_name
-        self.assertEqual(Inspector(s.A).get_name(), 'A')
-        self.assertEqual(Inspector(s.B.C).get_name(), 'C')
-
-        self.assertEqual(Inspector(s.A).get_full_name(), 'Root.A')
-        self.assertEqual(Inspector(s.B.C).get_full_name(), 'Root.B.C')
-
-        # is_callable
-        self.assertEqual(Inspector(s.A).is_callable(), False)
-        self.assertEqual(Inspector(s.B.C).is_callable(), True)
-
-        # Inspector.__repr__
-        self.assertEqual(repr(Inspector(s)), 'Inspector(node=Root)')
-        self.assertEqual(repr(Inspector(s.B.C)), 'Inspector(node=Root.B.C)')
-
-    def test_node_inspection_on_env_object(self):
-        class Root(Node):
-            class A(Node):
-                pass
-            class B(Node):
-                def action(self):
-                    return 'action-b'
-            def action(self):
-                return 'action-root'
-
-        s = Root()
-        env = Env(Root())
-        insp = Inspector(env)
-        self.assertEqual(repr(insp.get_childnodes()), '[Env(Root.A), Env(Root.B)]')
-        self.assertEqual(insp.get_childnode('B').action(), 'action-b')
 
     def test_node_initialisation(self):
         class S(Node):
@@ -284,160 +218,8 @@ class NodeTest(unittest.TestCase):
         env = Env(s.T)
         self.assertEqual(env.action(), 2)
 
-class Q_ObjectTest(unittest.TestCase):
-    def test_q_expressions(self):
-        # Literals
-        q = Q('string')
-        self.assertEqual(q._query(None), 'string')
 
-        q = Q(55)
-        self.assertEqual(q._query(None), 55)
 
-        q = Q(True)
-        self.assertEqual(q._query(None), True)
-
-        q = Q(False)
-        self.assertEqual(q._query(None), False)
-
-        # Simple operator overloads (Both Q objects)
-        q = Q('a') + Q('b')
-        self.assertEqual(q._query(None), 'ab')
-
-        q = Q(1) + Q(2)
-        self.assertEqual(q._query(None), 3)
-
-        q = Q(2) - Q(1)
-        self.assertEqual(q._query(None), 1)
-
-        q = Q(3) * Q(4)
-        self.assertEqual(q._query(None), 12)
-
-        q = Q(12) / Q(4)
-        self.assertEqual(q._query(None), 3)
-
-        # Simple operator overloads (Q object on the left.)
-        q = Q('a') + 'b'
-        self.assertEqual(q._query(None), 'ab')
-
-        q = Q(1) + 2
-        self.assertEqual(q._query(None), 3)
-
-        q = Q(2) - 1
-        self.assertEqual(q._query(None), 1)
-
-        q = Q(3) * 4
-        self.assertEqual(q._query(None), 12)
-
-        q = Q(12) / 4
-        self.assertEqual(q._query(None), 3)
-
-        # Simple operator overloads (Q object on the right.)
-        q = 'a' + Q('b')
-        self.assertEqual(q._query(None), 'ab')
-
-        q = 1 + Q(2)
-        self.assertEqual(q._query(None), 3)
-
-        q = 2 - Q(1)
-        self.assertEqual(q._query(None), 1)
-
-        q = 3 * Q(4)
-        self.assertEqual(q._query(None), 12)
-
-        q = 12 / Q(4)
-        self.assertEqual(q._query(None), 3)
-
-        # String interpolation
-        q = Q('before %s after') % 'value'
-        self.assertEqual(q._query(None), 'before value after')
-
-        # And/or/not
-        q = Q(True) & Q(True)
-        self.assertEqual(q._query(None), True)
-
-        q = Q(True) & Q(False)
-        self.assertEqual(q._query(None), False)
-
-        q = Q(True) | Q(False)
-        self.assertEqual(q._query(None), True)
-
-        q = Q(False) | Q(False)
-        self.assertEqual(q._query(None), False)
-
-        q = ~ Q(False)
-        self.assertEqual(q._query(None), True)
-
-        q = ~ Q(True)
-        self.assertEqual(q._query(None), False)
-
-        # Combinations
-        q = Q(False) | ~ Q(False)
-        self.assertEqual(q._query(None), True)
-
-    def test_q_attribute_selection(self):
-        class Obj(object):
-            value = 'value'
-
-            def action(self):
-                return 'action-result'
-
-            def __getitem__(self, item):
-                return 'item %s' % item
-
-            def true(self): return True
-            def false(self): return False
-
-        obj = Obj()
-        obj.nested_obj = obj
-
-        # Combinations of attribute lookups, __getitem__ and calling.
-        q = Q.value
-        self.assertEqual(q._query(obj), 'value')
-
-        q = Q['attr']
-        self.assertEqual(q._query(obj), 'item attr')
-
-        q = Q.action()
-        self.assertEqual(q._query(obj), 'action-result')
-
-        q = Q.nested_obj.action()
-        self.assertEqual(q._query(obj), 'action-result')
-
-        q = Q.nested_obj.action()
-        self.assertEqual(q._query(obj), 'action-result')
-
-        q = Q.nested_obj.nested_obj['attr']
-        self.assertEqual(q._query(obj), 'item attr')
-
-        # Add some operators
-        q = Q.nested_obj.nested_obj.value + '-' + Q.value
-        self.assertEqual(q._query(obj), 'value-value')
-
-        q = ~ Q.true()
-        self.assertEqual(q._query(obj), False)
-
-        q = Q.true() & Q.nested_obj.true()
-        self.assertEqual(q._query(obj), True)
-
-        q = Q.true() | Q.nested_obj.false()
-        self.assertEqual(q._query(obj), True)
-
-    def test_q_navigation(self):
-        class MyNode(Node):
-            class Hosts:
-                host = LocalHost
-
-            attr = 'value'
-            query = Q.attr
-            query2 = Q.attr + Q.attr
-
-            def my_action(self):
-                return self.query
-
-        s = MyNode()
-        env = Env(s)
-        self.assertEqual(env.my_action(), 'value')
-        self.assertEqual(env.query2, 'valuevalue')
 
     def test_attribute_overrides(self):
         # Test double underscore overrides.
@@ -766,32 +548,6 @@ class Q_ObjectTest(unittest.TestCase):
                     pass
         self.assertRaises(Exception, run) # TODO: correct exception
 
-   #     # map_roles is not allowed between two SimpleNode classes.
-   #     def run():
-   #         class A(SimpleNode):
-   #             @map_roles('my_role')
-   #             class B(SimpleNode):
-   #                 pass
-   #     self.assertRaises(Exception, run) # TODO: correct exception
-
- #   def test_invalid_roles_in_simple_node(self):
- #       # It should not be possible to use any other role name than just 'host'
- #       # inside of a Simplenode.
- #       def run():
- #           class A(SimpleNode):
- #               class Hosts:
- #                   role1 = LocalHost1
-
- #       self.assertRaises(Exception, run) # TODO: correct exception
-
- #       def run():
- #           class A(Node):
- #               @map_roles(my_role='parent_role')
- #               class B(SimpleNode.Array):
- #                   pass
-
- #       self.assertRaises(Exception, run) # TODO: correct exception
-
     def test_invalid_hosts_object(self):
         # Hosts should be a role mapping or Hosts class definition
         # Anything else should raise an exception.
@@ -1036,7 +792,6 @@ class Q_ObjectTest(unittest.TestCase):
     def test_invalid_nesting(self):
         """
         TODO:
-            - Test everything in host_container.
             - Take $TERM from the client terminal. (In case of a fuse-filesystem-system, we can
               easily have another $TERM for each connection.)
             - test 'hosts' vs. 'host'

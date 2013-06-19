@@ -220,21 +220,21 @@ class HostsContainer(object):
         """
         Call 'prefix' with this parameters on every host.
         """
-        return nested(* [ s.prefix(*a, **kw) for s in self._host_contexts ])
+        return nested(* [ s.prefix(*a, **kw) for s in self._host_contexts.values() ])
 
     @wraps(HostContext.cd)
     def cd(self, *a, **kw):
         """
         Call 'cd' with this parameters on every host.
         """
-        return nested(* [ s.cd(*a, **kw) for s in self._host_contexts ])
+        return nested(* [ c.cd(*a, **kw) for c in self._host_contexts.values() ])
 
     @wraps(HostContext.env)
     def env(self, *a, **kw):
         """
         Call 'env' with this parameters on every host.
         """
-        return nested(* [ s.env(*a, **kw) for s in self._host_contexts.values() ])
+        return nested(* [ c.env(*a, **kw) for c in self._host_contexts.values() ])
 
 
 class HostContainer(HostsContainer):
