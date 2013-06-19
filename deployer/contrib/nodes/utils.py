@@ -1,6 +1,6 @@
 from deployer.contrib.services.django import Django
 from deployer.contrib.services.virtualenv import VirtualEnv
-from deployer.node import SimpleNode, Node, default_action, supress_action_result
+from deployer.node import SimpleNode, Node, supress_action_result
 
 from pygments import highlight
 from pygments.formatters import TerminalFormatter as Formatter

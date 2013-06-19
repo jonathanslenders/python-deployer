@@ -3,6 +3,8 @@ from deployer.host import Host, HostContext
 from deployer.utils import isclass
 from functools import wraps
 
+import itertools
+
 
 __all__ = ('HostContainer', 'HostsContainer', )
 
@@ -138,6 +140,8 @@ class HostsContainer(object):
         """
         Usage:
             hosts.filter('role1', 'role2')
+            or
+            hosts.filter('*') # Returns everything
             or
             hosts.filter( ['role1', 'role2' ]) # TODO: deprecate
             or
@@ -318,7 +322,11 @@ def _filter_hosts(hosts_dict, roles):
         but when it is a host class, initiate the class instead.
         """
         if isinstance(r, basestring):
-            return hosts_dict.get(r, [])
+            if r == '*':
+                # This returns everything.
+                return list(itertools.chain(*hosts_dict.values()))
+            else:
+                return hosts_dict.get(r, [])
         elif isinstance(r, Host):
             return r.get_instance()
         else:

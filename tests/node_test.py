@@ -503,6 +503,36 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(repr(env.M.O), 'Env(N.M.O)')
         self.assertIn(repr(env.P[1]), ['Env(N.P[localhost1])', 'Env(N.P[localhost2])'])
 
+
+    def test_auto_mapping_from_node_to_simplenode_array(self):
+        # When no role_mapping is defined between Node and SimpleNode.Array,
+        # we will map *all* roles to 'host'
+        class A(Node):
+            class Hosts:
+                role1 = LocalHost1, LocalHost2
+                role2 = LocalHost3
+                role3 = LocalHost4
+
+            class B(SimpleNode.Array):
+                pass
+
+        env = Env(A())
+        self.assertEqual(len(list(env.B)), 4)
+
+        # When we have a Hosts class, and no explicit
+        # mapping between A and B, this hosts will be used.
+        class A(Node):
+            class Hosts:
+                role1 = LocalHost1, LocalHost2
+                role2 = LocalHost3, LocalHost4
+
+            class B(SimpleNode.Array):
+                class Hosts:
+                    host = LocalHost1
+
+        env = Env(A())
+        self.assertEqual(len(list(env.B)), 1)
+
     def test_action_names(self):
         # Test Action.__repr__
         class N(Node):
@@ -538,14 +568,6 @@ class NodeTest(unittest.TestCase):
                 class B(Node.Array):
                     pass
 
-        self.assertRaises(Exception, run) # TODO: correct exception
-
-    def test_invalid_mappings(self):
-        # map_roles is required between Node and SimpleNode.Array
-        def run():
-            class A(Node):
-                class B(SimpleNode.Array):
-                    pass
         self.assertRaises(Exception, run) # TODO: correct exception
 
     def test_invalid_hosts_object(self):

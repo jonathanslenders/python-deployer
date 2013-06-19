@@ -1,4 +1,4 @@
-from deployer.service import SimpleNode, Node, default_action
+from deployer.node import SimpleNode, Node
 import termcolor
 
 

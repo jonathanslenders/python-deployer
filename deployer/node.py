@@ -580,8 +580,12 @@ class SimpleNodeBase(NodeBase):
         if self._node_type != NodeTypes.SIMPLE:
             raise Exception('Second .Array operation is not allowed.')
 
+        # When this class doesn't have a Hosts, create default mapper.
+        hosts = RoleMapping(host='*') if self.Hosts is None else self.Hosts
+
         class SimpleNodeArray(self):
             _node_type = NodeTypes.SIMPLE_ARRAY
+            Hosts = hosts
 
         SimpleNodeArray.__name__ = '%s.Array' % self.__name__
         return SimpleNodeArray
@@ -680,10 +684,12 @@ class Node(object):
         for key, node in iter_isolations(self):
             yield node
 
+
 class IsolationIdentifierType:
     INT_TUPLES = 'INT_TUPLES'
     HOST_TUPLES = 'HOST_TUPLES'
     HOSTS_SLUG = 'HOSTS_SLUG'
+
 
 def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
     """
@@ -901,12 +907,9 @@ class Inspector(object):
         for name in dir(self.node.__class__):
             if not name.startswith('__'):
                 if include_private or not name.startswith('_'):
-                    try:
-                        attr = getattr(self.node, name)
-                        if filter(attr):
-                            childnodes.append(attr)
-                    except AttributeError: # TODO: this shouldn't happen, but it does... ('host' attribute?)
-                        pass
+                    attr = getattr(self.node, name)
+                    if filter(attr):
+                        childnodes.append(attr)
         return childnodes
 
     def get_childnodes(self, include_private=True):
@@ -927,7 +930,7 @@ class Inspector(object):
         raise AttributeError('Childnode not found.')
 
     def get_actions(self, include_private=True):
-        return self._filter(include_private, lambda i: isinstance(i, Action))
+        return self._filter(include_private, lambda i: isinstance(i, Action) and not i.is_property)
 
     def has_action(self, name):
         try:
@@ -971,6 +974,7 @@ class Inspector(object):
 
     def is_callable(self):
         return hasattr(self.node, '__call__')
+
 
 class _EnvInspector(Inspector):
     """

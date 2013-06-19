@@ -64,6 +64,9 @@ class HostsContainerTest(unittest.TestCase):
         self.assertEqual(len(hosts_container.filter('role2')), 3)
         self.assertEqual(len(hosts_container.filter('role3')), 1)
 
+        # Filter-*
+        self.assertEqual(len(hosts_container.filter('*')), 5)
+
         class MyHosts1:
             role1 = LocalHost1, LocalHost2
         class MyHosts2:

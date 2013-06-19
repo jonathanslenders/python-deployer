@@ -23,7 +23,7 @@ class ExecCommandFailed(DeployerException):
 
 class QueryException(DeployerException):
     """
-    Resolving of a Q object in a deployer Service failed.
+    Resolving of a Q object in a deployer Node failed.
     """
     def __init__(self, node, attr_name, query, inner_exception):
         self.node = node
