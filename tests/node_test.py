@@ -2,33 +2,12 @@ import unittest
 
 from deployer.query import Q
 from deployer.node import Node, SimpleNode, Env
-from deployer.host import LocalHost
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
 from deployer.node import Inspector, map_roles, dont_isolate_yet, required_property, alias
 from deployer.host_container import HostsContainer
 
-
-class LocalHost1(LocalHost):
-    # Act as another host then localhost
-    slug = 'localhost1'
-
-class LocalHost2(LocalHost):
-    # Act as another host then localhost
-    slug = 'localhost2'
-
-class LocalHost3(LocalHost):
-    # Act as another host then localhost
-    slug = 'localhost3'
-
-class LocalHost4(LocalHost):
-    # Act as another host then localhost
-    slug = 'localhost4'
-
-class LocalHost5(LocalHost):
-    # Act as another host then localhost
-    slug = 'localhost5'
-
+from tests.our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
 
 class NodeTest(unittest.TestCase):
     def test_assignments_to_node(self):
@@ -1033,6 +1012,26 @@ class Q_ObjectTest(unittest.TestCase):
         env.B[0].C.D.E
         env.B[0].C.D.E[0]
         env.B[0].C.D.E[0]
+
+    def test_simplenode_just_one(self):
+        # In contrast with .Array, the .JustOne should
+        # make sure that it doesn't behave as an array,
+        # but instead asserts that it will only get one
+        # host for this role.
+        class A(Node):
+            class Hosts:
+                role1 = LocalHost1, LocalHost2
+                role2 = LocalHost3
+
+            @map_roles('role2')
+            class B(SimpleNode.JustOne):
+                def action(self):
+                    return 'result'
+
+        env = Env(A())
+        self.assertEqual(env.B._isolated, True)
+        self.assertEqual(env.B.action(), 'result')
+
 
     def test_invalid_nesting(self):
         """
