@@ -6,8 +6,8 @@
 #   - allowing setup of multi-server deployments
 #   - should be extensible with a web interface.
 
-
 import StringIO
+import contextlib
 import copy
 import getpass
 import logging
@@ -33,6 +33,93 @@ from deployer.utils import esc1
 from twisted.internet import fdesc
 
 # ================ Hosts =====================================
+
+
+class HostContext(object):
+    """
+    A push/pop stack which keeps track of the context on which commands
+    at a host are executed.
+    """
+    def __init__(self):
+        self._command_prefixes = []
+        self._path = []
+        self._env = []
+
+    def __repr__(self):
+        return 'HostContext(prefixes=%r, path=%r, env=%r)' % (
+                        self._command_prefixes, self._path, self._env)
+
+    def clone(self):
+        # Create a copy from this context. (We need it for thread-safety.)
+        c = HostContext()
+        c._command_prefixes = self._command_prefixes[:]
+        c._path = self._path[:]
+        c._env = self._env[:]
+        return c
+
+    def prefix(self, command):
+        """
+        Prefix all commands with given command plus ``&&``.
+
+        with host.prefix('workon environment'):
+            host.run('./manage.py migrate')
+
+        Based on Fabric prefix
+        """
+        class Prefix(object):
+            def __enter__(context):
+                self._command_prefixes.append(command)
+
+            def __exit__(context, *args):
+                self._command_prefixes.pop()
+        return Prefix()
+
+    def cd(self, path):
+        """
+        # Execute commands in this directory.
+        # Nesting of cd-statements is allowed.
+
+        with host.cd('~/directory'):
+            host.run('ls')
+        """
+        class CD(object):
+            def __enter__(context):
+                self._path.append(path)
+
+            def __exit__(context, *args):
+                self._path.pop()
+        return CD()
+
+
+    def env(self, variable, value, escape=True):
+        """
+        Set this environment variable
+        """
+        if escape:
+            value = "'%s'" % esc1(value)
+
+        class ENV(object):
+            def __enter__(context):
+                self._env.append( (variable, value) )
+
+            def __exit__(context, *args):
+                self._env.pop()
+        return ENV()
+
+    #def sandbox(self, enable=True):
+    #    """
+    #    Context for enable sandboxing on this host.
+    #    No commands will be executed, but syntax will be checked. (through bash -n -c '...')
+    #    """
+    #    class Sandbox(object):
+    #        def __enter__(context):
+    #            context._was_sandbox = self.sandbox
+    #            self.sandbox = enable
+
+    #        def __exit__(context, *args):
+    #            self.sandbox = context._was_sandbox
+    #    return Sandbox()
+
 
 
 # Remember instances for the Host classes. Keep them in this global
@@ -70,13 +157,13 @@ class Host(object):
         Create an instance of this Host class. This will initiate an SSH
         connection.
         """
-        # Context
-        self._command_prefixes = []
-        self._path = [] # cd to this path for every command
-        self._env = [] # Environment variables
-
-        # No sandbox
-        self._sandboxing = False
+#        # Context
+#        self._command_prefixes = []
+#        self._path = [] # cd to this path for every command
+#        self._env = [] # Environment variables
+#
+#        # No sandbox
+#        self._sandboxing = False
 
         # Dummy logger
         self.dummy_logger = DummyLoggerInterface()
@@ -92,22 +179,6 @@ class Host(object):
         except KeyError:
             _host_instances[cls] = cls()
             return _host_instances[cls]
-
-    def clone(self):
-        """
-        Return a new Host() instance, as a copy of this state.
-        (Every thread should have its own state of a host.)
-        """
-        new_host = self.__class__()
-        self._copy_state_to(new_host)
-        return new_host
-
-    def _copy_state_to(self, other_host):
-        """
-        Copy state from this host to other host.
-        """
-        for var in ('_command_prefixes', '_path', '_env', '_sandboxing'):
-            setattr(other_host, var, copy.copy(getattr(self, var)))
 
     def _get_start_path(self):
         """
@@ -131,7 +202,7 @@ class Host(object):
         else:
             return self.get_home_directory()
 
-    def _wrap_command(self, command):
+    def _wrap_command(self, command, context, sandbox):
         """
         Prefix command with cd-statements and variable assignments
         """
@@ -142,11 +213,11 @@ class Host(object):
             result.append("(mkdir -p '%s' 2> /dev/null || true) && " % esc1(self.expand_path(self.start_path)))
 
         # Prefix with all cd-statements
-        for p in [self._get_start_path()] + self._path:
+        for p in [self._get_start_path()] + context._path:
             # TODO: We can't have double quotes around paths,
             #       or shell expansion of '*' does not work.
             #       Make this an option for with cd(path):...
-            if self._sandboxing:
+            if sandbox:
                 # In sandbox mode, it may be possible that this directory
                 # is not yet created, only 'cd' to it when the directory
                 # really exists.
@@ -155,7 +226,7 @@ class Host(object):
                 result.append('cd %s && ' % p)
 
         # Prefix with variable assignments
-        for var, value in self._env:
+        for var, value in context._env:
             #result.append('%s=%s ' % (var, value))
             result.append("export %s=%s && " % (var, value))
 
@@ -178,15 +249,18 @@ class Host(object):
         pty = DummyPty()
         return self._run(pty, command, interactive=False, logger=None)
 
-    def _run(self, pty, command='echo "no command given"', use_sudo=False, interactive=True,
-                        logger=None, user=None, ignore_exit_status=False, initial_input=None):
+    def _run(self, pty, command='echo "no command given"', use_sudo=False, sandbox=False, interactive=True,
+                        logger=None, user=None, ignore_exit_status=False, initial_input=None, context=None):
         """
         Execute this command.
         When `interactive`, it will use stdin/stdout and use an interactive loop, otherwise, it will
         return the output.
         When the command fails and ignore_exit_status is false, it will raise ExecCommandFailed
         """
+        assert isinstance(command, basestring)
+
         logger = logger or self.dummy_logger
+        context = context or HostContext()
 
         # Create new channel for this command
         chan = self._get_session()
@@ -208,13 +282,13 @@ class Host(object):
         else:
             pty.set_ssh_channel_size = lambda:None
 
-        command = " && ".join(self._command_prefixes + [command])
+        command = " && ".join(context._command_prefixes + [command])
 
         # Start logger
         with logger.log_run(self, command=command, use_sudo=use_sudo,
-                                sandboxing=self._sandboxing, interactive=interactive) as log_entry:
+                                sandboxing=sandbox, interactive=interactive) as log_entry:
             # Are we sandboxing? Wrap command in "bash -n"
-            if self._sandboxing:
+            if sandbox:
                 command = "bash -n -c '%s' " % esc1(command)
                 command = "%s;echo '%s'" % (command, esc1(command))
 
@@ -232,11 +306,12 @@ class Host(object):
                 # 2. This shows the home directory of the user postgres:
                 # sudo su postgres -c 'echo $HOME '
                 if interactive:
-                    wrapped_command = self._wrap_command(
+                    wrapped_command = self._wrap_command((
                                 "sudo -p '%s' su '%s' -c '%s'" % (esc1(self.magic_sudo_prompt), esc1(user), esc1(command))
                                 #"sudo -u '%s' bash -c '%s'" % (user, esc1(command))
                                 if user else
-                                "sudo -p '%s' bash -c '%s' " % (esc1(self.magic_sudo_prompt), esc1(command))
+                                "sudo -p '%s' bash -c '%s' " % (esc1(self.magic_sudo_prompt), esc1(command))),
+                                context, sandbox
                                 )
 
                     logging.debug('Running wrapped command "%s"' % wrapped_command)
@@ -245,16 +320,17 @@ class Host(object):
                 # Some commands, like certain /etc/init.d scripts cannot be
                 # run interactively. They won't work in a ssh pty.
                 else:
-                    wrapped_command = self._wrap_command(
+                    wrapped_command = self._wrap_command((
                         "echo '%s' | sudo -p '(passwd)' -u '%s' -P %s " % (esc1(self.password), esc1(user), command)
                         if user else
-                        "echo '%s' | sudo -p '(passwd)' -S %s " % (esc1(self.password), command)
+                        "echo '%s' | sudo -p '(passwd)' -S %s " % (esc1(self.password), command)),
+                        context, sandbox
                         )
 
                     logging.debug('Running wrapped command "%s" interactive' % wrapped_command)
                     chan.exec_command(wrapped_command)
             else:
-                chan.exec_command(self._wrap_command(command))
+                chan.exec_command(self._wrap_command(command, context, sandbox))
 
             if interactive:
                 # Pty receive/send loop
@@ -300,7 +376,7 @@ class Host(object):
                 raise ExecCommandFailed(command, self, use_sudo=use_sudo, status_code=status_code, result=result)
 
         # Return result
-        if self._sandboxing:
+        if sandbox:
             return '<Not sure in sandbox>'
         else:
             return result
@@ -318,15 +394,10 @@ class Host(object):
         result = []
         password_sent = False
 
-        # Save terminal attributes
-        oldtty = termios.tcgetattr(pty.stdin)
-
         # Make stdin non-blocking. (The select call will already
         # block for us, we want sys.stdin.read() to read as many
         # bytes as possible without blocking.)
         fdesc.setNonBlocking(pty.stdin)
-
-        import contextlib
 
         # Set terminal in raw mode
         if raw:
@@ -404,7 +475,16 @@ class Host(object):
 
                         # Received length 0 -> end of stream
                         if len(x) == 0:
-                            break
+                            #break
+                            continue # TODO: not sure about this. We need this
+                                     #       for some unit tests, where the
+                                     #       input ends, before the output is
+                                     #       finished. But I think we need this
+                                     #       anyway.  As long as threre is data
+                                     #       to read on the SSH channel, we can
+                                     #       go on. But better remove stdin
+                                     #       from the select() call, just to
+                                     #       avoid a while-true loop.
 
                         # Write to channel
                         chan.send(x)
@@ -694,87 +774,22 @@ class Host(object):
         except ExecCommandFailed:
             return False
 
-    # ====[ Context mangement (Path and environment variables) ]====
-
-    def prefix(self, command):
-        """
-        Prefix all commands with given command plus ``&&``.
-
-        with host.prefix('workon mvne'):
-            host.run('./manage.py migrate')
-
-        Based on Fabric prefix
-        """
-        class Prefix(object):
-            def __enter__(context):
-                self._command_prefixes.append(command)
-
-            def __exit__(context, *args):
-                self._command_prefixes.pop()
-        return Prefix()
-
-    def cd(self, path):
-        """
-        # Execute commands in this directory.
-        # Nesting of cd-statements is allowed.
-
-        with host.cd('~/directory'):
-            host.run('ls')
-        """
-        class CD(object):
-            def __enter__(context):
-                self._path.append(path)
-
-            def __exit__(context, *args):
-                self._path.pop()
-        return CD()
-
-
-    def env(self, variable, value, escape=True):
-        """
-        Set this environment variable
-        """
-        if escape:
-            value = "'%s'" % esc1(value)
-
-        class ENV(object):
-            def __enter__(context):
-                self._env.append( (variable, value) )
-
-            def __exit__(context, *args):
-                self._env.pop()
-        return ENV()
-
-    def sandbox(self, enable=True):
-        """
-        Context for enable sandboxing on this host.
-        No commands will be executed, but syntax will be checked. (through bash -n -c '...')
-        """
-        class Sandbox(object):
-            def __enter__(context):
-                context._was_sandbox = self._sandboxing
-                self._sandboxing = enable
-
-            def __exit__(context, *args):
-                self._sandboxing = context._was_sandbox
-        return Sandbox()
 
     # Some simple wrappers for the commands
 
-    def run(self, pty, command, *args, **kwargs):
+    def run(self, *args, **kwargs):
         """
         Run this command.
         """
-        assert isinstance(command, basestring)
-        return self._run(pty, command, *args, **kwargs)
+        return self._run(*args, **kwargs)
 
 
-    def sudo(self, pty, command, *args, **kwargs):
+    def sudo(self, *args, **kwargs):
         """
         Run this command using sudo.
         """
         kwargs['use_sudo'] = True
-        return self.run(pty, command, *args, **kwargs)
+        return self.run(*args, **kwargs)
 
 
 class SSHBackend(object):
@@ -853,19 +868,9 @@ class SSHHost(Host):
     timeout = 10 # Seconds
     keepalive_interval  = 30
 
-    def __init__(self, backend=None):
+    def __init__(self):
         Host.__init__(self)
-        self._backend = backend or SSHBackend(lambda: self)
-
-    def clone(self):
-        """
-        Return a new Host() instance, as a copy of this state.
-        (Every thread has its own state of every host.)
-        """
-        # Create a new instance of this class, but reuse the same SSH Backend.
-        new_host = self.__class__(backend=self._backend)
-        self._copy_state_to(new_host)
-        return new_host
+        self._backend = SSHBackend(lambda: self)
 
     def _get_session(self):
         transport = self._backend.ssh.get_transport()
@@ -951,12 +956,6 @@ class LocalHost(Host):
         if kw.get('use_sudo', False):
             self._ensure_password_is_known(pty)
         return Host._run(self, pty, *a, **kw)
-
-    def clone(self):
-        # Clone state of this host into a new Host instance.
-        new_host = self.__class__(backend=self._backend)
-        self._copy_state_to(new_host)
-        return new_host
 
     def expand_path(self, path):
         return os.path.expanduser(path) # TODO: expansion like with SSHHost!!!!

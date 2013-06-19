@@ -1,14 +1,10 @@
 from contextlib import nested
-from deployer.host import Host
+from deployer.host import Host, HostContext
 from deployer.utils import isclass
 from functools import wraps
 
 
 __all__ = ('HostContainer', 'HostsContainer', )
-
-# TODO: the get_instance() does not work correctly!!
-#       When any action is started from an Env, we should reset the host status. (create instance.)
-#       when a new thread is forked from there, a clone of the hosts should be created. (Can be lazy.)
 
 
 class HostsContainer(object):
@@ -21,15 +17,19 @@ class HostsContainer(object):
     - webserver.hosts[0].run(...)
     - webserver.hosts.www[0].run(...)
     - webserver.hosts.filter('www')[0].run(...)
+
+    The host container also keeps track of HostStatus. So, if we fork a new
+    thread, and the HostStatus object gets modified in either thread. Clone
+    this HostsContainer first.
     """
-    def __init__(self, hosts, pty=None, logger=None, is_sandbox=False):
+    def __init__(self, hosts, pty=None, logger=None, is_sandbox=False, host_contexts=None):
         # the hosts parameter is a dictionary, mapping roles to <Host> instances, or lists
         # of <Host>-instances.
         # e.g. hosts = { 'www': [ <host1>, <host2> ], 'queue': <host3> }
         self._hosts = hosts
         self._logger = logger
         self._pty = pty
-        self._is_sandbox = is_sandbox
+        self._sandbox = is_sandbox
 
         # Make set of all hosts.
         all_hosts = set()
@@ -51,8 +51,14 @@ class HostsContainer(object):
             else:
                 slugs.add(h.slug)
 
+        # Host statuses ( { Host class : HostStatus } )
+        if host_contexts:
+            self._host_contexts = { h: host_contexts.get(h, HostContext()) for h in self._all }
+        else:
+            self._host_contexts = { h: HostContext() for h in self._all }
+
     @classmethod
-    def from_definition(cls, hosts_class):
+    def from_definition(cls, hosts_class, **kw):
         """
         Create a host container from a Hosts class.
         """
@@ -60,14 +66,16 @@ class HostsContainer(object):
         for k in dir(hosts_class):
             v = getattr(hosts_class, k)
 
-            if isclass(v) and issubclass(v, Host):
+            if isinstance(v, HostsContainer):
+                hosts[k] = v._all
+            elif isclass(v) and issubclass(v, Host):
                 hosts[k] = [ v ]
             elif isinstance(v, (list, tuple)):
-                hosts[k] = [ host for host in v ]
-            elif isinstance(v, HostsContainer):
-                hosts[k] = v._all
+                hosts[k] = v
+            elif not k.startswith('_'):
+                raise TypeError('Invalid attribute in Hosts: %r=%r' % (k, v))
 
-        return cls(hosts)
+        return cls(hosts, **kw)
 
     def __repr__(self):
         return ('<%s\n' % self.__class__.__name__ +
@@ -88,10 +96,12 @@ class HostsContainer(object):
         return True
 
     def _new(self, hosts):
-        return HostsContainer(hosts, self._pty, self._logger, self._is_sandbox)
+        return HostsContainer(hosts, self._pty, self._logger, self._sandbox,
+                        host_contexts=self._host_contexts)
 
     def _new_1(self, host):
-        return HostContainer({ 'host': host }, self._pty, self._logger, self._is_sandbox)
+        return HostContainer({ 'host': [host] }, self._pty, self._logger, self._sandbox,
+                        host_contexts=self._host_contexts)
 
     def __len__(self):
         return len(self._all)
@@ -99,7 +109,7 @@ class HostsContainer(object):
     def __nonzero__(self):
         return len(self._all) > 0
 
-    def count(self):
+    def count(self): # TODO: depricate count --> we have len()
         return len(self._all)
 
     @property
@@ -122,7 +132,7 @@ class HostsContainer(object):
         return any(h.slug == host_slug for h in self._all)
 
     def clone(self):
-        return self._new(self._hosts)
+        return self._new(self._hosts) # TODO: clone HostContext recursively!!
 
     def filter(self, *roles):
         """
@@ -144,31 +154,10 @@ class HostsContainer(object):
         Similar to filter(), but returns exactly one host instead of a list.
         """
         result = self.filter(*roles)
-
         if len(result) == 1:
             return self._new_1(result._all[0])
         else:
             raise AttributeError
-
-    def isolate(self, role, host_slug):
-        """
-        Make sure that for the given role, only a host with `host_slug` will
-        stay over.
-        """
-        result = { role: self.filter(role).get_from_slug(host_slug)._all }
-
-        for r, hosts in self._hosts.items():
-            if r != role:
-                result[r] = hosts #[:]
-
-        return self._new(result)
-
-    def iterate_isolations(self, role):
-        """
-        Yield a HostsContainer for every isolation in this role.
-        """
-        for h in self.filter(role):
-            yield h, self.isolate(role, h.slug)
 
     def __getitem__(self, index):
         return self._new_1(self._all[index])
@@ -177,29 +166,27 @@ class HostsContainer(object):
         for h in self._all:
             yield self._new_1(h)
 
-    def _sandbox_if_required(self, host):
-        return host.sandbox() if self._is_sandbox else nested()
-
     @wraps(Host.run)
-    def run(self, *args, **kwargs):
+    def run(self, *a, **kw):
         """
         Call 'run' with this parameters on every host.
         Return an array of all the results.
         """
-        kwargs['logger'] = self._logger
+        # First create a list of callables
+        def closure(host):
+            def call(pty):
+                kw2 = dict(**kw)
+                kw2['sandbox'] = self._sandbox
+                kw2['context'] = self._host_contexts[host]
+                kw2['logger'] = self._logger
+                return host.get_instance().run(pty, *a, **kw2)
+            return call
+
+        callables = map(closure, self._all)
 
         # When addressing multiple hosts and auxiliary ptys are available,
         # do a parallel run.
-        if len(self._all) > 1 and self._pty.auxiliary_ptys_are_available:
-            # First create a list of callables
-            def closure(host):
-                def call(pty):
-                    with self._sandbox_if_required(host):
-                        return host.get_instance().run(pty, *args, **kwargs)
-                return call
-
-            callables = [ closure(h.clone()) for h in self._all ]
-
+        if len(callables) > 1 and self._pty.auxiliary_ptys_are_available:
             # Run in auxiliary ptys, wait for them all to finish,
             # and return result.
             print 'Forking to %i pseudo terminals...' % len(callables)
@@ -210,17 +197,12 @@ class HostsContainer(object):
             result = fork_result.result
 
             # Return result.
-            print ''.join(result) # (Print it once more in this terminal, not really sure whether we should do that.)
+            print ''.join(result) # (Print it once more in the main terminal, not really sure whether we should do that.)
             return result
 
         # Otherwise, run all serially.
         else:
-            output = []
-            for h in self._all:
-                with self._sandbox_if_required(h):
-                    output.append(h.get_instance().run(self._pty, *args, **kwargs))
-
-            return output
+            return [ c(self._pty) for c in callables ]
 
     @wraps(Host.sudo)
     def sudo(self, *args, **kwargs):
@@ -233,26 +215,26 @@ class HostsContainer(object):
                     #       sure that we don't call te overriden method in
                     #       HostContainer.
 
-    @wraps(Host.prefix)
-    def prefix(self, *args, **kwargs):
+    @wraps(HostContext.prefix)
+    def prefix(self, *a, **kw):
         """
         Call 'prefix' with this parameters on every host.
         """
-        return nested(* [ h.prefix(*args, **kwargs) for h in self._all ])
+        return nested(* [ s.prefix(*a, **kw) for s in self._host_contexts ])
 
-    @wraps(Host.cd)
-    def cd(self, *args, **kwargs):
+    @wraps(HostContext.cd)
+    def cd(self, *a, **kw):
         """
         Call 'cd' with this parameters on every host.
         """
-        return nested(* [ h.cd(*args, **kwargs) for h in self._all ])
+        return nested(* [ s.cd(*a, **kw) for s in self._host_contexts ])
 
-    @wraps(Host.env)
-    def env(self, *args, **kwargs):
+    @wraps(HostContext.env)
+    def env(self, *a, **kw):
         """
         Call 'env' with this parameters on every host.
         """
-        return nested(* [ h.env(*args, **kwargs) for h in self._all ])
+        return nested(* [ s.env(*a, **kw) for s in self._host_contexts.values() ])
 
 
 class HostContainer(HostsContainer):
@@ -273,33 +255,30 @@ class HostContainer(HostsContainer):
     @wraps(Host.get)
     def get(self, *args,**kwargs):
         if len(self) == 1:
-            host = self._host.get_instance()
-            kwargs['logger'] = self._logger # TODO: maybe also pass logger through with-context
+            kwargs['logger'] = self._logger
+            kwargs['sandbox'] = self._sandbox
 
-            with self._sandbox_if_required(host):
-                return self._host.get(*args, **kwargs)
+            return self._host.get_instance().get(*args, **kwargs)
         else:
             raise AttributeError
 
     @wraps(Host.put)
     def put(self, *args,**kwargs):
         if len(self) == 1:
-            host = self._host.get_instance()
             kwargs['logger'] = self._logger
+            kwargs['sandbox'] = self._sandbox
 
-            with self._sandbox_if_required(host):
-                return self._host.put(*args, **kwargs)
+            return self._host.get_instance().put(*args, **kwargs)
         else:
             raise AttributeError
 
     @wraps(Host.open)
     def open(self, *args,**kwargs):
         if len(self) == 1:
-            host = self._host.get_instance()
             kwargs['logger'] = self._logger
+            kwargs['sandbox'] = self._sandbox
 
-            with self._sandbox_if_required(host):
-                return self._host.open(*args, **kwargs)
+            return self._host.get_instance().open(*args, **kwargs)
         else:
             raise AttributeError
 
@@ -312,7 +291,7 @@ class HostContainer(HostsContainer):
         return HostsContainer.sudo(self, *a, **kw)[0]
 
     def start_interactive_shell(self, command=None, initial_input=None):
-        if not self._is_sandbox:
+        if not self._sandbox:
             return self._host.get_instance().start_interactive_shell(self._pty, command=command, initial_input=initial_input)
         else:
             print 'Interactive shell is not available in sandbox mode.'

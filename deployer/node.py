@@ -125,7 +125,6 @@ class ChildNodeDescriptor(object):
             if parent_instance._isolated and (parent_instance._node_type, self._node_class._node_type) in auto_isolate:
                 class_ = type(new_name, (self._node_class, ), { '_isolated': True })
             else:
-                #class_ = self._node_class
                 class_ = type(new_name, (self._node_class, ), { })
 
             return class_(parent=parent_instance)
@@ -450,7 +449,6 @@ class NodeBase(type):
                 original_node = getattr(base, attr)
 
                 if not issubclass(original_node, Node):
-                    import pdb; pdb.set_trace()
                     raise Exception('Node override %s__%s is not applied on a Node class.' %
                                     (attr, first_override))
                 else:
@@ -491,14 +489,6 @@ class NodeBase(type):
                         for a in attr.action_alias:
                             attrs[a] = wrapped_attribute
 
-                # Make sure that Meta is a class, and if it does not yet
-                # inherit from Node.Meta, make sure is does.
-                if attr_name == 'Meta':
-                    if not isclass(attr):
-                        raise Exception('Node.Meta should be a class definition')
-                    if not issubclass(attr, Node.Meta):
-                        attrs[attr_name] = type('Meta', (attr, Node.Meta), { })
-
         # Set creation order
         attrs['_node_creation_counter'] = cls.creation_counter
         cls.creation_counter += 1
@@ -519,7 +509,7 @@ class NodeBase(type):
             return attribute
 
         # Wrap functions into an ActionDescriptor
-        elif isfunction(attribute) and attr_name not in ('__getitem__', '__iter__'):
+        elif isfunction(attribute) and attr_name not in ('__getitem__', '__iter__', '__new__', '__init__'):
             return ActionDescriptor(attribute)
 
         # Wrap Nodes into a ChildNodeDescriptor
@@ -741,7 +731,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
                 yield (identifier, get_simple_node_cell(parent_node, host))
 
     elif node._node_type == NodeTypes.SIMPLE_ONE:
-        TODO
+        raise NotImplementedError # TODO
 
     elif node._node_type == NodeTypes.SIMPLE:
         if node.parent:
