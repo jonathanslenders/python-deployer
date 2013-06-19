@@ -129,7 +129,7 @@ class DefaultLogger(Logger):
 class IndentedDefaultLogger(DefaultLogger):
     """
     Another logger which prints only to the given stdout,
-    It will indent the output according to the service/action hierarchy.
+    It will indent the output according to the node/action hierarchy.
     """
     tree_color = 'red'
     hostname_color = 'yellow'
@@ -229,8 +229,8 @@ def print_cli_exception(cli_entry, stdout):
     def print_query_exception(e):
         print
         print termcolor.colored('FAILED TO EXECUTE QUERY', 'red', attrs=['bold'])
-        print termcolor.colored('Service:     ', 'yellow'),
-        print termcolor.colored(e.service.__repr__(path_only=True), 'red', attrs=['bold'])
+        print termcolor.colored('Node:        ', 'yellow'),
+        print termcolor.colored(repr(e.node), 'red', attrs=['bold'])
         print termcolor.colored('Attribute:   ', 'yellow'),
         print termcolor.colored(e.attr_name, 'red', attrs=['bold'])
         print termcolor.colored('Query:       ', 'yellow'),
@@ -271,7 +271,7 @@ def print_cli_exception(cli_entry, stdout):
 
     print_exception(e)
 
-  #      # Print traceback through deployer services
+  #      # Print traceback through deployer nodes
   #      print 'TODO: following trace is not entirely correct. It may show more deeper '
   #      print '      than where the error actually occured.'
 

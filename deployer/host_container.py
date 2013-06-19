@@ -301,7 +301,7 @@ class HostContainer(HostsContainer):
         Proxy to the Host object. Following commands can be
         accessed when this hostcontainer contains exactly one host.
         """
-        return getattr(self._host, name)
+        return getattr(self._host.get_instance(), name)
 
 
 def _filter_hosts(hosts_dict, roles):

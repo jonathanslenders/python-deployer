@@ -2,7 +2,7 @@ import inspect
 
 """
 The Query object is technically a Python class descriptor. It exposes an easy
-to read syntax for a service property to point to another Service's class
+to read syntax for a node property to point to another Service's class
 property.
 
 e.g.
@@ -12,7 +12,7 @@ class MyService(Service):
 
     class MySubService(Service):
         some_property = Q.parent('MyService').something
-        some_service = Q.parent('MyService').SomeOtherService
+        some_node = Q.parent('MyService').SomeOtherService
 
     class SomeOtherService(Service):
         pass
@@ -53,7 +53,7 @@ class Query(object):
 
     @property
     def parent(self):
-        """ Go the to current parent of this service.  """
+        """ Go the to current parent of this node.  """
         return parent(self)
 
     # Operator overloads
@@ -262,7 +262,7 @@ class find_parent_by_name(Query):
 
     e.g.:
 
-    class service(Service):
+    class node(Node):
         some_property = Q('NameOfParent').property_of_that_parent
     """
     def __init__(self, query_before, parent_name):
@@ -274,7 +274,7 @@ class find_parent_by_name(Query):
     def _query(self):
         def parentfinder(instance):
             def p(i):
-                if self.parent_name in [ b.__name__ for b in inspect.getmro(i._service.__class__) ]:
+                if self.parent_name in [ b.__name__ for b in inspect.getmro(i._node.__class__) ]:
                     return i
                 else:
                     if not i.parent:

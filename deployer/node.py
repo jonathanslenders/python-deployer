@@ -1,12 +1,13 @@
-
-from inspect import isfunction
+from deployer.console import Console
+from deployer.host import Host
 from deployer.host_container import HostsContainer, HostContainer
+from deployer.loggers import DummyLoggerInterface
+from deployer.node_groups import Group
+from deployer.pseudo_terminal import DummyPty, Pty
 from deployer.query import Query
 from deployer.utils import isclass
-from deployer.pseudo_terminal import DummyPty, Pty
-from deployer.loggers import DummyLoggerInterface
-from deployer.host import Host
-from deployer.node_groups import Group
+
+from inspect import isfunction
 
 import datetime
 import logging
@@ -147,12 +148,12 @@ class QueryDescriptor(object):
                     return self.query._query(i)
                 except Exception, e:
                     from deployer.exceptions import QueryException
-                    raise QueryException(i._service, self.attr_name, self.query, e)
+                    raise QueryException(i._node, self.attr_name, self.query, e)
 
             # Make sure that a nice name is passed to Action
             run.__name__ = str('query:%s' % self.query.__str__())
 
-            return Action(instance, run, is_property=True)
+            return Action(self.attr_name, instance, run, is_property=True)
         else:
             return self.query
 
@@ -161,29 +162,31 @@ class ActionDescriptor(object):
     """
     Every instancemethod in a Service will be wrapped by this descriptor.
     """
-    def __init__(self, func):
+    def __init__(self, attr_name, func):
+        self.attr_name = attr_name
         self._func = func
 
     def __get__(self, node_instance, owner):
         if node_instance:
-            return Action(node_instance, self._func)
+            return Action(self.attr_name, node_instance, self._func)
         else:
             # TODO: we should avoid this usage. e.g. in "Config.setup(self)"
             #       this causes Action to lack a service instance, and a
             #       retrieval path...
 
-            return Action(None, self._func)
+            return Action(self.attr_name, None, self._func)
             #raise Exception("Don't retrieve action from the class object. Use instance.action")
             #return self._func
 
 
 class PropertyDescriptor(object):
-    def __init__(self, attribute):
+    def __init__(self, attr_name, attribute):
+        self.attr_name = attr_name
         self.attribute = attribute
 
     def __get__(self, instance, owner):
         if instance:
-            return Action(instance, self.attribute.fget, is_property=True)
+            return Action(self.attr_name, instance, self.attribute.fget, is_property=True)
         else:
             return self.attribute
 
@@ -320,6 +323,12 @@ class Env(object):
     def hosts(self):
         return HostsContainer(self._node.hosts._hosts, self._pty, self._logger, self._is_sandbox)
 
+    @property
+    def console(self):
+        if not self._pty:
+            raise AttributeError('Console is not available in Env when no pty was given.')
+        return Console(self._pty)
+
     def __getattr__(self, name):
         """
         Retrieve attributes from the Node class, but in case of actions and
@@ -374,16 +383,13 @@ class NodeNestingRules:
             (NodeTypes.NORMAL, NodeTypes.SIMPLE_ARRAY): MappingOptions.REQUIRED,
             (NodeTypes.NORMAL, NodeTypes.SIMPLE_ONE): MappingOptions.REQUIRED,
 
-            ##(NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
-            ##(NodeTypes.SIMPLE_ONE, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
-            ##(NodeTypes.SIMPLE, NodeTypes.SIMPLE): MappingOptions.NOT_ALLOWED,
             (NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE): MappingOptions.OPTIONAL,
             (NodeTypes.SIMPLE_ONE, NodeTypes.SIMPLE): MappingOptions.OPTIONAL,
             (NodeTypes.SIMPLE, NodeTypes.SIMPLE): MappingOptions.OPTIONAL,
 
-            (NodeTypes.SIMPLE, NodeTypes.NORMAL): MappingOptions.OPTIONAL, # TODO: do we allow this?
-            (NodeTypes.SIMPLE_ARRAY, NodeTypes.NORMAL): MappingOptions.OPTIONAL, # TODO: do we allow this?
-            (NodeTypes.SIMPLE_ONE, NodeTypes.NORMAL): MappingOptions.OPTIONAL, # TODO: do we allow this?
+            (NodeTypes.SIMPLE, NodeTypes.NORMAL): MappingOptions.OPTIONAL,
+            (NodeTypes.SIMPLE_ARRAY, NodeTypes.NORMAL): MappingOptions.OPTIONAL,
+            (NodeTypes.SIMPLE_ONE, NodeTypes.NORMAL): MappingOptions.OPTIONAL,
     }
     @classmethod
     def check(cls, parent, child):
@@ -510,7 +516,7 @@ class NodeBase(type):
 
         # Wrap functions into an ActionDescriptor
         elif isfunction(attribute) and attr_name not in ('__getitem__', '__iter__', '__new__', '__init__'):
-            return ActionDescriptor(attribute)
+            return ActionDescriptor(attr_name, attribute)
 
         # Wrap Nodes into a ChildNodeDescriptor
         elif isclass(attribute) and issubclass(attribute, Node):
@@ -534,7 +540,7 @@ class NodeBase(type):
             if isinstance(attribute, required_property):
                 attribute.name = attr_name
                 attribute.owner = node_name
-            return PropertyDescriptor(attribute)
+            return PropertyDescriptor(attr_name, attribute)
 
         # Query objects are like properties and should also be
         # wrapped into a descriptor
@@ -731,7 +737,12 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
                 yield (identifier, get_simple_node_cell(parent_node, host))
 
     elif node._node_type == NodeTypes.SIMPLE_ONE:
-        raise NotImplementedError # TODO
+        assert node.parent
+        assert len(node.hosts.filter('host')) == 1
+
+        for parent_identifier, parent_node in iter_isolations(node.parent, identifier_type):
+            for identifier, host in get_identifiers(parent_identifier):
+                yield (identifier, get_simple_node_cell(parent_node, host))
 
     elif node._node_type == NodeTypes.SIMPLE:
         if node.parent:
@@ -766,7 +777,8 @@ class Action(object):
     sure that a correct 'env' object is passed into the function as its first
     argument.
     """
-    def __init__(self, node_instance, func, is_property=False):
+    def __init__(self, attr_name, node_instance, func, is_property=False):
+        self._attr_name = attr_name
         self._node_instance = node_instance # XXX: this should be the Env object?
         self._func = func # TODO: wrap _func in something that checks whether the first argument is an Env instance.
         self.is_property = is_property
@@ -784,9 +796,9 @@ class Action(object):
     def __repr__(self):
         # Mostly useful for debugging.
         if self._node_instance:
-            return '<Action %s.%s>' % (self._node_instance.__class__.__name__, self._func.__name__)
+            return '<Action %s.%s>' % (self._node_instance.__class__.__name__, self._attr_name)
         else:
-            return "<Unbound Action %s>" % self._func.__name__
+            return "<Unbound Action %s>" % self._attr_name
 
     @property
     def name(self):

@@ -627,7 +627,7 @@ class Host(object):
             else:
                 log_entry.complete(True)
 
-    def open(self, remote_path, mode="rb", use_sudo=False, logger=None):
+    def open(self, remote_path, mode="rb", use_sudo=False, logger=None, sandbox=False):
         """
         Open file handler to remote file. Can be used both as:
 
@@ -649,16 +649,12 @@ class Host(object):
             def __init__(rf):
                 rf._is_open = False
 
-                # Remember sandboxing state in here. (To make sure it's still
-                # the same on __exit__)
-                rf._sandboxing = self._sandboxing
-
                 # Log entry
                 self._log_entry = logger.log_file(self, Actions.Open, mode=mode, remote_path=remote_path,
-                                                use_sudo=use_sudo, sandboxing=rf._sandboxing)
+                                                use_sudo=use_sudo, sandboxing=sandbox)
                 self._log_entry.__enter__()
 
-                if rf._sandboxing:
+                if sandbox:
                     # Use dummy file in sandbox mode.
                     rf._file = open('/dev/null', mode)
                 else:
@@ -728,7 +724,7 @@ class Host(object):
                     try:
                         rf._file.close()
 
-                        if not rf._sandboxing:
+                        if not sandbox:
                             if use_sudo:
                                 # Restore permissions (when this file already existed.)
                                 if self.exists(remote_path):

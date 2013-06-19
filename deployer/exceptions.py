@@ -25,12 +25,12 @@ class QueryException(DeployerException):
     """
     Resolving of a Q object in a deployer Service failed.
     """
-    def __init__(self, service, attr_name, query, inner_exception):
-        self.service = service
-        self.service_name = str(service.__class__)
+    def __init__(self, node, attr_name, query, inner_exception):
+        self.node = node
+        self.node_name = str(node.__class__)
         self.attr_name = attr_name
         self.query = query.__str__()
         self.inner_exception = inner_exception
 
         DeployerException.__init__(self, 'Running query %s:=%s on "%s" failed' %
-                            (self.attr_name, self.query, self.service_name))
+                            (self.attr_name, self.query, self.node_name))
