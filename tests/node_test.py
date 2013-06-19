@@ -533,6 +533,27 @@ class NodeTest(unittest.TestCase):
         env = Env(A())
         self.assertEqual(len(list(env.B)), 1)
 
+        # In case of JustOne, it should work as well.
+        class A(Node):
+            class Hosts:
+                role1 = LocalHost1
+
+            class B(SimpleNode.JustOne):
+                pass
+
+        env = Env(A())
+        self.assertEqual(len(list(env.B)), 1)
+
+        # Exception: Invalid initialisation of SimpleNode.JustOne. 2 hosts given to <Node A.B>.
+        class A(Node):
+            class Hosts:
+                role1 = LocalHost1, LocalHost2
+
+            class B(SimpleNode.JustOne):
+                pass
+        env = Env(A())
+        self.assertRaises(Exception, lambda: env.B)
+
     def test_action_names(self):
         # Test Action.__repr__
         class N(Node):

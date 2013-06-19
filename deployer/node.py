@@ -1,5 +1,4 @@
 from deployer.console import Console
-from deployer.host import Host
 from deployer.host_container import HostsContainer, HostContainer
 from deployer.loggers import DummyLoggerInterface
 from deployer.node_groups import Group
@@ -7,18 +6,23 @@ from deployer.pseudo_terminal import DummyPty, Pty
 from deployer.query import Query
 from deployer.utils import isclass
 
+from functools import wraps
 from inspect import isfunction
 
-import datetime
+import inspect
 import logging
 import traceback
-from functools import wraps
 
-"""
+__all__ = (
+    'ActionException',
+    'Env',
+    'Inspector',
+    'Node',
+    'SimpleNode',
+    'required_property'
+    'role_mapping',
+)
 
-Better version of service.py
-
-"""
 class ActionException(Exception):
     """
     When an action fails.
@@ -193,8 +197,11 @@ class PropertyDescriptor(object):
 
 class Env(object):
     """
-    Instead of 'self', we give each Node method an instance of
-    this class as the first parameter.
+    Wraps a Node into a context where actions can be executed.
+
+    Instead of 'self', the first parameter of a Node-action will
+    be this instance. It acts like a proxy to the Node, but in the meantime
+    it takes care of logging, sandboxing, the terminal and context.
     """
     def __init__(self, node, pty=None, logger=None, is_sandbox=False):
         assert isinstance(node, Node)
@@ -292,7 +299,6 @@ class Env(object):
                         # When an error occcured in one fork, raise this error
                         # again in current thread.
                         raise errors[0]
-                        #raise Exception('Fork errors: %s' % str(errors)) # TODO: better exception handling.
                     else:
                         # This returns a list of results.
                         return fork_result.result
@@ -375,6 +381,7 @@ class MappingOptions:
     REQUIRED = 'MAPPING_REQUIRED'
     OPTIONAL = 'MAPPING_OPTIONAL'
     NOT_ALLOWED = 'MAPPING_NOT_ALLOWED'
+
 
 class NodeNestingRules:
     RULES = {
@@ -600,8 +607,12 @@ class SimpleNodeBase(NodeBase):
         if self._node_type != NodeTypes.SIMPLE:
             raise Exception('Second .JustOne operation is not allowed.')
 
+        # When this class doesn't have a Hosts, create default mapper.
+        hosts = RoleMapping(host='*') if self.Hosts is None else self.Hosts
+
         class SimpleNode_One(self):
             _node_type = NodeTypes.SIMPLE_ONE
+            Hosts = hosts
 
             @_internal
             def __init__(self, parent):
@@ -882,10 +893,6 @@ def alias(name):
     return decorator
 
 
-
-
-import inspect
-
 class Inspector(object):
     """
     Introspection of a Node object.
@@ -988,7 +995,7 @@ class Inspector(object):
 class _EnvInspector(Inspector):
     """
     When doing the introspection on an Env object, this acts like a proxy and
-    makes sure that the result is Env-compatible.
+    makes sure that the result is compatible for in an Env environment.
     """
     def get_childnodes(self, include_private=True):
         nodes = Inspector.get_childnodes(self, include_private)
