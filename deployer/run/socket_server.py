@@ -573,10 +573,10 @@ class CliClientProtocol(Protocol):
         self.factory.connectionPool.add(self.connection)
 
 
-def startSocketServer(root_node, shutdownOnLastDisconnect, interactive):
+def startSocketServer(root_node, shutdownOnLastDisconnect, interactive, socket=None):
     """
     Bind the first available unix socket.
-    Return the path.
+    Return the socket file.
     """
     # Create protocol factory.
     factory = Factory()
@@ -586,28 +586,32 @@ def startSocketServer(root_node, shutdownOnLastDisconnect, interactive):
     factory.root_node = root_node
     factory.interactive = interactive
 
-    # Search for a socket to listen on.
-    i = 0
-    path = None
-    while True:
-        try:
-            path = '/tmp/deployer.sock.%s.%i' % (getpass.getuser(), i)
-            reactor.listenUNIX(path, factory)
-            break
-        except CannotListenError:
-            i += 1
+    # Listen on socket.
+    if socket:
+        reactor.listenUNIX(socket, factory)
+    else:
+        # Find a socket to listen on. (if no socket was given.)
+        i = 0
+        while True:
+            try:
+                socket = '/tmp/deployer.sock.%s.%i' % (getpass.getuser(), i)
+                reactor.listenUNIX(socket, factory)
+                break
+            except CannotListenError:
+                i += 1
 
-            # When 100 times failed, cancel server
-            if i == 100:
-                logging.warning('100 times failed to listen on posix socket. Please clean up old sockets.')
-                raise
+                # When 100 times failed, cancel server
+                if i == 100:
+                    logging.warning('100 times failed to listen on posix socket. Please clean up old sockets.')
+                    raise
 
-    return path
+    return socket
 
 
 # =================[ Startup]=================
 
-def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50, interactive=True, logfile=None):
+def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50,
+                interactive=True, logfile=None, socket=None):
     """
     Start web server
     If daemonized, this will start the server in the background,
@@ -617,7 +621,8 @@ def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread
     root_node = root_node()
 
     # Start server
-    path = startSocketServer(root_node, shutdownOnLastDisconnect=shutdown_on_last_disconnect, interactive=interactive)
+    socket2 = startSocketServer(root_node, shutdownOnLastDisconnect=shutdown_on_last_disconnect,
+                        interactive=interactive, socket=socket)
 
     def run_server():
         # Set logging
@@ -626,7 +631,7 @@ def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread
         elif not daemonized:
             logging.basicConfig(filename='/dev/stdout', level=logging.DEBUG)
 
-        logging.info('Socket server started at %s' % path)
+        logging.info('Socket server started at %s' % socket2)
 
         # Thread sensitive interface for stdout/stdin
         std.setup()
@@ -645,6 +650,6 @@ def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread
             sys.exit()
         else:
             # In parent.
-            return path
+            return socket2
     else:
         run_server()

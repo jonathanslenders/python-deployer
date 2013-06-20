@@ -1,110 +1,86 @@
 #!/usr/bin/env python
 
-import getopt
-import sys
-import getpass
-
-from deployer.run.socket_client import start as start_client
-from deployer.run.socket_client import list_sessions
-from deployer.run.socket_server import start as start_server
-from deployer.run.telnet_server import start as start_telnet_server
-from deployer.run.standalone_shell import start as start_standalone
-
+from deployer import __version__
 from deployer.contrib.default_config import example_settings
+from deployer.run.socket_client import list_sessions
+from deployer.run.socket_client import start as start_client
+from deployer.run.socket_server import start as start_server
+from deployer.run.standalone_shell import start as start_standalone
+from deployer.run.telnet_server import start as start_telnet_server
 
+import docopt
+import getopt
+import getpass
+import sys
+
+__doc__ = \
+"""Usage:
+  client.py start [-s | --single-threaded | --socket SOCKET] [--path PATH] [--non-interactive] [--log LOGFILE]
+  client.py listen [--log LOGFILE] [--non-interactive] [--socket SOCKET]
+  client.py connect (--socket SOCKET) [--path PATH]
+  client.py telnet-server [--port=PORT] [--log LOGFILE] [--non-interactive]
+  client.py list-sessions
+  client.py -h | --help
+  client.py --version
+
+Options:
+  -h, --help             : Display this help text.
+  -s, --single-threaded  : Single threaded mode.
+  --path PATH            : Start the shell at this location.
+  --non-interactive      : If possible, run script with as few interactions as
+                           possible.  This will always choose the default
+                           options when asked for questions.
+  --log LOGFILE          : Write logging info to this file. (For debugging.)
+  --socket SOCKET        : The path of the unix socket.
+  --version              : Show version information.
+"""
 
 def start(root_service):
     """
     Client startup point.
     """
-    cd_path = None
-    interactive = True
-    logfile = None
-    single_threaded = False
-    socket_name = ''
-    socket_server = False
-    telnet_server = False
+    a = docopt.docopt(__doc__, version=__version__)
 
-    def print_usage():
-        print 'Usage:'
-        print '    ./client.py [-h|--help] [ -c|--connect "socket number" ] [ -p|--path "path" ] [ -l | --list-sessions ]'
-        print '                [--interactive|--non-interactive ] [ -s|--single-threaded ] [ -m|--multithreaded ]'
-        print '                [--log] [--server] [--telnet-server]'
+    interactive = not a['--non-interactive']
 
-    # Parse command line arguments.
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hp:c:lsm', ['help', 'path=', 'connect=', 'list-sessions',
-                            'interactive', 'non-interactive', 'single-threaded', 'multithreaded', 'log=', 'server', 'telnet-server'])
-    except getopt.GetoptError, err:
-        print str(err)
-        print_usage()
-        sys.exit(2)
+    # Socket name variable
+    # In case of integers, they map to /tmp/deployer.sock.username.X
+    socket_name = a['--socket']
 
-    for o, a in opts:
-        if o in ('-h', '--help'):
-            print_usage()
-            sys.exit()
+    if socket_name is not None and socket_name.isdigit():
+        socket_name = '/tmp/deployer.sock.%s.%s' % (getpass.getuser(), socket_name)
 
-        elif o in ('-l', '--list-sessions',):
-            list_sessions()
-            sys.exit()
+    # List sessions
+    if a['list-sessions']:
+        list_sessions()
 
-        elif o in ('-c', '--connect'):
-            socket_name = a
+    # Telnet server
+    elif a['telnet-server']:
+        port = int(a['--port']) if a['--port'] is not None else None
+        start_telnet_server(root_service, logfile=a['--log'], port=port)
 
-        elif o in ('-p', '--path'):
-            cd_path = a.split('.')
+    # Socket server
+    elif a['listen']:
+        socket_name = start_server(root_service, daemonized=False, shutdown_on_last_disconnect=False,
+                    interactive=interactive, logfile=a['--log'], socket=a['--socket'])
 
-        elif o in ('--non-interactive', ):
-            interactive = False
+    # Connect to socket
+    elif a['connect']:
+        start_client(socket_name, a['--path'])
 
-        elif o in ('--interactive', ):
-            interactive = True
+    # Single threaded client
+    elif a['--single-threaded']:
+        start_standalone(root_service, interactive=interactive, cd_path=a['--path'], logfile=a['--log'])
 
-        elif o in ('-s', '--single-threaded'):
-            single_threaded = True
-
-        elif o in ('-m', '--multithreaded'):
-            single_threaded = False
-
-        elif o in ('--log',):
-            logfile = a
-
-        elif o in ('--server',):
-            socket_server = True
-
-        elif o in ('--telnet-server',):
-            telnet_server = True
-
-        else:
-            print 'Unknown option: %s' % o
-            sys.exit(2)
-
-    if telnet_server:
-        # == Telnet server ==
-        start_telnet_server(root_service, logfile=logfile)
-
-    elif socket_server:
-        # == Socket server ==
-        socket_name = start_server(root_service, daemonized=False, shutdown_on_last_disconnect=False, interactive=interactive, logfile=logfile)
-
-    elif single_threaded:
-        # == Single threaded ==
-        start_standalone(root_service, interactive=interactive, cd_path=cd_path, logfile=a)
-
+    # Multithreaded
     else:
-        # == Multithreaded ==
-
         # If no socket has been given. Start a daemonized server in the
         # background, and use that socket instead.
         if not socket_name:
-            socket_name = start_server(root_service, daemonized=True, shutdown_on_last_disconnect=True, interactive=interactive, logfile=logfile)
+            socket_name = start_server(root_service, daemonized=True, shutdown_on_last_disconnect=True,
+                    interactive=interactive, logfile=a['--log'])
 
-        # The socket path can be an absolute path, or an integer.
-        if not socket_name.startswith('/'):
-            socket_name = '/tmp/deployer.sock.%s.%s' % (getpass.getuser(), socket_name)
-
-        start_client(socket_name, cd_path)
+        start_client(socket_name, a['--path'])
 
 
 if __name__ == '__main__':

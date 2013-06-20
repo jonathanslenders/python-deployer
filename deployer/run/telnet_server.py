@@ -304,7 +304,7 @@ class TelnetDeployer(StatefulTelnetProtocol):
 
 # =================[ Startup]=================
 
-def start(root_service, auth_backend=None, telnet_port=8023, logfile=None):
+def start(root_service, auth_backend=None, port=8023, logfile=None):
     """
     Start telnet server
     """
@@ -335,7 +335,7 @@ def start(root_service, auth_backend=None, telnet_port=8023, logfile=None):
     signal.signal(signal.SIGINT, handle_sigint)
 
     # Run the reactor!
-    logging.info('Listening for incoming telnet connections on localhost:%s...' % telnet_port)
+    logging.info('Listening for incoming telnet connections on localhost:%s...' % port)
 
-    reactor.listenTCP(telnet_port, factory)
+    reactor.listenTCP(port, factory)
     reactor.run()
