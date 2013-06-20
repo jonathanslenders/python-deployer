@@ -121,8 +121,8 @@ class HostsContainerTest(unittest.TestCase):
     def test_hostcontainer_commands(self):
         # Exists (the current directory should exist)
         hosts_container = self.get_definition()
-        self.assertEqual(hosts_container.exists('.'), [True, True, True, True, True])
-        self.assertEqual(hosts_container[0].exists('.'), True)
+        self.assertEqual(hosts_container.exists('.', use_sudo=False), [True, True, True, True, True])
+        self.assertEqual(hosts_container[0].exists('.', use_sudo=False), True)
 
         # Has command
         self.assertEqual(hosts_container.has_command('ls'), [True, True, True, True, True])

@@ -168,10 +168,17 @@ class Host(object):
         """
         Current working directory.
         """
-        if self._path:
+        if context._path:
             return os.path.join(*context._path)
         else:
             return self.get_home_directory()
+
+    def get_home_directory(self, username=None):
+        # TODO: maybe: return self.expand_path('~%s' % username if username else '~')
+        if username:
+            return self.run(DummyPty(), 'cd /; echo -n ~%s' % username, sandbox=False)
+        else:
+            return self.run(DummyPty(), 'cd /; echo -n ~', sandbox=False)
 
     def _wrap_command(self, command, context, sandbox):
         """
@@ -472,44 +479,6 @@ class Host(object):
                 fdesc.setBlocking(pty.stdin)
 
             return ''.join(result)
-
-
-    # =====[ Actions which are also available in non-sandbox mode ]====
-
-    def get_ip_address(self, interface='eth0'):
-        """
-        Return internal IP address of this interface.
-        """
-        # Add "cd /", to be sure that at least no error get thrown because
-        # we're in a non existing directory right now.
-        with self.cd('/'):
-            with self.sandbox(False):
-                # Some hosts give 'inet addr:', other 'enet adr:' back.
-                #
-                # TODO: probably use the 'ip address show dev eth0' instead.
-                return self._run_silent("""/sbin/ifconfig "%s" | grep 'inet ad' | """
-                        """ cut -d: -f2 | awk '{ print $1}' """ % interface).strip()
-
-    def get_home_directory(self, username=None):
-        # TODO: maybe: return self.expand_path('~%s' % username if username else '~')
-
-        with self.cd('/'):
-            with self.sandbox(False):
-                if username:
-                    return self._run_silent('echo -n ~%s' % username)
-                else:
-                    return self._run_silent('echo -n ~')
-
-    @property
-    def hostname(self):
-        with self.cd('/'):
-            with self.sandbox(False):
-                return self._run_silent('hostname').strip()
-
-    @property
-    def is_64_bit(self):
-        with self.sandbox(False):
-            return 'x86_64' in self._run_silent('uname -m')
 
     # =====[ SFTP operations ]====
 

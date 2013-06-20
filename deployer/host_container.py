@@ -243,15 +243,16 @@ class HostsContainer(object):
 
     #
     # Commands
+    # (these don't need sandboxing.)
     #
-    def exists(self, filename, use_sudo=False):
+    def exists(self, filename, use_sudo=True):
         """
         Returns whether this file exists on this hosts.
         """
         def on_host(container):
             try:
                 container.run("test -f '%s' || test -d '%s'" % (esc1(filename), esc1(filename)),
-                        use_sudo=use_sudo, interactive=False)
+                        use_sudo=use_sudo, interactive=False, sandbox=False)
                 return True
             except ExecCommandFailed:
                 return False
@@ -264,12 +265,35 @@ class HostsContainer(object):
         """
         def on_host(container):
             try:
-                container.run("which '%s'" % esc1(command), use_sudo=use_sudo, interactive=False)
+                container.run("which '%s'" % esc1(command), use_sudo=use_sudo,
+                                interactive=False, sandbox=False)
                 return True
             except ExecCommandFailed:
                 return False
 
         return map(on_host, self)
+
+    def get_ip_address(self, interface='eth0'):
+        """
+        Return internal IP address of this interface.
+        """
+        # We add "cd /", to be sure that at least no error get thrown because
+        # we're in a non existing directory right now.
+        with self.cd('/'):
+            # TODO: Some hosts give 'inet addr:', other 'enet adr:' back.
+            #       probably use the 'ip address show dev eth0' instead.
+            return [ s.strip() for s in self.run("""/sbin/ifconfig "%s" | grep 'inet ad' | """
+                    """ cut -d: -f2 | awk '{ print $1}' """ % interface, interactive=False) ]
+
+    @property
+    def hostname(self):
+        with self.cd('/'):
+            return self.run('hostname', sandbox=False).strip()
+
+    @property
+    def is_64_bit(self):
+        with self.cd('/'):
+            return 'x86_64' in self._run_silent('uname -m', sandbox=False)
 
 
 class HostContainer(HostsContainer):
@@ -339,12 +363,12 @@ class HostContainer(HostsContainer):
         return getattr(self._host.get_instance(), name)
 
     @wraps(HostsContainer.exists)
-    def exists(self, filename):
-        return HostsContainer.exists(self, filename)[0]
+    def exists(self, *a, **kw):
+        return HostsContainer.exists(self, *a, **kw)[0]
 
     @wraps(HostsContainer.has_command)
-    def has_command(self, command):
-        return HostsContainer.has_command(self, command)[0]
+    def has_command(self, *a, **kw):
+        return HostsContainer.has_command(self, *a, **kw)[0]
 
 def _filter_hosts(hosts_dict, roles):
     """
