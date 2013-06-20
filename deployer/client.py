@@ -36,11 +36,11 @@ Options:
   --version              : Show version information.
 """
 
-def start(root_service):
+def start(root_service, name=__file__):
     """
     Client startup point.
     """
-    a = docopt.docopt(__doc__, version=__version__)
+    a = docopt.docopt(__doc__.replace('client.py', name), version=__version__)
 
     interactive = not a['--non-interactive']
 
