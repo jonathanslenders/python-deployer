@@ -15,7 +15,8 @@ import sys
 
 __doc__ = \
 """Usage:
-  client.py start [-s | --single-threaded | --socket SOCKET] [--path PATH] [--non-interactive] [--log LOGFILE]
+  client.py start [-s | --single-threaded | --socket SOCKET] [--path PATH]
+                  [--non-interactive] [--log LOGFILE]
   client.py listen [--log LOGFILE] [--non-interactive] [--socket SOCKET]
   client.py connect (--socket SOCKET) [--path PATH]
   client.py telnet-server [--port=PORT] [--log LOGFILE] [--non-interactive]

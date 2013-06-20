@@ -827,7 +827,7 @@ class Action(object):
 
     @property
     def name(self):
-        return self._func.__name__
+        return self._attr_name
 
     @property
     def node(self):

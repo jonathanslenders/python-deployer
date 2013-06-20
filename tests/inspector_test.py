@@ -22,6 +22,7 @@ class InspectorTest(unittest.TestCase):
             def a(self): pass
             def b(self): pass
             def c(self): pass
+            c.__name__ = 'another-name' # Even if we override this name, Action.name should remain 'c'
 
         s = Root()
         insp = Inspector(s)
@@ -29,6 +30,8 @@ class InspectorTest(unittest.TestCase):
         # get_childnodes and get_actions
         self.assertEqual(repr(insp.get_childnodes()), '[<Node Root.A>, <Node Root.B>]')
         self.assertEqual(repr(insp.get_actions()), '[<Action Root.a>, <Action Root.b>, <Action Root.c>]')
+        for a in insp.get_actions():
+            self.assertIn(a.name, ['a', 'b', 'c'])
 
         # has_childnode and get_childnode
         self.assertEqual(insp.has_childnode('A'), True)
