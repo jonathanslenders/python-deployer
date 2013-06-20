@@ -106,21 +106,6 @@ class HostContext(object):
                 self._env.pop()
         return ENV()
 
-    #def sandbox(self, enable=True):
-    #    """
-    #    Context for enable sandboxing on this host.
-    #    No commands will be executed, but syntax will be checked. (through bash -n -c '...')
-    #    """
-    #    class Sandbox(object):
-    #        def __enter__(context):
-    #            context._was_sandbox = self.sandbox
-    #            self.sandbox = enable
-
-    #        def __exit__(context, *args):
-    #            self.sandbox = context._was_sandbox
-    #    return Sandbox()
-
-
 
 # Remember instances for the Host classes. Keep them in this global
 # dictionary. (Another way would be to save the instance in a mangled name in
@@ -153,19 +138,6 @@ class Host(object):
     magic_sudo_prompt = termcolor.colored('[:__enter-sudo-password__:]', 'grey') #, attrs=['concealed'])
 
     def __init__(self):
-        """
-        Create an instance of this Host class. This will initiate an SSH
-        connection.
-        """
-#        # Context
-#        self._command_prefixes = []
-#        self._path = [] # cd to this path for every command
-#        self._env = [] # Environment variables
-#
-#        # No sandbox
-#        self._sandboxing = False
-
-        # Dummy logger
         self.dummy_logger = DummyLoggerInterface()
 
     @classmethod
@@ -192,13 +164,12 @@ class Host(object):
         else:
             return '~'
 
-    @property
-    def cwd(self):
+    def get_cwd(self, context):
         """
         Current working directory.
         """
         if self._path:
-            return os.path.join(*self._path)
+            return os.path.join(*context._path)
         else:
             return self.get_home_directory()
 
@@ -210,7 +181,8 @@ class Host(object):
 
         # Ensure that the start-path exists (only if one was given. Not for the ~)
         if self.start_path:
-            result.append("(mkdir -p '%s' 2> /dev/null || true) && " % esc1(self.expand_path(self.start_path)))
+            result.append("(mkdir -p '%s' 2> /dev/null || true) && " %
+                            esc1(self.expand_path(self.start_path, context)))
 
         # Prefix with all cd-statements
         for p in [self._get_start_path()] + context._path:
@@ -519,8 +491,7 @@ class Host(object):
                         """ cut -d: -f2 | awk '{ print $1}' """ % interface).strip()
 
     def get_home_directory(self, username=None):
-        # TODO:....
-        # return self.expand_path('~%s' % username if username else '~')
+        # TODO: maybe: return self.expand_path('~%s' % username if username else '~')
 
         with self.cd('/'):
             with self.sandbox(False):
@@ -546,37 +517,36 @@ class Host(object):
         # Only tilde expansion
         return os.path.expanduser(path)
 
-    def expand_path(self, path):
+    def expand_path(self, path, context=None):
         raise NotImplementedError
 
-    def _tempfile(self):
-        """
-        Return temporary filename
-        """
-        return self.expand_path('~/deployer-tempfile-%s-%s' % (time.time(), random.randint(0, 1000000)))
+    def _tempfile(self, context):
+        """ Return temporary filename """
+        return self.expand_path('~/deployer-tempfile-%s-%s' % (time.time(), random.randint(0, 1000000)), context)
 
     @property
     def sftp(self):
         raise NotImplementedError
 
-    def get(self, remote_path, local_path, use_sudo=False, logger=None):
+    def get(self, remote_path, local_path, use_sudo=False, logger=None, sandbox=False, context=None):
         """
         Download this remote_file.
         """
         logger = logger or self.dummy_logger
+        context = context or HostContext()
 
         # Expand paths
         local_path = self._expand_local_path(local_path)
-        remote_path = self.expand_path(remote_path)
+        remote_path = self.expand_path(remote_path, context)
 
         # Log entries
         with logger.log_file(self, Actions.Get, mode='rb', remote_path=remote_path,
-                            local_path=local_path, use_sudo=use_sudo, sandboxing=self._sandboxing) as log_entry:
+                            local_path=local_path, use_sudo=use_sudo, sandboxing=sandbox) as log_entry:
             try:
                 if use_sudo:
-                    if not self._sandboxing:
+                    if not sandbox:
                         # Copy file to available location
-                        temppath = self._tempfile()
+                        temppath = self._tempfile(context)
                         self._run_silent_sudo("mv '%s' '%s'" % (esc1(remote_path), esc1(temppath)))
                         self._run_silent_sudo("chown '%s' '%s'" % (esc1(self.username), esc1(temppath)))
                         self._run_silent_sudo("chmod u+r '%s'" % esc1(temppath))
@@ -594,24 +564,25 @@ class Host(object):
             else:
                 log_entry.complete(True)
 
-    def put(self, local_path, remote_path, use_sudo=False, logger=None):
+    def put(self, locontextcal_path, remote_path, use_sudo=False, logger=None, sandbox=False, context=None):
         """
         Upload this local_file to the remote location.
         """
         logger = logger or self.dummy_logger
+        context = context or HostContext()
 
         # Expand paths
         local_path = self._expand_local_path(local_path)
-        remote_path = self.expand_path(remote_path)
+        remote_path = self.expand_path(remote_path, context)
 
         # Log entry
         with logger.log_file(self, Actions.Put, mode='wb', remote_path=remote_path,
-                            local_path=local_path, use_sudo=use_sudo, sandboxing=self._sandboxing) as log_entry:
+                            local_path=local_path, use_sudo=use_sudo, sandboxing=sandbox) as log_entry:
             try:
-                if not self._sandboxing:
+                if not sandbox:
                     if use_sudo:
                         # Upload in tempfile
-                        temppath = self._tempfile()
+                        temppath = self._tempfile(context)
                         self.put(local_path, temppath)
 
                         # Move tempfile to real destination
@@ -627,7 +598,7 @@ class Host(object):
             else:
                 log_entry.complete(True)
 
-    def open(self, remote_path, mode="rb", use_sudo=False, logger=None, sandbox=False):
+    def open(self, remote_path, mode="rb", use_sudo=False, logger=None, sandbox=False, context=None):
         """
         Open file handler to remote file. Can be used both as:
 
@@ -641,9 +612,10 @@ class Host(object):
         >> host.open('/path/to/somefile', wb').write('some content')
         """
         logger = logger or self.dummy_logger
+        context = context or HostContext()
 
         # Expand path
-        remote_path = self.expand_path(remote_path)
+        remote_path = self.expand_path(remote_path, context)
 
         class RemoteFile(object):
             def __init__(rf):
@@ -659,7 +631,7 @@ class Host(object):
                     rf._file = open('/dev/null', mode)
                 else:
                     if use_sudo:
-                        rf._temppath = self._tempfile()
+                        rf._temppath = self._tempfile(context)
 
                         if self.exists(remote_path):
                             # Copy existing file to available location
@@ -746,29 +718,6 @@ class Host(object):
                 rf._is_open=False
 
         return RemoteFile()
-
-    # =====[ Boolean tests ]====
-
-    def exists(self, filename):
-        """
-        Returns True when this file exists.
-        """
-        try:
-            filename = self.expand_path(filename)
-            self._run_silent_sudo("test -f '%s' || test -d '%s'" % (esc1(filename), esc1(filename)))
-            return True
-        except ExecCommandFailed:
-            return False
-
-    def has_command(self, command):
-        """
-        Test whether this command can be found in the bash shell, by executing a 'which'
-        """
-        try:
-            self._run_silent("which '%s'" % esc1(command))
-            return True
-        except ExecCommandFailed:
-            return False
 
 
     # Some simple wrappers for the commands
@@ -880,7 +829,7 @@ class SSHHost(Host):
         transport.set_keepalive(self.keepalive_interval)
         return paramiko.SFTPClient.from_transport(transport)
 
-    def expand_path(self, path):
+    def expand_path(self, path, context):
         def expand_tilde(p):
             if p.startswith('~/') or p == '~':
                 home = self.sftp.normalize('.')
@@ -890,11 +839,11 @@ class SSHHost(Host):
 
         # Expand remote path, using the start path and cwd
         if self.start_path:
-            return os.path.join(expand_tilde(self.start_path), expand_tilde(self.cwd), expand_tilde(path))
+            return os.path.join(expand_tilde(self.start_path), expand_tilde(self.get_cwd(context)), expand_tilde(path))
         else:
-            return os.path.join(expand_tilde(self.cwd), expand_tilde(path))
+            return os.path.join(expand_tilde(self.get_cwd(context)), expand_tilde(path))
 
-    def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
+    def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None, sandbox=False):
         """
         Start /bin/bash and redirect all SSH I/O from stdin and to stdout.
         """
@@ -911,7 +860,7 @@ class SSHHost(Host):
         pty.set_ssh_channel_size = set_size
 
         # Start logger
-        with logger.log_run(self, command=command, shell=True, sandboxing=self._sandboxing) as log_entry:
+        with logger.log_run(self, command=command, shell=True, sandboxing=sandbox) as log_entry:
             # When a command has been passed, use 'exec' to replace the current
             # shell process by this command
             if command:
@@ -953,7 +902,7 @@ class LocalHost(Host):
             self._ensure_password_is_known(pty)
         return Host._run(self, pty, *a, **kw)
 
-    def expand_path(self, path):
+    def expand_path(self, path, context):
         return os.path.expanduser(path) # TODO: expansion like with SSHHost!!!!
 
     def _ensure_password_is_known(self, pty):
@@ -965,13 +914,7 @@ class LocalHost(Host):
 
             # Check password
             try:
-                if self.exists('/bin/true'):
-                    Host._run_silent_sudo(self, '/bin/true')
-                elif self.exists('/usr/bin/true'):
-                    # On OS X, we have /usr/bin/true.
-                    Host._run_silent_sudo(self, '/usr/bin/true')
-                else:
-                    print 'Warning: could not find /bin/true or /usr/bin/true.'
+                Host._run_silent_sudo(self, 'ls > /dev/null')
             except ExecCommandFailed:
                 print 'Incorrect password'
                 self._backend.password = None

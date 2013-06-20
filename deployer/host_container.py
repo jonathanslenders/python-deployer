@@ -1,6 +1,6 @@
 from contextlib import nested
-from deployer.host import Host, HostContext
-from deployer.utils import isclass
+from deployer.host import Host, HostContext, ExecCommandFailed
+from deployer.utils import isclass, esc1
 from functools import wraps
 
 import itertools
@@ -180,7 +180,8 @@ class HostsContainer(object):
         def closure(host):
             def call(pty):
                 kw2 = dict(**kw)
-                kw2['sandbox'] = self._sandbox
+                if not 'sandbox' in kw2:
+                    kw2['sandbox'] = self._sandbox
                 kw2['context'] = self._host_contexts[host]
                 kw2['logger'] = self._logger
                 return host.get_instance().run(pty, *a, **kw2)
@@ -239,6 +240,36 @@ class HostsContainer(object):
         Call 'env' with this parameters on every host.
         """
         return nested(* [ c.env(*a, **kw) for c in self._host_contexts.values() ])
+
+    #
+    # Commands
+    #
+    def exists(self, filename, use_sudo=False):
+        """
+        Returns whether this file exists on this hosts.
+        """
+        def on_host(container):
+            try:
+                container.run("test -f '%s' || test -d '%s'" % (esc1(filename), esc1(filename)),
+                        use_sudo=use_sudo, interactive=False)
+                return True
+            except ExecCommandFailed:
+                return False
+
+        return map(on_host, self)
+
+    def has_command(self, command, use_sudo=False):
+        """
+        Test whether this command can be found in the bash shell, by executing a 'which'
+        """
+        def on_host(container):
+            try:
+                container.run("which '%s'" % esc1(command), use_sudo=use_sudo, interactive=False)
+                return True
+            except ExecCommandFailed:
+                return False
+
+        return map(on_host, self)
 
 
 class HostContainer(HostsContainer):
@@ -307,6 +338,13 @@ class HostContainer(HostsContainer):
         """
         return getattr(self._host.get_instance(), name)
 
+    @wraps(HostsContainer.exists)
+    def exists(self, filename):
+        return HostsContainer.exists(self, filename)[0]
+
+    @wraps(HostsContainer.has_command)
+    def has_command(self, command):
+        return HostsContainer.has_command(self, command)[0]
 
 def _filter_hosts(hosts_dict, roles):
     """

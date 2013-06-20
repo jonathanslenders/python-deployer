@@ -2,9 +2,11 @@ import unittest
 
 from deployer.query import Q
 from deployer.node import Node, SimpleNode, Env
+from deployer.groups import Production, Staging, production, staging
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
-from deployer.node import Inspector, map_roles, dont_isolate_yet, required_property, alias
+from deployer.node import map_roles, dont_isolate_yet, required_property, alias
+from deployer.inspection import Inspector
 from deployer.host_container import HostsContainer
 
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
@@ -12,8 +14,10 @@ from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4,
 class InspectorTest(unittest.TestCase):
     def test_node_inspection(self):
         class Root(Node):
+            @production
             class A(Node):
                 pass
+            @staging
             class B(Node):
                 class C(Node):
                     def __call__(self):
@@ -64,6 +68,11 @@ class InspectorTest(unittest.TestCase):
         self.assertEqual(repr(Inspector(s)), 'Inspector(node=Root)')
         self.assertEqual(repr(Inspector(s.B.C)), 'Inspector(node=Root.B.C)')
 
+        # get_group
+        self.assertEqual(Inspector(s.A).get_group(), Production)
+        self.assertEqual(Inspector(s.B).get_group(), Staging)
+        self.assertEqual(Inspector(s.B.C).get_group(), Staging)
+
     def test_node_inspection_on_env_object(self):
         class Root(Node):
             class A(Node):
@@ -79,3 +88,28 @@ class InspectorTest(unittest.TestCase):
         insp = Inspector(env)
         self.assertEqual(repr(insp.get_childnodes()), '[Env(Root.A), Env(Root.B)]')
         self.assertEqual(insp.get_childnode('B').action(), 'action-b')
+
+    def test_iter_isolations(self):
+        class A(Node):
+            class Hosts:
+                role1 = LocalHost1, LocalHost2, LocalHost3
+                role2 = LocalHost2, LocalHost4, LocalHost5
+
+            @map_roles('role1', extra='role2')
+            class B(SimpleNode.Array):
+                class C(Node):
+                    @map_roles('extra')
+                    class D(SimpleNode.Array):
+                        pass
+
+        # Inspection on Env and Node objects
+        def test(insp, type):
+            self.assertEqual(len(list(insp.iter_isolations())), 9) # 3x3
+
+            # Inspection on env should yield Env objects, Node should yield
+            # node objects.
+            for i, node in insp.iter_isolations():
+                self.assertIsInstance(node, type)
+
+        test(Inspector(A().B.C.D), Node)
+        test(Inspector(Env(A()).B.C.D), Env)

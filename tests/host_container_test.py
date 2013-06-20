@@ -118,6 +118,16 @@ class HostsContainerTest(unittest.TestCase):
             self.assertEqual(all('var=' in i for i in result), True)
             self.assertEqual(len(filter((lambda i: 'my-value' in i), result)), 3)
 
+    def test_hostcontainer_commands(self):
+        # Exists (the current directory should exist)
+        hosts_container = self.get_definition()
+        self.assertEqual(hosts_container.exists('.'), [True, True, True, True, True])
+        self.assertEqual(hosts_container[0].exists('.'), True)
+
+        # Has command
+        self.assertEqual(hosts_container.has_command('ls'), [True, True, True, True, True])
+        self.assertEqual(hosts_container[0].has_command('ls'), True)
+
     def test_hostcontainer_cd(self):
         hosts_container = self.get_definition()
 

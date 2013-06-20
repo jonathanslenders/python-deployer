@@ -4,7 +4,8 @@ from deployer.query import Q
 from deployer.node import Node, SimpleNode, Env
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
-from deployer.node import Inspector, map_roles, dont_isolate_yet, required_property, alias, IsolationIdentifierType
+from deployer.node import map_roles, dont_isolate_yet, required_property, alias, IsolationIdentifierType
+from deployer.inspector import Inspector
 from deployer.host_container import HostsContainer
 
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
@@ -838,7 +839,7 @@ class NodeTest(unittest.TestCase):
         for n in nodes:
             self.assertIsInstance(n, Env)
 
-        for index, node in Inspector(env.B.C.D.E.F.G).get_isolations(IsolationIdentifierType.HOSTS_SLUG):
+        for index, node in Inspector(env.B.C.D.E.F.G).iter_isolations(IsolationIdentifierType.HOSTS_SLUG):
             # See comment above in the Nodes. For this example the nodes in the second and third
             # are the same.
             self.assertEqual(index[1], index[2])

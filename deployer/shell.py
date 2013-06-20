@@ -4,7 +4,8 @@ import termcolor
 import traceback
 
 from deployer.cli import CLInterface, Handler, HandlerType
-from deployer.node import ActionException, Inspector, Env
+from deployer.node import ActionException, Env
+from deployer.inspection import Inspector
 from deployer.console import Console
 from itertools import groupby
 import deployer
@@ -536,11 +537,6 @@ class Action(Handler):
             action_callback.set_failed(e, traceback=tb)
 
     def complete_subhandlers(self, part):
-        # Autocompletion for first action parameter
-        if not self.args:
-            for a in self.action.autocomplete(part):
-                yield a, Action(self.node, self.action_name, self.shell, self.sandbox, a)
-
         # Autocompletion for the & parameter
         if not self.fork and '&'.startswith(part):
             yield '&', Action(self.node, self.action_name, self.shell, self.sandbox, *self.args, fork=True)

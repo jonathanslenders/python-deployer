@@ -1,7 +1,7 @@
 from deployer.console import Console
 from deployer.host_container import HostsContainer, HostContainer
 from deployer.loggers import DummyLoggerInterface
-from deployer.node_groups import Group
+from deployer.groups import Group
 from deployer.pseudo_terminal import DummyPty, Pty
 from deployer.query import Query
 from deployer.utils import isclass
@@ -127,10 +127,13 @@ class ChildNodeDescriptor(object):
                     (NodeTypes.SIMPLE_ONE, NodeTypes.SIMPLE),
             ]
 
-            if parent_instance._node_is_isolated and (parent_instance._node_type, self._node_class._node_type) in auto_isolate:
-                class_ = type(new_name, (self._node_class, ), { '_node_is_isolated': True })
-            else:
-                class_ = type(new_name, (self._node_class, ), { })
+            isolated = (parent_instance._node_is_isolated and
+                            (parent_instance._node_type, self._node_class._node_type) in auto_isolate)
+
+            class_ = type(new_name, (self._node_class, ), {
+                            '_node_is_isolated': isolated,
+                            '_node_name': self.attr_name
+                            })
 
             return class_(parent=parent_instance)
         else:
@@ -630,6 +633,7 @@ class Node(object):
     __slots__ = ('hosts', 'parent')
     _node_type = NodeTypes.NORMAL
     _node_is_isolated = False
+    _node_name = None # NodeBase will set this to the attribute name as soon as we nest this node inside another one.
 
     node_group = None
     Hosts = None
@@ -748,7 +752,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
     if node._node_type == NodeTypes.NORMAL:
         if node.parent:
             for index, n in iter_isolations(node.parent, identifier_type):
-                yield (index, getattr(n, Inspector(node).get_name()))
+                yield (index, getattr(n, node._node_name))
         else:
             yield ((), node)
 
@@ -756,7 +760,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
         assert node.parent
 
         for parent_identifier, parent_node in iter_isolations(node.parent, identifier_type):
-            new_node = getattr(parent_node, Inspector(node).get_name())
+            new_node = getattr(parent_node, node._node_name)
             for identifier, host in get_identifiers(new_node, parent_identifier):
                 yield (identifier, get_simple_node_cell(parent_node, host, identifier))
 
@@ -765,14 +769,14 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
         assert len(node.hosts.filter('host')) == 1
 
         for parent_identifier, parent_node in iter_isolations(node.parent, identifier_type):
-            new_node = getattr(parent_node, Inspector(node).get_name())
+            new_node = getattr(parent_node, node._node_name)
             for identifier, host in get_identifiers(new_node, parent_identifier):
                 yield (identifier, get_simple_node_cell(parent_node, host, identifier))
 
     elif node._node_type == NodeTypes.SIMPLE:
         if node.parent:
             for index, n in iter_isolations(node.parent, identifier_type):
-                yield (index, getattr(n, Inspector(node).get_name()))
+                yield (index, getattr(n, node._node_name))
         else:
             for identifier, host in get_identifiers(node, ()):
                 yield (identifier, get_simple_node_cell(None, host, identifier))
@@ -892,137 +896,3 @@ def alias(name):
        return func
     return decorator
 
-
-class Inspector(object):
-    """
-    Introspection of a Node object.
-    """
-    def __init__(self, node):
-        if isinstance(node, Env):
-            self.env = node
-            self.node = node._node
-            self.__class__ = _EnvInspector
-        elif isinstance(node, Node):
-            self.env = None
-            self.node = node
-        else:
-            raise Exception('Expecting a Node object')
-
-    def __repr__(self):
-        return 'Inspector(node=%s)' % self.node.__class__.__name__
-
-    def get_isolations(self, identifier_type=IsolationIdentifierType.INT_TUPLES):
-        if not self.node._node_is_isolated:
-            return iter_isolations(self.node, identifier_type=identifier_type)
-        else:
-            raise NotImplementedError # TODO:...
-
-    def _filter(self, include_private, filter):
-        childnodes = []
-        for name in dir(self.node.__class__):
-            if not name.startswith('__'):
-                if include_private or not name.startswith('_'):
-                    attr = getattr(self.node, name)
-                    if filter(attr):
-                        childnodes.append(attr)
-        return childnodes
-
-    def get_childnodes(self, include_private=True, verify_parent=True):
-        """
-        Return a list of childnodes.
-        include_private: ignore names starting with underscore.
-        verify_parent: check the parent pointer.
-        """
-        # TODO: order by _node_creation_counter
-        def f(i):
-            return isinstance(i, Node) and (not verify_parent or i.parent == self.node)
-        return self._filter(include_private, f)
-
-    def has_childnode(self, name):
-        try:
-            self.get_childnode(name)
-            return True
-        except AttributeError:
-            return False
-
-    def get_childnode(self, name):
-        for c in self.get_childnodes():
-            if Inspector(c).get_name() == name:
-                return c
-        raise AttributeError('Childnode not found.')
-
-    def get_actions(self, include_private=True):
-        return self._filter(include_private, lambda i: isinstance(i, Action) and not i.is_property)
-
-    def has_action(self, name):
-        try:
-            self.get_action(name)
-            return True
-        except AttributeError:
-            return False
-
-    def get_action(self, name):
-        for a in self.get_actions():
-            if a.name == name:
-                return a
-        raise AttributeError('Action not found.')
-
-    def supress_result_for_action(self, name):
-        return getattr(self.get_actions(name), 'supress_result', False)
-
-    def get_path(self):
-        """
-        Return a list of (Node, name) tuples, defining the path from the root until here.
-        """
-        result = []
-        n = self.node
-        while n:
-            result.append( (n, Inspector(n).get_name()) )
-            n = n.parent
-
-        return result[::-1]
-
-    def get_group(self):
-        """
-        Return the group to which this node belongs.
-        """
-        return self.node.node_group or (
-                Inspector(self.node.parent).get_group() if self.node.parent else Group())
-
-    def get_name(self):
-        return self.node.__class__.__name__.split('.')[-1]
-
-    def get_full_name(self):
-        return self.node.__class__.__name__
-
-    def is_callable(self):
-        return hasattr(self.node, '__call__')
-
-
-class _EnvInspector(Inspector):
-    """
-    When doing the introspection on an Env object, this acts like a proxy and
-    makes sure that the result is compatible for in an Env environment.
-    """
-    def get_childnodes(self, include_private=True):
-        nodes = Inspector.get_childnodes(self, include_private)
-        return map(self.env._Env__wrap_node, nodes)
-
-    def get_childnode(self, name):
-        for c in self.get_childnodes():
-            if Inspector(c).get_name() == name:
-                return c
-        raise AttributeError('Childnode not found.')
-
-    def get_actions(self, include_private=True):
-        # TODO: determine first a clean API for what this function should return.
-        raise NotImplementedError
-
-    def get_action(self, name):
-        raise NotImplementedError
-
-    # --> Walk should be done on node instances, because a nested node class is useless without it role mappings.
-
-    # def walk_over_nodes(self, include_self=True, topdown=True):
-    #     for s in self.get_childnodes():
-    #         yield self.node_class,
