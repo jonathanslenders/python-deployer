@@ -1,20 +1,22 @@
+from deployer.cli import CLInterface, Handler, HandlerType
+from deployer.console import Console
+from deployer.console import NoInput
+from deployer.inspection import Inspector
+from deployer.node import ActionException, Env
+
+from inspect import getfile
+from itertools import groupby
+
+from pygments import highlight
+from pygments.formatters import TerminalFormatter
+from pygments.lexers import PythonLexer, PythonTracebackLexer
+
+import deployer
+import inspect
 import socket
 import sys
 import termcolor
 import traceback
-
-from deployer.cli import CLInterface, Handler, HandlerType
-from deployer.node import ActionException, Env
-from deployer.inspection import Inspector
-from deployer.console import Console
-from itertools import groupby
-import deployer
-
-from pygments import highlight
-from pygments.formatters import TerminalFormatter as Formatter
-from pygments.lexers import PythonTracebackLexer
-
-from inspect import getfile
 
 __all__ = ('Shell', )
 
@@ -33,7 +35,6 @@ def type_of_node(node):
 def type_of_action(action):
     group = action.node_group
     return ActionType(group.color)
-
 
 class NodeType(HandlerType):
     def __init__(self, color):
@@ -319,13 +320,6 @@ def SourceCode(self):
     """
     Print the source code of a node.
     """
-    import inspect
-
-    from pygments import highlight
-    from pygments.lexers import PythonLexer
-    from pygments.formatters import TerminalFormatter
-    from deployer.console import choice, NoInput
-
     options = []
 
     for m in self.node.__class__.__mro__:
@@ -336,7 +330,7 @@ def SourceCode(self):
 
     if len(options) > 1:
         try:
-            node_class = choice('Choose node definition', options)
+            node_class = Console(self.shell.pty).choice('Choose node definition', options)
         except NoInput:
             return
     else:
@@ -355,7 +349,7 @@ def SourceCode(self):
         except IOError:
             yield 'Could not retrieve source code.'
 
-    lesspipe(run(), self.shell.pty)
+    Console(self.shell.pty).lesspipe(run())
 
 class Exit(ShellHandler):
     """

@@ -15,7 +15,7 @@ import sys
 
 __doc__ = \
 """Usage:
-  client.py start [-s | --single-threaded | --socket SOCKET] [--path PATH]
+  client.py run [-s | --single-threaded | --socket SOCKET] [--path PATH]
                   [--non-interactive] [--log LOGFILE]
   client.py listen [--log LOGFILE] [--non-interactive] [--socket SOCKET]
   client.py connect (--socket SOCKET) [--path PATH]
@@ -27,7 +27,7 @@ __doc__ = \
 Options:
   -h, --help             : Display this help text.
   -s, --single-threaded  : Single threaded mode.
-  --path PATH            : Start the shell at this location.
+  --path PATH            : Start the shell at the node with this location.
   --non-interactive      : If possible, run script with as few interactions as
                            possible.  This will always choose the default
                            options when asked for questions.
@@ -70,11 +70,11 @@ def start(root_service):
         start_client(socket_name, a['--path'])
 
     # Single threaded client
-    elif a['--single-threaded']:
+    elif a['run'] and a['--single-threaded']:
         start_standalone(root_service, interactive=interactive, cd_path=a['--path'], logfile=a['--log'])
 
     # Multithreaded
-    else:
+    elif a['run']:
         # If no socket has been given. Start a daemonized server in the
         # background, and use that socket instead.
         if not socket_name:
