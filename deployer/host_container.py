@@ -170,6 +170,9 @@ class HostsContainer(object):
         for h in self._all:
             yield self._new_1(h)
 
+    def expand_path(self, path):
+        return [ h.get_instance().expand_path(path, self._host_contexts[h]) for h in self._all ]
+
     @wraps(Host.run)
     def run(self, *a, **kw):
         """
@@ -361,6 +364,10 @@ class HostContainer(HostsContainer):
         accessed when this hostcontainer contains exactly one host.
         """
         return getattr(self._host.get_instance(), name)
+
+    @wraps(HostsContainer.expand_path)
+    def expand_path(self, *a, **kw):
+        return HostsContainer.expand_path(self, *a, **kw)[0]
 
     @wraps(HostsContainer.exists)
     def exists(self, *a, **kw):

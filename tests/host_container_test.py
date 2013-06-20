@@ -143,3 +143,9 @@ class HostsContainerTest(unittest.TestCase):
             result = hosts_container.run('echo world', interactive=False)
             self.assertIn('hello', result[0])
             self.assertIn('world', result[0])
+
+    def test_expand_path(self):
+        hosts_container = self.get_definition()
+
+        self.assertIsInstance(hosts_container.expand_path('.'), list)
+        self.assertIsInstance(hosts_container[0].expand_path('.'), basestring)

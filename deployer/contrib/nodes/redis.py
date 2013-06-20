@@ -100,7 +100,7 @@ class Redis(SimpleNode):
         # Also make sure that redis was not yet installed
         if self.is_already_installed:
             print 'Warning: Redis is already installed'
-            if not self.console.confirm('Redis is already installed. Reinstall?'):
+            if not self.console.confirm('Redis is already installed. Reinstall?', default=False):
                 return
 
         # Install dependencies
