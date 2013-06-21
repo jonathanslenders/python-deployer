@@ -7,6 +7,7 @@ from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4,
 
 import os
 import unittest
+import tempfile
 
 
 class HostTest(unittest.TestCase):
@@ -81,6 +82,35 @@ class HostTest(unittest.TestCase):
             self.assertEqual(f.read(), content)
 
         os.remove(test_filename)
+
+    def test_put_file(self):
+        host = LocalHost1.get_instance()
+
+        # Create temp file
+        fd, name1 = tempfile.mkstemp()
+        with os.fdopen(fd, 'w') as f:
+            f.write('my-data')
+
+        # Put operations
+        _, name2 = tempfile.mkstemp()
+        host.put_file(name1, name2)
+
+        with open(name1) as f:
+            with open(name2) as f2:
+                self.assertEqual(f.read(), f2.read())
+
+        # Get operation
+        _, name3 = tempfile.mkstemp()
+        host.get_file(name1, name3)
+
+        with open(name1) as f:
+            with open(name3) as f2:
+                self.assertEqual(f.read(), f2.read())
+
+        # clean up
+        os.remove(name1)
+        os.remove(name2)
+        os.remove(name3)
 
 if __name__ == '__main__':
     unittest.main()

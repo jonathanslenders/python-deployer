@@ -57,7 +57,7 @@ def start(root_service, name=sys.argv[0]):
 
     # Telnet server
     elif a['telnet-server']:
-        port = int(a['--port']) if a['--port'] is not None else None
+        port = int(a['--port']) if a['--port'] is not None else 23
         start_telnet_server(root_service, logfile=a['--log'], port=port)
 
     # Socket server

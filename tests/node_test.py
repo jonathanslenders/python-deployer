@@ -891,5 +891,16 @@ class NodeTest(unittest.TestCase):
         env = Env(A())
         env.action()
 
+    def test_double_array(self):
+        # It's not allowed to use the .Array operation multiple times on the same class.
+        # The same is true for JustOne.
+        class A(SimpleNode):
+            pass
+
+        self.assertRaises(Exception, lambda:SimpleNode.Array.Array)
+        self.assertRaises(Exception, lambda:SimpleNode.Array.JustOne)
+        self.assertRaises(Exception, lambda:SimpleNode.JustOne.JustOne)
+        self.assertRaises(Exception, lambda:SimpleNode.JustOne.Array)
+
 if __name__ == '__main__':
     unittest.main()

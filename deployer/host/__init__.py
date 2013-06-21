@@ -180,6 +180,32 @@ class Host(object):
         else:
             return self.run(DummyPty(), 'cd /; echo -n ~', sandbox=False)
 
+    def exists(self, filename, use_sudo=True, **kw):
+        """
+        Returns whether this file exists on this hosts.
+        """
+        try:
+            self._run_silent("test -f '%s' || test -d '%s'" % (esc1(filename), esc1(filename)),
+                        use_sudo=use_sudo, **kw)
+            return True
+        except ExecCommandFailed:
+            return False
+
+    def get_ip_address(self, interface='eth0'):
+        """
+        Return internal IP address of this interface.
+        """
+        # We add "cd /", to be sure that at least no error get thrown because
+        # we're in a non existing directory right now.
+
+        # TODO: Some hosts give 'inet addr:', other 'enet adr:' back.
+        #       probably use the 'ip address show dev eth0' instead.
+        return self._run_silent(
+                """cd /; /sbin/ifconfig "%s" | grep 'inet ad' | """
+                """ cut -d: -f2 | awk '{ print $1}' """ % interface)
+
+
+
     def _wrap_command(self, command, context, sandbox):
         """
         Prefix command with cd-statements and variable assignments
@@ -220,13 +246,15 @@ class Host(object):
         result.append(command)
         return ''.join(result)
 
-    def _run_silent_sudo(self, command):
+    def _run_silent(self, command, **kw):
         pty = DummyPty()
-        return self._run(pty, command, use_sudo=True, interactive=False, logger=None)
+        kw['interactive'] = False
+        kw['logger'] = None
+        return self._run(pty, command, **kw)
 
-    def _run_silent(self, command):
-        pty = DummyPty()
-        return self._run(pty, command, interactive=False, logger=None)
+    def _run_silent_sudo(self, command, **kw):
+        kw['use_sudo'] = True
+        return self._run_silent(command, **kw)
 
     def _run(self, pty, command='echo "no command given"', use_sudo=False, sandbox=False, interactive=True,
                         logger=None, user=None, ignore_exit_status=False, initial_input=None, context=None):
@@ -497,7 +525,7 @@ class Host(object):
     def sftp(self):
         raise NotImplementedError
 
-    def get(self, remote_path, local_path, use_sudo=False, logger=None, sandbox=False, context=None):
+    def get_file(self, remote_path, local_path, use_sudo=False, logger=None, sandbox=False, context=None):
         """
         Download this remote_file.
         """
@@ -533,7 +561,7 @@ class Host(object):
             else:
                 log_entry.complete(True)
 
-    def put(self, locontextcal_path, remote_path, use_sudo=False, logger=None, sandbox=False, context=None):
+    def put_file(self, local_path, remote_path, use_sudo=False, logger=None, sandbox=False, context=None):
         """
         Upload this local_file to the remote location.
         """
@@ -602,7 +630,7 @@ class Host(object):
                     if use_sudo:
                         rf._temppath = self._tempfile(context)
 
-                        if self.exists(remote_path):
+                        if self.exists(remote_path, context=context):
                             # Copy existing file to available location
                             self._run_silent_sudo("cp '%s' '%s' " % (esc1(remote_path), esc1(rf._temppath)))
                             self._run_silent_sudo("chown '%s' '%s' " % (esc1(self.username), esc1(rf._temppath)))
@@ -668,7 +696,7 @@ class Host(object):
                         if not sandbox:
                             if use_sudo:
                                 # Restore permissions (when this file already existed.)
-                                if self.exists(remote_path):
+                                if self.exists(remote_path, context=context):
                                     self._run_silent_sudo("chown --reference='%s' '%s' " % (esc1(remote_path), esc1(rf._temppath)))
                                     self._run_silent_sudo("chmod --reference='%s' '%s' " % (esc1(remote_path), esc1(rf._temppath)))
 
@@ -862,9 +890,9 @@ class LocalHost(Host):
     slug = 'localhost'
     address = 'localhost'
 
-    def __init__(self, backend=None):
+    def __init__(self):
         Host.__init__(self)
-        self._backend = backend or LocalHostBackend()
+        self._backend = LocalHostBackend()
 
     def _run(self, pty, *a, **kw):
         if kw.get('use_sudo', False):

@@ -253,12 +253,7 @@ class HostsContainer(object):
         Returns whether this file exists on this hosts.
         """
         def on_host(container):
-            try:
-                container.run("test -f '%s' || test -d '%s'" % (esc1(filename), esc1(filename)),
-                        use_sudo=use_sudo, interactive=False, sandbox=False)
-                return True
-            except ExecCommandFailed:
-                return False
+            return container._host.get_instance().exists(filename, use_sudo=use_sudo)
 
         return map(on_host, self)
 
@@ -275,18 +270,6 @@ class HostsContainer(object):
                 return False
 
         return map(on_host, self)
-
-    def get_ip_address(self, interface='eth0'):
-        """
-        Return internal IP address of this interface.
-        """
-        # We add "cd /", to be sure that at least no error get thrown because
-        # we're in a non existing directory right now.
-        with self.cd('/'):
-            # TODO: Some hosts give 'inet addr:', other 'enet adr:' back.
-            #       probably use the 'ip address show dev eth0' instead.
-            return [ s.strip() for s in self.run("""/sbin/ifconfig "%s" | grep 'inet ad' | """
-                    """ cut -d: -f2 | awk '{ print $1}' """ % interface, interactive=False) ]
 
     @property
     def hostname(self):
@@ -314,23 +297,23 @@ class HostContainer(HostsContainer):
     def slug(self):
         return self._host.slug
 
-    @wraps(Host.get)
+    @wraps(Host.get_file)
     def get(self, *args,**kwargs):
         if len(self) == 1:
             kwargs['logger'] = self._logger
             kwargs['sandbox'] = self._sandbox
 
-            return self._host.get_instance().get(*args, **kwargs)
+            return self._host.get_instance().get_file(*args, **kwargs)
         else:
             raise AttributeError
 
-    @wraps(Host.put)
+    @wraps(Host.put_file)
     def put(self, *args,**kwargs):
         if len(self) == 1:
             kwargs['logger'] = self._logger
             kwargs['sandbox'] = self._sandbox
 
-            return self._host.get_instance().put(*args, **kwargs)
+            return self._host.get_instance().put_file(*args, **kwargs)
         else:
             raise AttributeError
 
@@ -376,6 +359,7 @@ class HostContainer(HostsContainer):
     @wraps(HostsContainer.has_command)
     def has_command(self, *a, **kw):
         return HostsContainer.has_command(self, *a, **kw)[0]
+
 
 def _filter_hosts(hosts_dict, roles):
     """
