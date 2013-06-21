@@ -219,9 +219,6 @@ class NodeTest(unittest.TestCase):
         env = Env(s.T)
         self.assertEqual(env.action(), 2)
 
-
-
-
     def test_attribute_overrides(self):
         # Test double underscore overrides.
         class N(Node):
@@ -886,7 +883,6 @@ class NodeTest(unittest.TestCase):
                         this.assertEqual(self.hosts[0].run('pwd').strip(), '/')
 
                     this.assertEqual(self.hosts[0].run('pwd').strip(), '/tmp')
-
 
         env = Env(A())
         env.action()

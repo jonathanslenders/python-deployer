@@ -593,7 +593,7 @@ class Host(object):
                             # using current username)
                             self._run_silent("touch '%s' " % esc1(rf._temppath))
                         else:
-                            raise Exception('Remote file: "%s" does not exist' % remote_path)
+                            raise IOError('Remote file: "%s" does not exist' % remote_path)
 
                         # Open stream to this temp file
                         rf._file = self.sftp.open(rf._temppath, mode)
@@ -618,13 +618,13 @@ class Host(object):
                 if rf._is_open:
                     return rf._file.read()
                 else:
-                    raise Exception('Cannot read from closed remote file')
+                    raise IOError('Cannot read from closed remote file')
 
             def readline(rf):
                 if rf._is_open:
                     return rf._file.readline()
                 else:
-                    raise Exception('Cannot read from closed remote file')
+                    raise IOError('Cannot read from closed remote file')
 
             def write(rf, data):
                 if rf._is_open:
@@ -638,7 +638,7 @@ class Host(object):
                     else:
                         rf._file.write(data)
                 else:
-                    raise Exception('Cannot write to closed remote file')
+                    raise IOError('Cannot write to closed remote file')
 
             def close(rf):
                 if rf._is_open:
