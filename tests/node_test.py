@@ -871,7 +871,25 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(env.B._node_is_isolated, True)
         self.assertEqual(env.B.action(), 'result')
 
+    def test_hostcontainer_from_node(self):
+        this = self
 
+        class A(Node):
+            class Hosts:
+                role1 = LocalHost1
+
+            def action(self):
+                with self.hosts.cd('/tmp'):
+                    this.assertEqual(self.hosts[0].run('pwd').strip(), '/tmp')
+
+                    with self.hosts.cd('/'):
+                        this.assertEqual(self.hosts[0].run('pwd').strip(), '/')
+
+                    this.assertEqual(self.hosts[0].run('pwd').strip(), '/tmp')
+
+
+        env = Env(A())
+        env.action()
 
 if __name__ == '__main__':
     unittest.main()

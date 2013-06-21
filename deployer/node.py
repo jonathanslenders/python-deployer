@@ -330,7 +330,10 @@ class Env(object):
 
     @property
     def hosts(self):
-        return HostsContainer(self._node.hosts._hosts, self._pty, self._logger, self._is_sandbox)
+        # Create a new HostsContainer object which is identical to the one of the Node object,
+        # but add pty/logger/sandbox settings.
+        return HostsContainer(self._node.hosts._hosts, self._pty, self._logger, self._is_sandbox,
+                    host_contexts=self._node.hosts._host_contexts)
 
     @property
     def console(self):
