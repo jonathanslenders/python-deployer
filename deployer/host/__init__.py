@@ -529,71 +529,23 @@ class Host(object):
         """
         Download this remote_file.
         """
-        logger = logger or self.dummy_logger
-        context = context or HostContext()
+        with self.open(remote_path, 'rb', use_sudo=use_sudo, logger=logger, sandbox=sandbox, context=context) as f:
+            # Expand paths
+            local_path = self._expand_local_path(local_path)
 
-        # Expand paths
-        local_path = self._expand_local_path(local_path)
-        remote_path = self.expand_path(remote_path, context)
-
-        # Log entries
-        with logger.log_file(self, Actions.Get, mode='rb', remote_path=remote_path,
-                            local_path=local_path, use_sudo=use_sudo, sandboxing=sandbox) as log_entry:
-            try:
-                if use_sudo:
-                    if not sandbox:
-                        # Copy file to available location
-                        temppath = self._tempfile(context)
-                        self._run_silent_sudo("mv '%s' '%s'" % (esc1(remote_path), esc1(temppath)))
-                        self._run_silent_sudo("chown '%s' '%s'" % (esc1(self.username), esc1(temppath)))
-                        self._run_silent_sudo("chmod u+r '%s'" % esc1(temppath))
-
-                        # Download file
-                        self.get(temppath, local_path)
-
-                        # Remove temp file
-                        self._run_silent_sudo('rm "%s"' % temppath)
-                else:
-                    open(local_path, 'wb').write(self.sftp.open(remote_path, 'rb').read())
-            except Exception as e:
-                log_entry.complete(False)
-                raise e
-            else:
-                log_entry.complete(True)
+            with open(local_path, 'wb') as f2:
+                f2.write(f.read())
 
     def put_file(self, local_path, remote_path, use_sudo=False, logger=None, sandbox=False, context=None):
         """
         Upload this local_file to the remote location.
         """
-        logger = logger or self.dummy_logger
-        context = context or HostContext()
+        with self.open(remote_path, 'wb', use_sudo=use_sudo, logger=logger, sandbox=sandbox, context=context) as f:
+            # Expand paths
+            local_path = self._expand_local_path(local_path)
 
-        # Expand paths
-        local_path = self._expand_local_path(local_path)
-        remote_path = self.expand_path(remote_path, context)
-
-        # Log entry
-        with logger.log_file(self, Actions.Put, mode='wb', remote_path=remote_path,
-                            local_path=local_path, use_sudo=use_sudo, sandboxing=sandbox) as log_entry:
-            try:
-                if not sandbox:
-                    if use_sudo:
-                        # Upload in tempfile
-                        temppath = self._tempfile(context)
-                        self.put(local_path, temppath)
-
-                        # Move tempfile to real destination
-                        self._run_silent_sudo("mv '%s' '%s'" % (esc1(temppath), esc1(remote_path)))
-
-                        # chmod?
-                        # TODO
-                    else:
-                        self.sftp.open(remote_path, 'wb').write(open(local_path, 'rb').read())
-            except Exception as e:
-                log_entry.complete(False)
-                raise e
-            else:
-                log_entry.complete(True)
+            with open(local_path, 'rb') as f2:
+                f.write(f2.read())
 
     def open(self, remote_path, mode="rb", use_sudo=False, logger=None, sandbox=False, context=None):
         """
