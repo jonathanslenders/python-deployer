@@ -36,7 +36,7 @@ Options:
   --version              : Show version information.
 """
 
-def start(root_service, name=__file__):
+def start(root_service, name=sys.argv[0]):
     """
     Client startup point.
     """
