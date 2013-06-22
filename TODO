@@ -14,6 +14,6 @@
 20. implement filesystem in userspace mapping.   (sftp, etc...)
 21. update README
 22. Rename get and put to get_file and put_file and wrap it around Hdrop redis as backend for web_frontend. (ost.open()
-
+23. Implement retry/skip/abort in ActionException.
 
 https://code.google.com/p/fusepy/source/browse/trunk/sftp.py
