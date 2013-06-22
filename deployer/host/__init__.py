@@ -202,7 +202,7 @@ class Host(object):
         #       probably use the 'ip address show dev eth0' instead.
         return self._run_silent(
                 """cd /; /sbin/ifconfig "%s" | grep 'inet ad' | """
-                """ cut -d: -f2 | awk '{ print $1}' """ % interface)
+                """ cut -d: -f2 | awk '{ print $1}' """ % interface).strip()
 
 
 
