@@ -1,10 +1,8 @@
 from deployer.contrib.loggers.on_host import OnHostLogger
-from deployer.contrib.nodes .connect import Connect
-from deployer.contrib.nodes.monitoring import Monitor
+from deployer.contrib.nodes.connect import Connect
 from deployer.contrib.unittest.nodes import UnitTest
 from deployer.host import SSHHost, LocalHost
 from deployer.node import Node, map_roles
-from deployer.node_groups import Other
 
 from inspect import isclass
 
