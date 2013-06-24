@@ -108,8 +108,9 @@ class DefaultLogger(Logger):
     def log_file_opened(self, file_entry):
         self._print_start(file_entry.host, {
             Actions.Open: 'Opening file',
-            Actions.Put: 'Uploading file',
-            Actions.Get: 'Downloading file' }[ file_entry.entry_type], file_entry.use_sudo, file_entry.sandboxing)
+            #Actions.Put: 'Uploading file',
+            #Actions.Get: 'Downloading file'
+            }[ file_entry.entry_type], file_entry.use_sudo, file_entry.sandboxing)
 
         if file_entry.entry_type == Actions.Open:
             self.stdout.write('  Mode: %s\n' % file_entry.mode)
@@ -285,7 +286,7 @@ def print_cli_exception(cli_entry, stdout):
   #          elif t.entry_type == Actions.Run:
   #              print '- (command) ', t.command
   #              t = None
-  #          elif t.entry_type in (Actions.Put, Actions.Get, Actions.Open):
+  #          elif t.entry_type == Actions.Open:
   #              print '- (file) ', t.remote_path
   #              t = None
 

@@ -11,8 +11,6 @@ __all__ = ('Actions', 'LoggerInterface', 'CliActionCallback', 'RunCallback', 'Fi
 class Actions(object):
     Run = 'run'
     Open = 'open'
-    Put = 'put'
-    Get = 'get'
     Fork = 'fork'
 
 
@@ -172,12 +170,12 @@ class LoggerInterface(object):
         return Run(*a, **kwargs)
 
 
-    def log_file(self, host, action, **kwargs):
+    def log_file(self, host, **kwargs):
         """
         Log a get/put/open actions on remote files.
         """
         class File(object):
-            entry_type = action # e.g. Actions.Get
+            entry_type = Actions.Open
 
             def __init__(entry, host, mode=None, remote_path=None, local_path=None, use_sudo=False, sandboxing=False):
                 entry.host = host

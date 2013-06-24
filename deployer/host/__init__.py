@@ -571,7 +571,7 @@ class Host(object):
                 rf._is_open = False
 
                 # Log entry
-                self._log_entry = logger.log_file(self, Actions.Open, mode=mode, remote_path=remote_path,
+                self._log_entry = logger.log_file(self, mode=mode, remote_path=remote_path,
                                                 use_sudo=use_sudo, sandboxing=sandbox)
                 self._log_entry.__enter__()
 

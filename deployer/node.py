@@ -177,13 +177,9 @@ class ActionDescriptor(object):
         if node_instance:
             return Action(self.attr_name, node_instance, self._func)
         else:
-            # TODO: we should avoid this usage. e.g. in "Config.setup(self)"
-            #       this causes Action to lack a service instance, and a
-            #       retrieval path...
-
+            # Unbound action access. We need this for calling the method of a
+            # super class. e.g. Config.action(env, *a...)
             return Action(self.attr_name, None, self._func)
-            #raise Exception("Don't retrieve action from the class object. Use instance.action")
-            #return self._func
 
 
 class PropertyDescriptor(object):
@@ -237,12 +233,37 @@ class Env(object):
         def func(*a, **kw):
             def run_on_node(isolation):
                 with isolation._logger.group(action._func, *a, **kw):
-                    try:
-                        return action._func(isolation, *a, **kw)
-                    except ActionException, e:
-                        raise ActionException(e.inner_exception, e.traceback)
-                    except Exception, e:
-                        raise ActionException(e, traceback.format_exc())
+                    while True:
+                        try:
+                            return action._func(isolation, *a, **kw)
+                        except ActionException, e:
+                            raise ActionException(e.inner_exception, e.traceback)
+                        except Exception, e:
+                            choice = Console(self._pty).choice('An exception occured at %r' %
+                                    action,
+                                    [ ('Retry', 'retry'),
+                                    ('Skip (This will not always work.)', 'skip'),
+                                    ('Abort (and raise exception)', 'abort') ], default='abort')
+
+                            if choice == 'retry':
+                                continue
+                            elif choice == 'skip':
+                                class SkippedTaskResult(object):
+                                    def __init__(self, node, action):
+                                        self._node = node
+                                        self._action = action
+
+                                    def __getattribute__(self, name):
+                                        raise Exception('SkippedTask(%r.%r) does not have an attribute %r' % (
+                                                object.__getattr__(self, '_node'),
+                                                object.__getattr__(self, '_action'),
+                                                name))
+
+
+                                return SkippedTaskResult(self._node, action)
+                            elif choice == 'abort':
+                                # TODO: send exception to logger -> and print it
+                                raise ActionException(e, traceback.format_exc())
 
             if isinstance(self, SimpleNode) and not self._node_is_isolated and \
                                 not getattr(action._func, 'dont_isolate_yet', False):
@@ -306,7 +327,7 @@ class Env(object):
                         # This returns a list of results.
                         return fork_result.result
             else:
-                return action._func(self, *a, **kw)
+                return run_on_node(self)
 
         if action.is_property:
             # Properties are automatically called upon retrieval

@@ -8,12 +8,12 @@
 8. test 'hosts' vs. 'host'
 10. test exceptions in action.
 12. we should have at least a role named 'host' in SimpleNode
-13. Array.Array should not work.
 17. When moving to another thread,  hostcontext should be aware of that. Guarantee thread safety.
 18. Implement walk-function
 20. implement filesystem in userspace mapping.   (sftp, etc...)
 21. update README
 22. Rename get and put to get_file and put_file and wrap it around Hdrop redis as backend for web_frontend. (ost.open()
-23. Implement retry/skip/abort in ActionException.
+23. Implement retry/skip/abort in ActionException. -> logging exception should happen in here...
+23. Rename root logger.
 
 https://code.google.com/p/fusepy/source/browse/trunk/sftp.py

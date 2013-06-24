@@ -90,6 +90,15 @@ class Inspector(object):
 
         return result[::-1]
 
+    def get_root(self):
+        """
+        Return the root node of the tree.
+        """
+        node = self.node
+        while node.parent:
+            node = node.parent
+        return node
+
     def get_group(self):
         """
         Return the group to which this node belongs.
