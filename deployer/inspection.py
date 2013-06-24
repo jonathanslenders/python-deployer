@@ -4,6 +4,11 @@ __all__ = (
     'Inspector',
 )
 
+class PathType:
+    NAME_ONLY = 'NAME_ONLY'
+    NODE_AND_NAME = 'NODE_AND_NAME'
+    NODE_ONLY = 'NODE_ONLY'
+
 class Inspector(object):
     """
     Introspection of a Node object.
@@ -78,14 +83,24 @@ class Inspector(object):
     def supress_result_for_action(self, name):
         return getattr(self.get_actions(name), 'supress_result', False)
 
-    def get_path(self):
+    def get_path(self, path_type=PathType.NAME_ONLY):
         """
         Return a (name1, name2, ...) tuple, defining the path from the root until here.
         """
         result = []
         n = self.node
         while n:
-            result.append(Inspector(n).get_name())
+            if path_type == PathType.NAME_ONLY:
+                result.append(Inspector(n).get_name())
+
+            elif path_type == PathType.NODE_AND_NAME:
+                result.append((n, Inspector(n).get_name()))
+
+            elif path_type == PathType.NODE_ONLY:
+                result.append(n)
+            else:
+                raise Exception('Invalid path_type')
+
             n = n.parent
 
         return tuple(result[::-1])

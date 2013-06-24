@@ -1,7 +1,7 @@
 from deployer.cli import CLInterface, Handler, HandlerType
 from deployer.console import Console
 from deployer.console import NoInput
-from deployer.inspection import Inspector
+from deployer.inspection import Inspector, PathType
 from deployer.node import ActionException, Env
 
 from inspect import getfile
@@ -639,7 +639,7 @@ class ShellState(object):
     def prompt(self):
         # Returns a list of (text,color) tuples for the prompt.
         result = []
-        for node, name in Inspector(self._node).get_path():
+        for node, name in Inspector(self._node).get_path(path_type=PathType.NODE_AND_NAME):
             if result:
                 result.append( ('.', None) )
             result.append( (name, Inspector(node).get_group().color) )
