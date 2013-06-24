@@ -1,7 +1,8 @@
 from deployer.console import Console
+from deployer.exceptions import ExecCommandFailed, ActionException
+from deployer.groups import Group
 from deployer.host_container import HostsContainer, HostContainer
 from deployer.loggers import DummyLoggerInterface
-from deployer.groups import Group
 from deployer.pseudo_terminal import DummyPty, Pty
 from deployer.query import Query
 from deployer.utils import isclass
@@ -14,7 +15,6 @@ import logging
 import traceback
 
 __all__ = (
-    'ActionException',
     'Env',
     'Inspector',
     'Node',
@@ -22,14 +22,6 @@ __all__ = (
     'required_property'
     'role_mapping',
 )
-
-class ActionException(Exception):
-    """
-    When an action fails.
-    """
-    def __init__(self, inner_exception, traceback):
-        self.inner_exception = inner_exception
-        self.traceback = traceback
 
 class required_property(property):
     """
@@ -237,13 +229,18 @@ class Env(object):
                         try:
                             return action._func(isolation, *a, **kw)
                         except ActionException, e:
-                            raise ActionException(e.inner_exception, e.traceback)
-                        except Exception, e:
-                            choice = Console(self._pty).choice('An exception occured at %r' %
-                                    action,
-                                    [ ('Retry', 'retry'),
-                                    ('Skip (This will not always work.)', 'skip'),
-                                    ('Abort (and raise exception)', 'abort') ], default='abort')
+                            raise
+                        except ExecCommandFailed, e:
+                            # If the console is interactive, ask what to do, otherwise, just abort
+                            # without showing this question.
+                            if self._pty.interactive:
+                                choice = Console(self._pty).choice('An exception occured at %r' %
+                                        action,
+                                        [ ('Retry', 'retry'),
+                                        ('Skip (This will not always work.)', 'skip'),
+                                        ('Abort (and raise exception)', 'abort') ], default='abort')
+                            else:
+                                choice = 'abort'
 
                             if choice == 'retry':
                                 continue
@@ -264,6 +261,8 @@ class Env(object):
                             elif choice == 'abort':
                                 # TODO: send exception to logger -> and print it
                                 raise ActionException(e, traceback.format_exc())
+                        except Exception, e:
+                            raise ActionException(e, traceback.format_exc())
 
             if isinstance(self, SimpleNode) and not self._node_is_isolated and \
                                 not getattr(action._func, 'dont_isolate_yet', False):

@@ -50,8 +50,8 @@ class InspectorTest(unittest.TestCase):
         self.assertRaises(AttributeError, insp.get_action, 'unknown_action')
 
         # get_path
-        self.assertEqual(repr(Inspector(s.A).get_path()), "[(<Node Root>, 'Root'), (<Node Root.A>, 'A')]")
-        self.assertEqual(repr(Inspector(s.B.C).get_path()), "[(<Node Root>, 'Root'), (<Node Root.B>, 'B'), (<Node Root.B.C>, 'C')]")
+        self.assertEqual(repr(Inspector(s.A).get_path()), "('Root', 'A')")
+        self.assertEqual(repr(Inspector(s.B.C).get_path()), "('Root', 'B', 'C')")
 
         # get_name and get_full_name
         self.assertEqual(Inspector(s.A).get_name(), 'A')
@@ -73,6 +73,12 @@ class InspectorTest(unittest.TestCase):
         self.assertEqual(Inspector(s.B).get_group(), Staging)
         self.assertEqual(Inspector(s.B.C).get_group(), Staging)
 
+        # walk
+        self.assertEqual(len(list(insp.walk())), 4)
+        self.assertEqual({ Inspector(i).get_name() for i in insp.walk() }, { 'Root', 'A', 'B', 'C' })
+        for i in insp.walk():
+            self.assertIsInstance(i, Node)
+
     def test_node_inspection_on_env_object(self):
         class Root(Node):
             class A(Node):
@@ -88,6 +94,12 @@ class InspectorTest(unittest.TestCase):
         insp = Inspector(env)
         self.assertEqual(repr(insp.get_childnodes()), '[Env(Root.A), Env(Root.B)]')
         self.assertEqual(insp.get_childnode('B').action(), 'action-b')
+
+        # Walk
+        self.assertEqual(len(list(insp.walk())), 3)
+        self.assertEqual({ Inspector(i).get_name() for i in insp.walk() }, { 'Root', 'A', 'B' })
+        for i in insp.walk():
+            self.assertIsInstance(i, Env)
 
     def test_iter_isolations(self):
         class A(Node):

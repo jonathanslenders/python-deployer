@@ -17,7 +17,7 @@ class Inspector(object):
             self.env = None
             self.node = node
         else:
-            raise Exception('Expecting a Node object')
+            raise Exception('Expecting a Node or Env instance')
 
     def __repr__(self):
         return 'Inspector(node=%s)' % self.node.__class__.__name__
@@ -80,15 +80,15 @@ class Inspector(object):
 
     def get_path(self):
         """
-        Return a list of (Node, name) tuples, defining the path from the root until here.
+        Return a (name1, name2, ...) tuple, defining the path from the root until here.
         """
         result = []
         n = self.node
         while n:
-            result.append( (n, Inspector(n).get_name()) )
+            result.append(Inspector(n).get_name())
             n = n.parent
 
-        return result[::-1]
+        return tuple(result[::-1])
 
     def get_root(self):
         """
@@ -114,6 +114,28 @@ class Inspector(object):
 
     def is_callable(self):
         return hasattr(self.node, '__call__')
+
+    def walk(self):
+        """
+        Recursively walk (topdown) through the nodes and yield them.
+        """
+        visited = set()
+        todo = [ self.node ]
+
+        def key(n):
+            # Unique identifier for every node.
+            # (The childnode descriptor will return another instance every time.)
+            i = Inspector(n)
+            return (i.get_root(), i.get_path())
+
+        while todo:
+            n = todo.pop(0)
+            yield n
+            visited.add(key(n))
+
+            for c in Inspector(n).get_childnodes(verify_parent=False):
+                if key(c) not in visited:
+                    todo.append(c)
 
 
 class _EnvInspector(Inspector):
@@ -142,8 +164,6 @@ class _EnvInspector(Inspector):
         for index, node in Inspector.iter_isolations(self, *a, **kw):
             yield index, self.env._Env__wrap_node(node)
 
-    # --> Walk should be done on node instances, because a nested node class is useless without it role mappings.
-
-    # def walk_over_nodes(self, include_self=True, topdown=True):
-    #     for s in self.get_childnodes():
-    #         yield self.node_class,
+    def walk(self, *a, **kw):
+        for node in Inspector.walk(self, *a, **kw):
+            yield self.env._Env__wrap_node(node)

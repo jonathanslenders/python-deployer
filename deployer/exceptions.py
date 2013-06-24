@@ -34,3 +34,11 @@ class QueryException(DeployerException):
 
         DeployerException.__init__(self, 'Running query %s:=%s on "%s" failed' %
                             (self.attr_name, self.query, self.node_name))
+
+class ActionException(DeployerException):
+    """
+    When an action fails.
+    """
+    def __init__(self, inner_exception, traceback):
+        self.inner_exception = inner_exception
+        self.traceback = traceback

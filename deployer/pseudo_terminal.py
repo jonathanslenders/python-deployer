@@ -105,15 +105,9 @@ class DummyPty(Pty):
 
         r2 = os.fdopen(r, 'r')
         w2 = os.fdopen(w, 'w')
-
         w2.write(input_data)
 
-
-        # TODO: Use StringIO for input/output, but we have to change
-        #       deployer/host/__init__.py in order to support execution on
-        #       dummy Pty objects. (This one doesn't have a fileno() function.)
-        #Pty.__init__(self, open('/dev/null', 'r'), open('/dev/null', 'w'))
-        Pty.__init__(self, r2, self._output)
+        Pty.__init__(self, r2, self._output, interactive=False)
         self._size = (40, 80)
 
     def get_size(self):

@@ -1,12 +1,13 @@
 import unittest
 
-from deployer.query import Q
-from deployer.node import Node, SimpleNode, Env
-from deployer.pseudo_terminal import Pty, DummyPty
-from deployer.loggers import LoggerInterface
-from deployer.node import map_roles, dont_isolate_yet, required_property, alias, IsolationIdentifierType
-from deployer.inspector import Inspector
+from deployer.exceptions import ActionException, ExecCommandFailed
 from deployer.host_container import HostsContainer
+from deployer.inspector import Inspector
+from deployer.loggers import LoggerInterface
+from deployer.node import Node, SimpleNode, Env
+from deployer.node import map_roles, dont_isolate_yet, required_property, alias, IsolationIdentifierType
+from deployer.pseudo_terminal import Pty, DummyPty
+from deployer.query import Q
 
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
 
@@ -163,8 +164,13 @@ class NodeTest(unittest.TestCase):
         s = S()
         env = Env(s)
 
-        from deployer.exceptions import ExecCommandFailed
-        self.assertRaises(ExecCommandFailed, env.return_false) # TODO: maybe this should be wrapped in an ActionFailed.
+        # This should raise an ExecCommandFailed, wrapped in an ActionException
+        self.assertRaises(ActionException, env.return_false)
+
+        try:
+            env.return_false()
+        except ActionException, e:
+            self.assertIsInstance(e.inner_exception, ExecCommandFailed)
 
     def test_action_with_params(self):
         class MyNode(Node):
@@ -594,8 +600,14 @@ class NodeTest(unittest.TestCase):
             def action(self):
                 self.variable = 'value'
 
+        # AttributeError wrapped in ActionException
         env = Env(MyNode())
-        self.assertRaises(AttributeError, env.action) # TODO: correct exception
+        self.assertRaises(ActionException, env.action)
+
+        try:
+            env.action()
+        except ActionException, e:
+            self.assertIsInstance(e.inner_exception, AttributeError)
 
     def test_custom_node_init(self):
         # It is not allowed to provide a custom __init__ method.
@@ -620,7 +632,13 @@ class NodeTest(unittest.TestCase):
             def action(self):
                 self.p()
         env = Env(A())
-        self.assertRaises(NotImplementedError, env.action)
+
+        # NotImplementedError wrapped in ActionException
+        self.assertRaises(ActionException, env.action)
+        try:
+            env.action()
+        except ActionException, e:
+            self.assertIsInstance(e.inner_exception, NotImplementedError)
 
     def test_action_aliases(self):
         # We can define multiple aliases for an action.
