@@ -170,3 +170,6 @@ class InspectorTest(unittest.TestCase):
         self.assertEqual(len(list(node_iterator)), 5)
         self.assertEqual(len(node_iterator), 5)
         self.assertEqual(len(node_iterator), 5)
+
+        # Calling an unknown action
+        self.assertRaises(AttributeError, lambda: list(insp.walk().call_action('my_action2')))
