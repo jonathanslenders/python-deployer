@@ -115,10 +115,7 @@ class Inspector(object):
     def is_callable(self):
         return hasattr(self.node, '__call__')
 
-    def walk(self):
-        """
-        Recursively walk (topdown) through the nodes and yield them.
-        """
+    def _walk(self):
         visited = set()
         todo = [ self.node ]
 
@@ -136,6 +133,12 @@ class Inspector(object):
             for c in Inspector(n).get_childnodes(verify_parent=False):
                 if key(c) not in visited:
                     todo.append(c)
+
+    def walk(self):
+        """
+        Recursively walk (topdown) through the nodes and yield them.
+        """
+        return NodeIterator(self._walk)
 
 
 class _EnvInspector(Inspector):
@@ -164,6 +167,38 @@ class _EnvInspector(Inspector):
         for index, node in Inspector.iter_isolations(self, *a, **kw):
             yield index, self.env._Env__wrap_node(node)
 
-    def walk(self, *a, **kw):
-        for node in Inspector.walk(self, *a, **kw):
+    def _walk(self):
+        for node in Inspector._walk(self):
             yield self.env._Env__wrap_node(node)
+
+
+
+class NodeIterator(object):
+    """
+    Generator object which yields the nodes in a collection.
+    """
+    def __init__(self, node_iterator_func):
+        self._iterator_func = node_iterator_func
+
+    def __iter__(self):
+        return self._iterator_func()
+
+    def __len__(self):
+        return sum(1 for _ in self)
+
+    def filter(self, node_class):
+        """
+        Filter on the nodes of type node_class. Node_class can be a Node
+        subclass or tuple of Node classes.
+        """
+        def new_iterator():
+            for n in self:
+                if isinstance(n, node_class):
+                    yield n
+        return NodeIterator(new_iterator)
+
+    def call_action(self, name, *a, **kw):
+        for n in self:
+            for index, node in Inspector(n).iter_isolations():
+                action = getattr(node, name)
+                yield action(*a, **kw)

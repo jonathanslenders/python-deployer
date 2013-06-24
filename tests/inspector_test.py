@@ -6,7 +6,7 @@ from deployer.groups import Production, Staging, production, staging
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
 from deployer.node import map_roles, dont_isolate_yet, required_property, alias
-from deployer.inspection import Inspector
+from deployer.inspection import Inspector, NodeIterator
 from deployer.host_container import HostsContainer
 
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
@@ -125,3 +125,48 @@ class InspectorTest(unittest.TestCase):
 
         test(Inspector(A().B.C.D), Node)
         test(Inspector(Env(A()).B.C.D), Env)
+
+    def test_node_iterator(self):
+        class Base(Node):
+            pass
+
+        class A(Node):
+            def my_action(self): return 'a'
+
+            class B(Base):
+                def my_action(self): return 'b'
+
+                class C(SimpleNode.Array):
+                    class Hosts:
+                        host = LocalHost1, LocalHost2, LocalHost3, LocalHost4
+
+                    def my_action(self): return 'c'
+
+                    class E(Base):
+                        def my_action(self):return 'e'
+
+            class D(Base):
+                def my_action(self): return 'd'
+
+
+        env = Env(A())
+        insp = Inspector(env)
+
+        # Walk can be used to traverse all the nodes.
+        # It does not yet isolate SimpleNodes in several nodes.
+        self.assertEqual(len(insp.walk()), 5)
+        self.assertIsInstance(insp.walk(), NodeIterator)
+        self.assertEqual(len(insp.walk().filter(Base)), 3)
+
+        # NodeIterator.call_action will call a certain action on all the nodes.
+        # This will split the SimpleNode Arrays into their isolations
+        result = list(insp.walk().filter(Base).call_action('my_action'))
+        self.assertEqual(len(result), 6)
+        self.assertEqual(set(result), { 'b', 'd', 'e', 'e', 'e', 'e' })
+
+        # It should be possible to read the content of an iterator multiple times.
+        node_iterator = insp.walk()
+        self.assertEqual(len(list(node_iterator)), 5)
+        self.assertEqual(len(list(node_iterator)), 5)
+        self.assertEqual(len(node_iterator), 5)
+        self.assertEqual(len(node_iterator), 5)
