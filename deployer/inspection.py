@@ -5,9 +5,13 @@ __all__ = (
 )
 
 class PathType:
+    """
+    Options for Inspector.get_path()
+    """
     NAME_ONLY = 'NAME_ONLY'
     NODE_AND_NAME = 'NODE_AND_NAME'
     NODE_ONLY = 'NODE_ONLY'
+
 
 class Inspector(object):
     """

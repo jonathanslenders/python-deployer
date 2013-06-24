@@ -6,7 +6,7 @@ from deployer.groups import Production, Staging, production, staging
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
 from deployer.node import map_roles, dont_isolate_yet, required_property, alias
-from deployer.inspection import Inspector, NodeIterator
+from deployer.inspection import Inspector, NodeIterator, PathType
 from deployer.host_container import HostsContainer
 
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
@@ -52,6 +52,10 @@ class InspectorTest(unittest.TestCase):
         # get_path
         self.assertEqual(repr(Inspector(s.A).get_path()), "('Root', 'A')")
         self.assertEqual(repr(Inspector(s.B.C).get_path()), "('Root', 'B', 'C')")
+        self.assertEqual(repr(Inspector(s.B.C).get_path(path_type=PathType.NODE_AND_NAME)),
+                        "((<Node Root>, 'Root'), (<Node Root.B>, 'B'), (<Node Root.B.C>, 'C'))")
+        self.assertEqual(repr(Inspector(s.B.C).get_path(path_type=PathType.NODE_ONLY)),
+                        "(<Node Root>, <Node Root.B>, <Node Root.B.C>)")
 
         # get_name and get_full_name
         self.assertEqual(Inspector(s.A).get_name(), 'A')
