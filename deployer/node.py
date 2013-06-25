@@ -231,14 +231,15 @@ class Env(object):
                         except ActionException, e:
                             raise
                         except ExecCommandFailed, e:
-                            # If the console is interactive, ask what to do, otherwise, just abort
-                            # without showing this question.
+                            isolation._logger.log_exception(e)
+
                             if self._pty.interactive:
-                                choice = Console(self._pty).choice('An exception occured at %r' %
-                                        action,
+                                # If the console is interactive, ask what to do, otherwise, just abort
+                                # without showing this question.
+                                choice = Console(self._pty).choice('Continue?',
                                         [ ('Retry', 'retry'),
                                         ('Skip (This will not always work.)', 'skip'),
-                                        ('Abort (and raise exception)', 'abort') ], default='abort')
+                                        ('Abort', 'abort') ], default='abort')
                             else:
                                 choice = 'abort'
 
@@ -262,6 +263,7 @@ class Env(object):
                                 # TODO: send exception to logger -> and print it
                                 raise ActionException(e, traceback.format_exc())
                         except Exception, e:
+                            isolation._logger.log_exception(e)
                             raise ActionException(e, traceback.format_exc())
 
             if isinstance(self, SimpleNode) and not self._node_is_isolated and \

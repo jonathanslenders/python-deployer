@@ -58,38 +58,6 @@ class LoggerInterface(object):
 
         return LogGroup()
 
-    def log_cli_action(self, command, sandboxing):
-        class CliAction(object):
-            def __init__(entry, command, sandboxing):
-                entry.time_started = datetime.datetime.now()
-                entry.time_ended = None
-                entry.command = command
-                entry.sandboxing = sandboxing
-
-                entry.result = None # TODO: Remove result parameter, not used.
-                entry.succeeded = None
-                entry.exception = None
-
-                entry._callbacks = [ l.log_cli_action(entry) for l in self.loggers ]
-
-            def set_failed(entry, action_exception, traceback=None):
-                entry.time_ended = datetime.datetime.now()
-                entry.exception = action_exception
-                entry.succeeded = False
-                entry.traceback = traceback
-
-                for c in entry._callbacks:
-                    c.completed()
-
-            def set_succeeded(entry):
-                entry.time_ended = datetime.datetime.now()
-                entry.succeeded = True
-
-                for c in entry._callbacks:
-                    c.completed()
-
-        return CliAction(command, sandboxing)
-
     def log_fork(self, fork_name):
         class Fork(object):
             entry_type = Actions.Fork
@@ -199,6 +167,9 @@ class LoggerInterface(object):
 
         return File(host, **kwargs)
 
+    def log_exception(self, e):
+        for l in self.loggers:
+            l.log_exception(e)
 
 class DummyLoggerInterface(LoggerInterface):
     """
@@ -251,9 +222,6 @@ class Logger(object):
     def leave_group(self):
         pass
 
-    def log_cli_action(self, action_entry):
-        return CliActionCallback()
-
     def log_fork(self, fork_name):
         return ForkCallback()
 
@@ -262,6 +230,9 @@ class Logger(object):
 
     def log_file_opened(self, file_entry):
         return FileCallback()
+
+    def log_exception(self, e):
+        pass
 
 
 #
