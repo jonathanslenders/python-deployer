@@ -9,6 +9,9 @@ class NoInput(Exception):
 
 
 class Console(object):
+    """
+    Interface for getting user input during a deployment at a pseudo terminal.
+    """
     def __init__(self, pty):
         self._pty = pty
 

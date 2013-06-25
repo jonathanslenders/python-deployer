@@ -61,10 +61,10 @@ class HostContext(object):
         """
         Prefix all commands with given command plus ``&&``.
 
+        ``
         with host.prefix('workon environment'):
             host.run('./manage.py migrate')
-
-        Based on Fabric prefix
+        ``
         """
         class Prefix(object):
             def __enter__(context):

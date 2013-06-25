@@ -2,19 +2,19 @@ import inspect
 
 """
 The Query object is technically a Python class descriptor. It exposes an easy
-to read syntax for a node property to point to another Service's class
+to read syntax for a node property to point to another Node's class
 property.
 
 e.g.
 
-class MyService(Service):
+class MyNode(Node):
     something = True
 
-    class MySubService(Service):
-        some_property = Q.parent('MyService').something
-        some_node = Q.parent('MyService').SomeOtherService
+    class MyChildNode(Node):
+        some_property = Q.parent('MyNode').something
+        some_node = Q.parent('MyNode').SomeOtherNode
 
-    class SomeOtherService(Service):
+    class SomeOtherNode(Node):
         pass
 """
 
@@ -24,7 +24,7 @@ __all__ = ('Q', )
 
 class Query(object):
     """
-    Service Query object.
+    Node Query object.
     """
     def __init__(self):
         pass
@@ -301,7 +301,7 @@ class identity(Query):
 
 class q(identity):
     """
-    Service Query object.
+    Node Query object.
     """
     def __call__(self, string):
         """

@@ -652,6 +652,9 @@ class SimpleNodeBase(NodeBase):
         return SimpleNode_One
 
 class Node(object):
+    """
+    Base class for any deployment node.
+    """
     __metaclass__ = NodeBase
     __slots__ = ('hosts', 'parent')
     _node_type = NodeTypes.NORMAL

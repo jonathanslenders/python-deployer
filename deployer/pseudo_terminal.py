@@ -134,8 +134,6 @@ def select(*args, **kwargs):
     This is a wrapper around select.select.
     When the SIGWINCH signal is handled, other system calls, like select
     are aborted in Python. This wrapper will retry the system call.
-
-    >>  signal.signal(signal.SIGWINCH, sigwinch_handler)
     """
     import errno
 
