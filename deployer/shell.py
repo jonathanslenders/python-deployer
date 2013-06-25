@@ -494,15 +494,10 @@ class Action(Handler):
         # Command
         command = '%s.%s()' % (Inspector(self.node).get_full_name(), self.action_name)
 
-        # Report action call to logger interface
-        action_callback = logger_interface.log_cli_action(command, self.sandbox)
-
         try:
             env = Env(self.node, pty, logger_interface, is_sandbox=self.sandbox)
             result = getattr(env, self.action_name)(*self.args)
             supress_result = Inspector(self.node).supress_result_for_action(self.action_name)
-
-            action_callback.set_succeeded()
 
             # When the result is a subnode, start a subshell.
             def handle_result(result):
@@ -522,13 +517,11 @@ class Action(Handler):
                 handle_result(result)
 
         except ActionException, e:
-            action_callback.set_failed(e)
+            # Already sent to logger_interface in the Action itself.
+            pass
 
         except Exception, e:
-            # Print traceback and return to shell
-            print repr(e)
-            tb = traceback.format_exc()
-            action_callback.set_failed(e, traceback=tb)
+            logger_interface.log_exception(e)
 
     def complete_subhandlers(self, part):
         # Autocompletion for the & parameter
