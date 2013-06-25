@@ -37,7 +37,7 @@ class Inspector(object):
     def _filter(self, include_private, filter):
         childnodes = []
         for name in dir(self.node.__class__):
-            if not name.startswith('__'):
+            if not name.startswith('__') and name != 'parent':
                 if include_private or not name.startswith('_'):
                     attr = getattr(self.node, name)
                     if filter(attr):
