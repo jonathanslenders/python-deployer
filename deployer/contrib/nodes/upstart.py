@@ -11,8 +11,8 @@ upstart_template = \
 description '%(description)s'
 author      '%(author)s'
 
-start on startup
-stop on shutdown
+start on %(start_on)s
+stop on %(stop_on)s
 
 chdir '%(chdir)s'
 exec %(command)s
@@ -28,6 +28,8 @@ class UpstartService(SimpleNode):
     author = '(author)'
     command = required_property() # e.g. '/bin/sleep 1000'
     pre_start_script = ''
+    start_on = 'runlevel [2345]'
+    stop_on = 'runlevel [016]'
     post_start_script = ''
     pre_stop_script = ''
     post_stop_script = ''
@@ -75,6 +77,8 @@ end script
                     'description': esc1(self.description),
                     'author': esc1(self.author),
                     'chdir': esc1(self.chdir),
+                    'start_on': self.start_on,
+                    'stop_on': self.stop_on,
                     'command': self.full_command,
                     'user': esc1(self.user),
                     'extra': self.extra,
