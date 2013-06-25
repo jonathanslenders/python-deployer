@@ -83,6 +83,11 @@ class InspectorTest(unittest.TestCase):
         for i in insp.walk():
             self.assertIsInstance(i, Node)
 
+        # Walk from childnode
+        insp = Inspector(s.B)
+        self.assertEqual(len(list(insp.walk())), 2)
+        self.assertEqual({ Inspector(i).get_name() for i in insp.walk() }, { 'B', 'C' })
+
     def test_node_inspection_on_env_object(self):
         class Root(Node):
             class A(Node):
