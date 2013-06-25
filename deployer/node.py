@@ -263,8 +263,9 @@ class Env(object):
                                 # TODO: send exception to logger -> and print it
                                 raise ActionException(e, traceback.format_exc())
                         except Exception, e:
-                            isolation._logger.log_exception(e)
-                            raise ActionException(e, traceback.format_exc())
+                            e2 = ActionException(e, traceback.format_exc())
+                            isolation._logger.log_exception(e2)
+                            raise e2
 
             if isinstance(self, SimpleNode) and not self._node_is_isolated and \
                                 not getattr(action._func, 'dont_isolate_yet', False):
