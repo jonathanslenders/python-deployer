@@ -2,7 +2,7 @@ import unittest
 
 from deployer.exceptions import ActionException, ExecCommandFailed
 from deployer.host_container import HostsContainer
-from deployer.inspector import Inspector
+from deployer.inspection import Inspector
 from deployer.loggers import LoggerInterface
 from deployer.node import Node, SimpleNode, Env
 from deployer.node import map_roles, dont_isolate_yet, required_property, alias, IsolationIdentifierType
