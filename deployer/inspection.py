@@ -1,4 +1,4 @@
-from deployer.node import Node, Env, IsolationIdentifierType, iter_isolations, Action, Group
+from deployer.node import SimpleNode, Node, Env, IsolationIdentifierType, iter_isolations, Action, Group
 
 __all__ = (
     'Inspector',
@@ -30,6 +30,10 @@ class Inspector(object):
 
     def __repr__(self):
         return 'Inspector(node=%s)' % self.node.__class__.__name__
+
+    @property
+    def is_isolated(self):
+        return self.node._node_is_isolated
 
     def iter_isolations(self, identifier_type=IsolationIdentifierType.INT_TUPLES):
         return iter_isolations(self.node, identifier_type=identifier_type)
@@ -176,11 +180,10 @@ class _EnvInspector(Inspector):
         raise AttributeError('Childnode not found.')
 
     def get_actions(self, include_private=True):
-        # TODO: determine first a clean API for what this function should return.
-        raise NotImplementedError
-
-    def get_action(self, name):
-        raise NotImplementedError
+        actions = []
+        for a in Inspector.get_actions(self, include_private):
+            actions.append(self.env._Env__wrap_action(a))
+        return actions
 
     def iter_isolations(self, *a, **kw):
         for index, node in Inspector.iter_isolations(self, *a, **kw):
@@ -213,6 +216,37 @@ class NodeIterator(object):
         def new_iterator():
             for n in self:
                 if isinstance(n, node_class):
+                    yield n
+        return NodeIterator(new_iterator)
+
+    def filter_on_action(self, name):
+        """
+        Filter on the nodes which implement this action.
+        """
+        def new_iterator():
+            for n in self:
+                if Inspector(n).has_action(name):
+                    yield n
+        return NodeIterator(new_iterator)
+
+    def prefer_isolation(self, index):
+        """
+        For nodes that are not yet isoleted. (SimpleNodes, or normal Nodes
+        nested in there.) yield the isolations with this index.  Otherwise,
+        nodes are yielded unmodified.
+        """
+        def new_iterator():
+            for n in self:
+                # When this is a SimpleNode, yield only this isolation if it
+                # exists.
+                if not n._node_is_isolated:
+                    try:
+                        yield n[index]
+                    except KeyError:
+                        # TODO: maybe: yield n here not 100% sure, whether this is the best.
+                        pass
+                # Otherwise, just yield the node.
+                else:
                     yield n
         return NodeIterator(new_iterator)
 

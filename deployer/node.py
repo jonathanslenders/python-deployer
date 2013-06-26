@@ -219,124 +219,16 @@ class Env(object):
 
     def __wrap_action(self, action):
         """
-        Wrap the action in something that causes it to run in this Env, when it's called.
+        Wrap the action in an EnvAction object when it's called from the Env.
+        This will make sure that __call__ will run it in this Env environment.
         """
-        @wraps(action._func)
-        def func(*a, **kw):
-            def run_on_node(isolation):
-                with isolation._logger.group(action._func, *a, **kw):
-                    while True:
-                        try:
-                            return action._func(isolation, *a, **kw)
-                        except ActionException, e:
-                            raise
-                        except ExecCommandFailed, e:
-                            isolation._logger.log_exception(e)
-
-                            if self._pty.interactive:
-                                # If the console is interactive, ask what to do, otherwise, just abort
-                                # without showing this question.
-                                choice = Console(self._pty).choice('Continue?',
-                                        [ ('Retry', 'retry'),
-                                        ('Skip (This will not always work.)', 'skip'),
-                                        ('Abort', 'abort') ], default='abort')
-                            else:
-                                choice = 'abort'
-
-                            if choice == 'retry':
-                                continue
-                            elif choice == 'skip':
-                                class SkippedTaskResult(object):
-                                    def __init__(self, node, action):
-                                        self._node = node
-                                        self._action = action
-
-                                    def __getattribute__(self, name):
-                                        raise Exception('SkippedTask(%r.%r) does not have an attribute %r' % (
-                                                object.__getattr__(self, '_node'),
-                                                object.__getattr__(self, '_action'),
-                                                name))
-
-
-                                return SkippedTaskResult(self._node, action)
-                            elif choice == 'abort':
-                                # TODO: send exception to logger -> and print it
-                                raise ActionException(e, traceback.format_exc())
-                        except Exception, e:
-                            e2 = ActionException(e, traceback.format_exc())
-                            isolation._logger.log_exception(e2)
-                            raise e2
-
-            if isinstance(self, SimpleNode) and not self._node_is_isolated and \
-                                not getattr(action._func, 'dont_isolate_yet', False):
-
-                isolations = list(self)
-
-                # No hosts in SimpleNode. Nothing to do.
-                if len(isolations) == 0:
-                    print 'Nothing to do. No hosts in %r' % action
-                    return [ ]
-
-                # Exactly one host.
-                elif len(isolations) == 1:
-                    return [ run_on_node(isolations[0]) ]
-
-                # Multiple hosts, but isolate_one_only flag set.
-                elif getattr(action._func, 'isolate_one_only', False):
-                    # Ask the end-user which one to use.
-                    options = [ (i.host.slug, i) for i in isolations ]
-                    i = Console(self._pty).choice('Choose a host', options, allow_random=True)
-                    return run_on_node(i)
-
-                # Multiple hosts. Fork for each isolation.
-                else:
-                    errors = []
-
-                    # Create a callable for each host.
-                    def closure(isolation):
-                        def call(pty):
-                            # Isolation should be an env, but
-                            i2 = Env(isolation._node, pty, isolation._logger, isolation._is_sandbox)
-
-                            # Fork logger
-                            logger_fork = self._logger.log_fork('On: %r' % i2._node) # TODO: maybe we shouldn't log fork(). It's an abstraction.
-
-                            try:
-                                # Run this action on the new service.
-                                result = run_on_node(i2)
-
-                                # Succeed
-                                logger_fork.set_succeeded()
-                                return result
-                            except Exception, e:
-                                # TODO: handle exception in thread
-                                logger_fork.set_failed(e)
-                                errors.append(e)
-                        return call
-
-                    # For every isolation, create a callable.
-                    callables = [ closure(i) for i in isolations ]
-                    logging.info('Forking %r (%i pseudo terminals)' % (action, len(callables)))
-
-                    fork_result = self._pty.run_in_auxiliary_ptys(callables)
-                    fork_result.join()
-
-                    if errors:
-                        # When an error occcured in one fork, raise this error
-                        # again in current thread.
-                        raise errors[0]
-                    else:
-                        # This returns a list of results.
-                        return fork_result.result
-            else:
-                return run_on_node(self)
+        env_action = EnvAction(self, action)
 
         if action.is_property:
             # Properties are automatically called upon retrieval
-            return func()
+            return env_action()
         else:
-            return func
-
+            return env_action
 
     def initialize_node(self, node_class):
         """
@@ -388,7 +280,7 @@ class Env(object):
             locked = False
 
         if locked:
-            raise AttributeError('Not allowed to change attributes of the node environment.')
+            raise AttributeError('Not allowed to change attributes of the node environment. (%s=%r)' % (name, value))
         else:
             super(Env, self).__setattr__(name, value)
 
@@ -664,7 +556,7 @@ class Node(object):
     _node_is_isolated = False
     _node_name = None # NodeBase will set this to the attribute name as soon as we nest this node inside another one.
 
-    node_group = None
+    node_group = None # TODO: move to _node_group??
     Hosts = None
 
     def __repr__(self):
@@ -845,6 +737,10 @@ class Action(object):
         """
         Call this action using the unbound method.
         """
+        # Calling an action is normally only possible when it's wrapped by an
+        # Env object, then it becomes an EnvAction. When, on the other hand,
+        # this Action object is called unbound, with an Env object as the first
+        # parameter, we wrap it ourself in an EnvAction object.
         if self._node_instance is None and isinstance(env, Env):
             return env._Env__wrap_action(self)(*a, **kw)
         else:
@@ -869,6 +765,142 @@ class Action(object):
     @property
     def node_group(self):
         return self._node_instance.node_group or Group()
+
+
+class EnvAction(object):
+    """
+    Action wrapped by an Env object.
+    Calling this will execute the action in the environment.
+    """
+    def __init__(self, env, action):
+        self._env = env
+        self._action = action
+
+    def __repr__(self):
+        return '<Env.Action %s.%s>' % (self._env._node.__class__.__name__, self._action._attr_name)
+
+    @property
+    def name(self):
+        return self._action.name
+
+    @property
+    def node(self):
+        # In an Env, the node is the Env.
+        return self._env
+
+    def _run_on_node(self, isolation, *a, **kw):
+        """
+        Run the action on one isolation. (On a normal Node, or on a SimpleNode cell.)
+        """
+        with isolation._logger.group(self._action._func, *a, **kw):
+            while True:
+                try:
+                    return self._action._func(isolation, *a, **kw)
+                except ActionException, e:
+                    raise
+                except ExecCommandFailed, e:
+                    isolation._logger.log_exception(e)
+
+                    if self._env._pty.interactive:
+                        # If the console is interactive, ask what to do, otherwise, just abort
+                        # without showing this question.
+                        choice = Console(self._env._pty).choice('Continue?',
+                                [ ('Retry', 'retry'),
+                                ('Skip (This will not always work.)', 'skip'),
+                                ('Abort', 'abort') ], default='abort')
+                    else:
+                        choice = 'abort'
+
+                    if choice == 'retry':
+                        continue
+                    elif choice == 'skip':
+                        class SkippedTaskResult(object):
+                            def __init__(self, node, action):
+                                self._node = node
+                                self._action = action
+
+                            def __getattribute__(self, name):
+                                raise Exception('SkippedTask(%r.%r) does not have an attribute %r' % (
+                                        object.__getattr__(self, '_node'),
+                                        object.__getattr__(self, '_action'),
+                                        name))
+
+
+                        return SkippedTaskResult(self._env._node, self._action)
+                    elif choice == 'abort':
+                        # TODO: send exception to logger -> and print it
+                        raise ActionException(e, traceback.format_exc())
+                except Exception, e:
+                    e2 = ActionException(e, traceback.format_exc())
+                    isolation._logger.log_exception(e2)
+                    raise e2
+
+    def __call__(self, *a, **kw):
+        if isinstance(self._env, SimpleNode) and not self._env._node_is_isolated and \
+                            not getattr(self._action._func, 'dont_isolate_yet', False):
+
+            # Get isolations of the env.
+            isolations = list(self._env)
+
+            # No hosts in SimpleNode. Nothing to do.
+            if len(isolations) == 0:
+                print 'Nothing to do. No hosts in %r' % self._action
+                return [ ]
+
+            # Exactly one host.
+            elif len(isolations) == 1:
+                return [ self._run_on_node(isolations[0], *a, **kw) ]
+
+            # Multiple hosts, but isolate_one_only flag set.
+            elif getattr(self._action._func, 'isolate_one_only', False):
+                # Ask the end-user which one to use.
+                options = [ (i.host.slug, i) for i in isolations ]
+                i = Console(self._env._pty).choice('Choose a host', options, allow_random=True)
+                return self._run_on_node(i, *a, **kw)
+
+            # Multiple hosts. Fork for each isolation.
+            else:
+                errors = []
+
+                # Create a callable for each host.
+                def closure(isolation):
+                    def call(pty):
+                        # Isolation should be an env, but
+                        i2 = Env(isolation._node, pty, isolation._logger, isolation._is_sandbox)
+
+                        # Fork logger
+                        logger_fork = self._env._logger.log_fork('On: %r' % i2._node)
+                                # TODO: maybe we shouldn't log fork(). Consider it an abstraction.
+
+                        try:
+                            # Run this action on the new service.
+                            result = self._run_on_node(i2, *a, **kw)
+
+                            # Succeed
+                            logger_fork.set_succeeded()
+                            return result
+                        except Exception, e:
+                            # TODO: handle exception in thread
+                            logger_fork.set_failed(e)
+                            errors.append(e)
+                    return call
+
+                # For every isolation, create a callable.
+                callables = [ closure(i) for i in isolations ]
+                logging.info('Forking %r (%i pseudo terminals)' % (self._action, len(callables)))
+
+                fork_result = self._env._pty.run_in_auxiliary_ptys(callables)
+                fork_result.join()
+
+                if errors:
+                    # When an error occcured in one fork, raise this error
+                    # again in current thread.
+                    raise errors[0]
+                else:
+                    # This returns a list of results.
+                    return fork_result.result
+        else:
+            return self._run_on_node(self._env, *a, **kw)
 
 
 def supress_action_result(action):

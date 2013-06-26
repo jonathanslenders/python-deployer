@@ -97,12 +97,22 @@ class InspectorTest(unittest.TestCase):
                     return 'action-b'
             def action(self):
                 return 'action-root'
+            def action2(self):
+                return 'action-root2'
 
         s = Root()
         env = Env(Root())
         insp = Inspector(env)
+
+        # get_childnodes, get_childnode
         self.assertEqual(repr(insp.get_childnodes()), '[Env(Root.A), Env(Root.B)]')
         self.assertEqual(insp.get_childnode('B').action(), 'action-b')
+
+        # get_actions, get_action
+        self.assertEqual(len(insp.get_actions()), 2)
+        self.assertEqual(repr(insp.get_action('action')), '<Env.Action Root.action>')
+        self.assertEqual(insp.get_action('action')(), 'action-root')
+        self.assertEqual(insp.get_action('action').name, 'action')
 
         # Walk
         self.assertEqual(len(list(insp.walk())), 3)
@@ -144,6 +154,7 @@ class InspectorTest(unittest.TestCase):
 
             class B(Base):
                 def my_action(self): return 'b'
+                def my_other_action(self): return 'b2'
 
                 class C(SimpleNode.Array):
                     class Hosts:
@@ -152,10 +163,11 @@ class InspectorTest(unittest.TestCase):
                     def my_action(self): return 'c'
 
                     class E(Base):
-                        def my_action(self):return 'e'
+                        def my_action(self): return 'e'
 
             class D(Base):
                 def my_action(self): return 'd'
+                def my_other_action(self): return 'd2'
 
 
         env = Env(A())
@@ -172,6 +184,22 @@ class InspectorTest(unittest.TestCase):
         result = list(insp.walk().filter(Base).call_action('my_action'))
         self.assertEqual(len(result), 6)
         self.assertEqual(set(result), { 'b', 'd', 'e', 'e', 'e', 'e' })
+
+        # NodeIterator.filter_on_action
+        result = insp.walk().filter_on_action('my_action')
+        self.assertEqual(len(result), 5)
+        result = insp.walk().filter_on_action('my_other_action')
+        self.assertEqual(len(result), 2)
+        result = insp.walk().filter_on_action('my_other_action').call_action('my_other_action')
+        self.assertEqual(set(result), { 'b2', 'd2' })
+
+        # NodeIterator.prefer_isolation
+        result = insp.walk().prefer_isolation(LocalHost2)
+        self.assertEqual( set(repr(e) for e in result),
+                    { repr(e) for e in { env, env.B, env.D, env.B.C[LocalHost2], env.B.C[LocalHost2].E }})
+
+        # Maybe we should also implement a better Node.__eq__ and Env.__eq__, then we can do this:
+        # >> self.assertEqual(set(result), { env, env.B, env.D, env.B.C[LocalHost2], env.B.C[LocalHost2].E })
 
         # It should be possible to read the content of an iterator multiple times.
         node_iterator = insp.walk()
