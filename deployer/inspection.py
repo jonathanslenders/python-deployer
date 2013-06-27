@@ -160,6 +160,8 @@ class Inspector(object):
     def walk(self):
         """
         Recursively walk (topdown) through the nodes and yield them.
+
+        It does not yet isolate SimpleNodes in several nodes.
         """
         return NodeIterator(self._walk)
 
@@ -251,6 +253,11 @@ class NodeIterator(object):
         return NodeIterator(new_iterator)
 
     def call_action(self, name, *a, **kw):
+        """
+        Call a certain action on all the nodes.
+
+        This will split the SimpleNode Arrays into their isolations.
+        """
         for n in self:
             for index, node in Inspector(n).iter_isolations():
                 action = getattr(node, name)
