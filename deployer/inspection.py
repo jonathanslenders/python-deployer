@@ -157,13 +157,13 @@ class Inspector(object):
                 if key(c) not in visited:
                     todo.append(c)
 
-    def walk(self):
+    def walk(self, public_only=False):
         """
         Recursively walk (topdown) through the nodes and yield them.
 
         It does not yet isolate SimpleNodes in several nodes.
         """
-        return NodeIterator(self._walk)
+        return NodeIterator(self._walk).public_only(public_only)
 
 
 class _EnvInspector(Inspector):
@@ -228,6 +228,19 @@ class NodeIterator(object):
         def new_iterator():
             for n in self:
                 if Inspector(n).has_action(name):
+                    yield n
+        return NodeIterator(new_iterator)
+
+    def public_only(self, public_only=True):
+        """
+        Filter only public nodes.
+        """
+        if not public_only:
+            # Shortcut, no need to filter
+            return self
+        def new_iterator():
+            for n in self:
+                if not n._node._node_name or not n._node._node_name.startswith('_'):
                     yield n
         return NodeIterator(new_iterator)
 

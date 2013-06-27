@@ -188,27 +188,37 @@ class InspectorIteratorTest(unittest.TestCase):
                 def my_action(self): return 'd'
                 def my_other_action(self): return 'd2'
 
+            class _P(Base):
+                # A private node
+                def my_action(self): return '_p'
+
         self.env = Env(A())
         self.insp = Inspector(self.env)
 
     def test_walk(self):
         insp = self.insp
         Base = self.Base
-        self.assertEqual(len(insp.walk()), 5)
+        self.assertEqual(len(insp.walk()), 6)
         self.assertIsInstance(insp.walk(), NodeIterator)
-        self.assertEqual(len(insp.walk().filter(Base)), 3)
+        self.assertEqual(len(insp.walk().filter(Base)), 4)
+
+    def test_walk_public_only(self):
+        insp = self.insp
+        self.assertEqual(len(insp.walk(public_only=True)), 5)
+        self.assertEqual(len(insp.walk().public_only()), 5)
+        self.assertEqual(len(insp.walk().public_only(False)), 6)
 
     def test_call_action(self):
         insp = self.insp
         Base = self.Base
         result = list(insp.walk().filter(Base).call_action('my_action'))
-        self.assertEqual(len(result), 6)
-        self.assertEqual(set(result), { 'b', 'd', 'e', 'e', 'e', 'e' })
+        self.assertEqual(len(result), 7)
+        self.assertEqual(set(result), { 'b', 'd', '_p', 'e', 'e', 'e', 'e' })
 
     def test_filter_on_action(self):
         insp = self.insp
         result = insp.walk().filter_on_action('my_action')
-        self.assertEqual(len(result), 5)
+        self.assertEqual(len(result), 6)
         result = insp.walk().filter_on_action('my_other_action')
         self.assertEqual(len(result), 2)
         result = insp.walk().filter_on_action('my_other_action').call_action('my_other_action')
@@ -219,7 +229,7 @@ class InspectorIteratorTest(unittest.TestCase):
         env = self.env
         result = insp.walk().prefer_isolation(LocalHost2)
         self.assertEqual( set(repr(e) for e in result),
-                    { repr(e) for e in { env, env.B, env.D, env.B.C[LocalHost2], env.B.C[LocalHost2].E }})
+                    { repr(e) for e in { env, env.B, env.D, env._P, env.B.C[LocalHost2], env.B.C[LocalHost2].E }})
 
         # Maybe we should also implement a better Node.__eq__ and Env.__eq__, then we can do this:
         # >> self.assertEqual(set(result), { env, env.B, env.D, env.B.C[LocalHost2], env.B.C[LocalHost2].E })
@@ -227,10 +237,10 @@ class InspectorIteratorTest(unittest.TestCase):
     def test_multiple_iterator(self):
         insp = self.insp
         node_iterator = insp.walk()
-        self.assertEqual(len(list(node_iterator)), 5)
-        self.assertEqual(len(list(node_iterator)), 5)
-        self.assertEqual(len(node_iterator), 5)
-        self.assertEqual(len(node_iterator), 5)
+        self.assertEqual(len(list(node_iterator)), 6)
+        self.assertEqual(len(list(node_iterator)), 6)
+        self.assertEqual(len(node_iterator), 6)
+        self.assertEqual(len(node_iterator), 6)
 
     def test_unknown_action(self):
         insp = self.insp
