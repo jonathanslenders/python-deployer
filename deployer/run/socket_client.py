@@ -46,6 +46,7 @@ class DeploymentClient(object):
     def __init__(self, socket_path):
         self.socket_path = socket_path
         self._buffer = []
+        self.exit_status = 0
 
         # Connect to unix socket
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -152,6 +153,9 @@ class DeploymentClient(object):
                     print '     - Node module  %s' % process['node_module']
                     print '     - Running      %s' % process['running']
 
+            elif action == 'set-exit-status':
+                self.exit_status = data
+
             # Keep the remainder for the next time
             remainder = io.read()
             self._buffer = [ remainder ]
@@ -167,7 +171,7 @@ class DeploymentClient(object):
         self.socket.sendall(pickle.dumps(('_get_info', '')))
         self._read_loop()
 
-    def run(self, cd_path=None):
+    def run(self, cd_path=None, action_name=None, parameters=None):
         """
         Run main event loop.
         """
@@ -181,6 +185,8 @@ class DeploymentClient(object):
 
         self.socket.sendall(pickle.dumps(('_start-interaction', {
                 'cd_path': cd_path,
+                'action_name': action_name,
+                'parameters': parameters,
             })))
 
         self._read_loop()
@@ -188,6 +194,9 @@ class DeploymentClient(object):
 
         # Reset terminal state
         termios.tcsetattr(sys.stdin, termios.TCSAFLUSH, tcattr)
+
+        # Set exit status
+        sys.exit(self.exit_status)
 
     def _read_loop(self):
         while True:
@@ -233,9 +242,10 @@ def list_sessions():
             pass
 
 
-def start(socket_name, cd_path=None):
+def start(socket_name, cd_path=None, action_name=None, parameters=None):
     """
     Start a socket client.
     """
     make_stdin_unbuffered()
-    DeploymentClient(socket_name).run(cd_path=cd_path)
+    DeploymentClient(socket_name).run(cd_path=cd_path,
+                    action_name=action_name, parameters=parameters)

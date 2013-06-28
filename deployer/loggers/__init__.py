@@ -1,6 +1,6 @@
 import datetime
 
-__all__ = ('Actions', 'LoggerInterface', 'CliActionCallback', 'RunCallback', 'FileCallback', 'Logger', 'DummyLoggerInterface')
+__all__ = ('Actions', 'LoggerInterface', 'RunCallback', 'FileCallback', 'Logger', 'DummyLoggerInterface')
 
 
 #
@@ -27,14 +27,12 @@ class LoggerInterface(object):
         Attach logger to logging interface.
         """
         self.loggers.append(logger)
-        logger.attach()
 
     def detach(self, logger):
         """
         Remove logger from logging interface.
         """
         self.loggers.remove(logger)
-        logger.detach()
 
     def attach_in_block(self, logger):
         class LoggerAttachment(object):
@@ -184,38 +182,9 @@ class DummyLoggerInterface(LoggerInterface):
 #
 
 class Logger(object):
-    # Keep track of how many times the logger has been attached.
-
-    @property
-    def attach_count(self):
-        return getattr(self, '_attach_count', 0)
-
-    @attach_count.setter
-    def attach_count(self, value):
-        self._attach_count = value
-
-    def attach(self):
-        if self.attach_count == 0:
-            self.attached_first()
-
-        self.attach_count += 1
-
-    def detach(self):
-        self.attach_count -= 1
-
-        if self.attach_count == 0:
-            self.detached_last()
-
     #
     # Following methods are to be overriden by specific loggers.
     #
-
-    def attached_first(self):
-        pass
-
-    def detached_last(self):
-        pass
-
     def enter_group(self, func_name, *args, **kwargs):
         pass
 
@@ -238,15 +207,6 @@ class Logger(object):
 #
 # Callbacks
 #
-
-class CliActionCallback(object):
-    def __init__(self, completed=None):
-        if completed:
-            self.completed = completed
-
-    def completed(self):
-        pass
-
 
 class RunCallback(object):
     def __init__(self, completed=None, log_io=None):

@@ -1,5 +1,5 @@
 from deployer.exceptions import ExecCommandFailed, QueryException
-from deployer.loggers import Logger, RunCallback, CliActionCallback, FileCallback, ForkCallback, Actions
+from deployer.loggers import Logger, RunCallback, FileCallback, ForkCallback, Actions
 from deployer.node import ActionException
 from pygments import highlight
 from pygments.formatters import TerminalFormatter as Formatter

@@ -628,6 +628,9 @@ class ShellState(object):
         s._prev_node = self._prev_node
         return s
 
+    def __repr__(self):
+        return 'ShellState(node=%r)' % self._node
+
     @property
     def prompt(self):
         # Returns a list of (text,color) tuples for the prompt.
@@ -680,10 +683,18 @@ class Shell(CLInterface):
     def cd(self, cd_path):
         for p in cd_path:
             try:
-                self.state.cd(self.state._node.get_subnode(p))
+                self.state.cd(Inspector(self.state._node).get_childnode(p))
             except AttributeError:
                 print 'Unknown path given.'
                 return
+
+    def run_action(self, action_name, *a, **kw):
+        """
+        Run a deployment command at the current shell state.
+        """
+        self.state._node
+        env = Env(self.state._node, self.pty, self.logger_interface, is_sandbox=False)
+        return getattr(env, action_name)(*a, **kw)
 
     @property
     def extensions(self):

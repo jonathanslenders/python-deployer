@@ -17,9 +17,10 @@ __doc__ = \
 """Usage:
   client.py run [-s | --single-threaded | --socket SOCKET] [--path PATH]
                   [--non-interactive] [--log LOGFILE]
+                  [--] [ACTION PARAMETER...]
   client.py listen [--log LOGFILE] [--non-interactive] [--socket SOCKET]
-  client.py connect (--socket SOCKET) [--path PATH]
-  client.py telnet-server [--port=PORT] [--log LOGFILE] [--non-interactive]
+  client.py connect (--socket SOCKET) [--path PATH] [--] [ACTION PARAMETER...]
+  client.py telnet-server [--port PORT] [--log LOGFILE] [--non-interactive]
   client.py list-sessions
   client.py -h | --help
   client.py --version
@@ -43,6 +44,9 @@ def start(root_service, name=sys.argv[0]):
     a = docopt.docopt(__doc__.replace('client.py', name), version=__version__)
 
     interactive = not a['--non-interactive']
+    action = a['ACTION']
+    parameters = a['PARAMETER']
+    path = a['--path'].split('.') if a['--path'] else None
 
     # Socket name variable
     # In case of integers, they map to /tmp/deployer.sock.username.X
@@ -67,11 +71,12 @@ def start(root_service, name=sys.argv[0]):
 
     # Connect to socket
     elif a['connect']:
-        start_client(socket_name, a['--path'])
+        start_client(socket_name, path, action_name=action, parameters=parameters)
 
     # Single threaded client
     elif a['run'] and a['--single-threaded']:
-        start_standalone(root_service, interactive=interactive, cd_path=a['--path'], logfile=a['--log'])
+        start_standalone(root_service, interactive=interactive, cd_path=path,
+                action_name=action, parameters=parameters, logfile=a['--log'])
 
     # Multithreaded
     elif a['run']:
@@ -81,7 +86,7 @@ def start(root_service, name=sys.argv[0]):
             socket_name = start_server(root_service, daemonized=True, shutdown_on_last_disconnect=True,
                     interactive=interactive, logfile=a['--log'])
 
-        start_client(socket_name, a['--path'])
+        start_client(socket_name, path, action_name=action, parameters=parameters)
 
 
 if __name__ == '__main__':

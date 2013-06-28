@@ -32,4 +32,7 @@ class example_settings(Node):
         def return_hello_world(self):
             return 'Hello world'
 
+        def raise_exception(self):
+            raise Exception('Custom exception')
+
     connect = map_roles('host')(Connect.Array)

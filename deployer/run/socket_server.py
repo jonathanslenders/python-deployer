@@ -3,10 +3,11 @@
 from deployer import std
 from deployer.cli import HandlerType
 from deployer.daemonize import daemonize
-from deployer.shell import Shell, ShellHandler
+from deployer.exceptions import ActionException
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger, IndentedDefaultLogger
 from deployer.pseudo_terminal import Pty
+from deployer.shell import Shell, ShellHandler
 
 from twisted.internet import reactor, defer, abstract, fdesc
 from twisted.internet import threads
@@ -175,10 +176,13 @@ class Connection(object):
         self.reader = SelectableFile(self.shell_out, writeCallback)
         self.reader.startReading()
 
-    def close(self):
+    def close(self, exit_status=0):
         """
         Called when the the process in this connection is finished.
         """
+        # Send status code
+        self.transportHandle('set-exit-status', exit_status)
+
         # Stop IO reader
         self.reader.stopReading()
 
@@ -195,12 +199,12 @@ class Connection(object):
             # .. IOError: [Errno 9] Bad file descriptor
             pass
 
-    def startShell(self, clone_shell=None, cd_path=None):
+    def startShell(self, clone_shell=None, cd_path=None, action_name=None, parameters=None):
         """
         Start an interactive shell in this connection.
         """
         self.connection_shell = ConnectionShell(self, clone_shell=clone_shell, cd_path=cd_path)
-        self.connection_shell.startThread()
+        self.connection_shell.startThread(action_name=action_name, parameters=parameters)
 
     def openNewConnection(self, focus=False):
         """
@@ -402,29 +406,37 @@ class ConnectionShell(object):
             # Opening a new shell failed.
             pass
 
-    def startThread(self):
-        threads.deferToThread(self.thread)
+    def startThread(self, *a, **kw):
+        threads.deferToThread(lambda: self.thread(*a, **kw))
 
-    def thread(self):
+    def thread(self, action_name=None, parameters=None):
+        parameters = parameters or []
+
         # Set stdin/out pair for this thread.
         sys.stdout.set_handler(self.connection.pty.stdout)
         sys.stdin.set_handler(self.connection.pty.stdin)
 
         self.shell.session = self # Assign session to shell
 
-        in_shell_logger = DefaultLogger(print_group=False)
+        # in_shell_logger: Displaying of events in shell
+        with self.logger_interface.attach_in_block(DefaultLogger(print_group=False)):
+            # Start at correct location
+            if self.cd_path:
+                self.shell.cd(self.cd_path)
 
-                # in_shell_logger: Displaying of events in shell
-        self.logger_interface.attach(in_shell_logger)
+            # When an action_name is given, call this action immediately,
+            # otherwise, run the interactive cmdloop.
+            if action_name:
+                try:
+                    self.shell.run_action(action_name, *parameters)
+                    exit_status = 0
+                except ActionException:
+                    exit_status = 1
+            else:
+                self.shell.cmdloop()
+                exit_status = 0
 
-        # Start at correct location
-        if self.cd_path:
-            self.shell.cd(self.cd_path)
-        self.shell.cmdloop()
-
-        self.logger_interface.detach(in_shell_logger)
-
-        # Remove references (shell and session had circular reference)
+        # Remove references (shell and session have circular reference)
         self.shell.session = None
         self.shell = None
 
@@ -433,7 +445,7 @@ class ConnectionShell(object):
         sys.stdin.del_handler()
 
         # Close connection
-        reactor.callFromThread(self.connection.close)
+        reactor.callFromThread(self.connection.close, exit_status)
 
 
 class PtyManager(object):
@@ -521,20 +533,21 @@ class CliClientProtocol(Protocol):
                 logging.info('Starting session')
 
                 cd_path = data.get('cd_path', None)
+                action_name = data.get('action_name', None)
+                parameters = data.get('parameters', None)
 
-                # The defer to thread method, which will be called back
-                # immeditiately, can hang if the thread pool has been
-                # saturated. Therefor we show this message instead.
-
-                #self._handle('_print', 'Waiting for thread to start...\r\n')
+                # NOTE: The defer to thread method, which will be called back
+                # immeditiately, can hang (wait) if the thread pool has been
+                # saturated.
 
                 # When a new Pty was needed by an existing shell. (For instance, for
                 # a parallel session. Report this connection; otherwise start a new
                 # ConnectionShell.
-                if PtyManager.need_pty_callback:
+                if PtyManager.need_pty_callback and not action_name:
                     PtyManager.need_pty_callback(self.connection)
                 else:
-                    self.connection.startShell(cd_path=cd_path)
+                    self.connection.startShell(cd_path=cd_path,
+                            action_name=action_name, parameters=parameters)
 
             # Keep the remainder for the next time.
             remainder = io.read()
