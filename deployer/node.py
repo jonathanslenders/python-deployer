@@ -77,6 +77,7 @@ class RoleMapping(object):
 
 map_roles = RoleMapping
 
+
 class DefaultRoleMapping(RoleMapping):
     """
     Default mapping: take the host container from the parent.
@@ -215,7 +216,7 @@ class Env(object):
         self._lock_env = True
 
     def __repr__(self):
-        return 'Env(%s)' % self._node.__class__.__name__
+        return 'Env(%s)' % get_node_path(self._node)
 
     def __wrap_action(self, action):
         """
@@ -546,6 +547,21 @@ class SimpleNodeBase(NodeBase):
         SimpleNode_One.__name__ = '%s.JustOne' % self.__name__
         return SimpleNode_One
 
+
+def get_node_path(node):
+    """
+    Return a string which represents this node's path in the tree.
+    """
+    path = []
+    while node:
+        if node._node_isolation_identifier is not None:
+            path.append('%s[%s]' % (node._node_name, node._node_isolation_identifier))
+        else:
+            path.append(node._node_name or node.__class__.__name__)
+        node = node.parent
+    return '.'.join(path[::-1])
+
+
 class Node(object):
     """
     Base class for any deployment node.
@@ -554,13 +570,14 @@ class Node(object):
     __slots__ = ('hosts', 'parent')
     _node_type = NodeTypes.NORMAL
     _node_is_isolated = False
+    _node_isolation_identifier = None
     _node_name = None # NodeBase will set this to the attribute name as soon as we nest this node inside another one.
 
     node_group = None # TODO: move to _node_group??
     Hosts = None
 
     def __repr__(self):
-        return '<Node %s>' % self.__class__.__name__
+        return '<Node %s>' % get_node_path(self)
 
     def __new__(cls, parent=None):
         """
@@ -649,10 +666,9 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
 
         class SimpleNodeItem(node.__class__):
             _node_is_isolated = True
+            _node_isolation_identifier = identifier
             Hosts = type('Hosts', (object,), hosts2)
 
-        short_id = identifier[0] if len(identifier) == 1 else identifier
-        SimpleNodeItem.__name__ = '%s[%r]' % (node.__class__.__name__, short_id)
         return SimpleNodeItem(parent=parent)
 
     def get_identifiers(node, parent_identifier):
@@ -683,7 +699,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
         for parent_identifier, parent_node in iter_isolations(node.parent, identifier_type):
             new_node = getattr(parent_node, node._node_name)
             for identifier, host in get_identifiers(new_node, parent_identifier):
-                yield (identifier, get_simple_node_cell(parent_node, host, identifier))
+                yield (identifier, get_simple_node_cell(parent_node, host, identifier[-1]))
 
     elif node._node_type == NodeTypes.SIMPLE_ONE:
         assert node.parent
@@ -692,7 +708,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
         for parent_identifier, parent_node in iter_isolations(node.parent, identifier_type):
             new_node = getattr(parent_node, node._node_name)
             for identifier, host in get_identifiers(new_node, parent_identifier):
-                yield (identifier, get_simple_node_cell(parent_node, host, identifier))
+                yield (identifier, get_simple_node_cell(parent_node, host, identifier[-1]))
 
     elif node._node_type == NodeTypes.SIMPLE:
         if node.parent:
@@ -700,7 +716,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
                 yield (index, getattr(n, node._node_name))
         else:
             for identifier, host in get_identifiers(node, ()):
-                yield (identifier, get_simple_node_cell(None, host, identifier))
+                yield (identifier, get_simple_node_cell(None, host, identifier[-1]))
 
 
 class SimpleNode(Node):
@@ -750,7 +766,7 @@ class Action(object):
     def __repr__(self):
         # Mostly useful for debugging.
         if self._node_instance:
-            return '<Action %s.%s>' % (self._node_instance.__class__.__name__, self._attr_name)
+            return '<Action %s.%s>' % (get_node_path(self._node_instance), self._attr_name)
         else:
             return "<Unbound Action %s>" % self._attr_name
 
@@ -777,7 +793,7 @@ class EnvAction(object):
         self._action = action
 
     def __repr__(self):
-        return '<Env.Action %s.%s>' % (self._env._node.__class__.__name__, self._action._attr_name)
+        return '<Env.Action %s.%s>' % (get_node_path(self._env._node), self._action._attr_name)
 
     @property
     def name(self):

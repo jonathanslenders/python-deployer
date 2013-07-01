@@ -38,6 +38,12 @@ class Inspector(object):
     def iter_isolations(self, identifier_type=IsolationIdentifierType.INT_TUPLES):
         return iter_isolations(self.node, identifier_type=identifier_type)
 
+    def get_isolation(self, identifier, identifier_type=IsolationIdentifierType.INT_TUPLES):
+        for i, node in self.iter_isolations(identifier_type):
+            if i == identifier:
+                return node
+        raise AttributeError('Isolation not found')
+
     def _filter(self, include_private, filter):
         childnodes = []
         for name in dir(self.node.__class__):
@@ -134,6 +140,9 @@ class Inspector(object):
 
     def get_full_name(self):
         return self.node.__class__.__name__
+
+    def get_isolation_identifier(self):
+        return self.node._node_isolation_identifier
 
     def is_callable(self):
         return hasattr(self.node, '__call__')

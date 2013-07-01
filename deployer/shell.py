@@ -2,7 +2,7 @@ from deployer.cli import CLInterface, Handler, HandlerType
 from deployer.console import Console
 from deployer.console import NoInput
 from deployer.inspection import Inspector, PathType
-from deployer.node import ActionException, Env
+from deployer.node import ActionException, Env, IsolationIdentifierType
 
 from inspect import getfile
 from itertools import groupby
@@ -83,6 +83,13 @@ def create_navigable_handler(call_handler):
             if parent and name == '..':
                 return PathHandler(self.shell, parent)
 
+            elif name.startswith(':'):
+                ids = tuple(name[1:].split(':'))
+                try:
+                    return PathHandler(self.shell, Inspector(self.node).get_isolation(ids, IsolationIdentifierType.HOSTS_SLUG))
+                except AttributeError:
+                    pass
+
             for c in Inspector(self.node).get_childnodes(include_private=True):
                 if Inspector(c).get_name() == name:
                     return PathHandler(self.shell, c)
@@ -102,6 +109,12 @@ def create_navigable_handler(call_handler):
 
             if parent and '..'.startswith(part):
                 yield ('..', PathHandler(self.shell, parent))
+
+            for i, n in Inspector(self.node).iter_isolations(IsolationIdentifierType.HOSTS_SLUG):
+                # Prefix all isolations with colons.
+                name = ':%s' % ':'.join(i)
+                if name.startswith(part):
+                    yield name, PathHandler(self.shell, n)
 
             # Note: when an underscore has been typed, include private too.
             include_private = part.startswith('_')
@@ -425,6 +438,12 @@ class Node(Handler):
             if name.startswith(part):
                 yield name, Node(n, self.shell, self.sandbox)
 
+        for i, n in Inspector(self.node).iter_isolations(IsolationIdentifierType.HOSTS_SLUG):
+            # Prefix all isolations with colons.
+            name = ':%s' % ':'.join(i)
+            if name.startswith(part):
+                yield name, Node(n, self.shell, self.sandbox)
+
         if self.is_leaf and '&'.startswith(part):
             yield '&', Action(self.node, '__call__', self.shell, self.sandbox, fork=True)
 
@@ -441,6 +460,15 @@ class Node(Handler):
 
         elif Inspector(self.node).has_action(name):
             return Action(self.node, name, self.shell, self.sandbox)
+
+        elif name.startswith(':'):
+            # Prefix all isolations with colons.
+            ids = tuple(name[1:].split(':'))
+            try:
+                return Node(Inspector(self.node).get_isolation(ids, IsolationIdentifierType.HOSTS_SLUG),
+                                    self.shell, self.sandbox)
+            except AttributeError:
+                pass
 
         elif name == '&' and self.is_leaf:
             return Action(self.node, '__call__', self.shell, self.sandbox, fork=True)
@@ -635,10 +663,17 @@ class ShellState(object):
     def prompt(self):
         # Returns a list of (text,color) tuples for the prompt.
         result = []
-        for node, name in Inspector(self._node).get_path(path_type=PathType.NODE_AND_NAME):
+        for node in Inspector(self._node).get_path(path_type=PathType.NODE_ONLY):
             if result:
                 result.append( ('.', None) )
-            result.append( (name, Inspector(node).get_group().color) )
+
+            name = Inspector(node).get_name()
+            ii = Inspector(node).get_isolation_identifier()
+            color = Inspector(node).get_group().color
+
+            result.append( (name, color) )
+            if ii:
+                result.append( ('[%s]' % ii, color) )
         return result
 
     def cd(self, target_node):
