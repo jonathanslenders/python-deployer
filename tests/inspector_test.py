@@ -12,7 +12,7 @@ from deployer.host_container import HostsContainer
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
 
 class InspectorTest(unittest.TestCase):
-    def test_node_inspection(self):
+    def setUp(self):
         class Root(Node):
             @production
             class A(Node):
@@ -28,28 +28,32 @@ class InspectorTest(unittest.TestCase):
             def c(self): pass
             c.__name__ = 'another-name' # Even if we override this name, Action.name should remain 'c'
 
-        s = Root()
-        insp = Inspector(s)
+        self.s = Root()
+        self.insp = Inspector(self.s)
 
-        # get_childnodes and get_actions
+    def test_get_childnodes(self):
+        insp = self.insp
         self.assertEqual(repr(insp.get_childnodes()), '[<Node Root.A>, <Node Root.B>]')
         self.assertEqual(repr(insp.get_actions()), '[<Action Root.a>, <Action Root.b>, <Action Root.c>]')
         for a in insp.get_actions():
             self.assertIn(a.name, ['a', 'b', 'c'])
 
-        # has_childnode and get_childnode
+    def test_has_childnodes(self):
+        insp = self.insp
         self.assertEqual(insp.has_childnode('A'), True)
         self.assertEqual(insp.has_childnode('C'), False)
         self.assertEqual(repr(insp.get_childnode('A')), '<Node Root.A>')
         self.assertRaises(AttributeError, insp.get_childnode, 'unknown_childnode')
 
-        # has_action and get_action
+    def test_has_action(self):
+        insp = self.insp
         self.assertEqual(insp.has_action('a'), True)
         self.assertEqual(insp.has_action('d'), False)
         self.assertEqual(repr(insp.get_action('a')), '<Action Root.a>')
         self.assertRaises(AttributeError, insp.get_action, 'unknown_action')
 
-        # get_path
+    def test_get_path(self):
+        s = self.s
         self.assertEqual(repr(Inspector(s.A).get_path()), "('Root', 'A')")
         self.assertEqual(repr(Inspector(s.B.C).get_path()), "('Root', 'B', 'C')")
         self.assertEqual(repr(Inspector(s.B.C).get_path(path_type=PathType.NODE_AND_NAME)),
@@ -57,38 +61,45 @@ class InspectorTest(unittest.TestCase):
         self.assertEqual(repr(Inspector(s.B.C).get_path(path_type=PathType.NODE_ONLY)),
                         "(<Node Root>, <Node Root.B>, <Node Root.B.C>)")
 
-        # get_name and get_full_name
+    def test_get_name(self):
+        s = self.s
         self.assertEqual(Inspector(s.A).get_name(), 'A')
         self.assertEqual(Inspector(s.B.C).get_name(), 'C')
 
         self.assertEqual(Inspector(s.A).get_full_name(), 'Root.A')
         self.assertEqual(Inspector(s.B.C).get_full_name(), 'Root.B.C')
 
-        # is_callable
+    def test_is_callable(self):
+        s = self.s
         self.assertEqual(Inspector(s.A).is_callable(), False)
         self.assertEqual(Inspector(s.B.C).is_callable(), True)
 
-        # Inspector.__repr__
+    def test_repr(self):
+        s = self.s
         self.assertEqual(repr(Inspector(s)), 'Inspector(node=Root)')
         self.assertEqual(repr(Inspector(s.B.C)), 'Inspector(node=Root.B.C)')
 
-        # get_group
+    def test_get_group(self):
+        s = self.s
         self.assertEqual(Inspector(s.A).get_group(), Production)
         self.assertEqual(Inspector(s.B).get_group(), Staging)
         self.assertEqual(Inspector(s.B.C).get_group(), Staging)
 
-        # walk
+    def test_walk(self):
+        insp = self.insp
         self.assertEqual(len(list(insp.walk())), 4)
         self.assertEqual({ Inspector(i).get_name() for i in insp.walk() }, { 'Root', 'A', 'B', 'C' })
         for i in insp.walk():
             self.assertIsInstance(i, Node)
 
-        # Walk from childnode
+    def test_walk_from_childnode(self):
+        s = self.s
         insp = Inspector(s.B)
         self.assertEqual(len(list(insp.walk())), 2)
         self.assertEqual({ Inspector(i).get_name() for i in insp.walk() }, { 'B', 'C' })
 
-    def test_node_inspection_on_env_object(self):
+class InspectorOnEnvTest(unittest.TestCase):
+    def setUp(self):
         class Root(Node):
             class A(Node):
                 pass
@@ -100,27 +111,30 @@ class InspectorTest(unittest.TestCase):
             def action2(self):
                 return 'action-root2'
 
-        s = Root()
-        env = Env(Root())
-        insp = Inspector(env)
+        self.env = Env(Root())
+        self.insp = Inspector(self.env)
 
-        # get_childnodes, get_childnode
+    def test_get_childnodes(self):
+        insp = self.insp
         self.assertEqual(repr(insp.get_childnodes()), '[Env(Root.A), Env(Root.B)]')
         self.assertEqual(insp.get_childnode('B').action(), 'action-b')
 
-        # get_actions, get_action
+    def test_get_actions(self):
+        insp = self.insp
         self.assertEqual(len(insp.get_actions()), 2)
         self.assertEqual(repr(insp.get_action('action')), '<Env.Action Root.action>')
         self.assertEqual(insp.get_action('action')(), 'action-root')
         self.assertEqual(insp.get_action('action').name, 'action')
 
-        # Walk
+    def test_walk(self):
+        insp = self.insp
         self.assertEqual(len(list(insp.walk())), 3)
         self.assertEqual({ Inspector(i).get_name() for i in insp.walk() }, { 'Root', 'A', 'B' })
         for i in insp.walk():
             self.assertIsInstance(i, Env)
 
-    def test_iter_isolations(self):
+class InspectorTestIterIsolations(unittest.TestCase):
+    def setUp(self):
         class A(Node):
             class Hosts:
                 role1 = LocalHost1, LocalHost2, LocalHost3
@@ -132,8 +146,10 @@ class InspectorTest(unittest.TestCase):
                     @map_roles('extra')
                     class D(SimpleNode.Array):
                         pass
+        self.A = A
 
-        # Inspection on Env and Node objects
+    def test_inspection_env_node(self):
+        A = self.A
         def test(insp, type):
             self.assertEqual(len(list(insp.iter_isolations())), 9) # 3x3
 
@@ -156,9 +172,12 @@ class InspectorTest(unittest.TestCase):
         test(Inspector(A().B.C.D), Node)
         test(Inspector(Env(A()).B.C.D), Env)
 
-    def test_node_iterator(self):
+class InspectorIteratorTest(unittest.TestCase):
+    def setUp(self):
         class Base(Node):
             pass
+
+        self.Base = Base
 
         class A(Node):
             def my_action(self): return 'a'
@@ -180,44 +199,60 @@ class InspectorTest(unittest.TestCase):
                 def my_action(self): return 'd'
                 def my_other_action(self): return 'd2'
 
+            class _P(Base):
+                # A private node
+                def my_action(self): return '_p'
 
-        env = Env(A())
-        insp = Inspector(env)
+        self.env = Env(A())
+        self.insp = Inspector(self.env)
 
-        # Walk can be used to traverse all the nodes.
-        # It does not yet isolate SimpleNodes in several nodes.
-        self.assertEqual(len(insp.walk()), 5)
+    def test_walk(self):
+        insp = self.insp
+        Base = self.Base
+        self.assertEqual(len(insp.walk()), 6)
         self.assertIsInstance(insp.walk(), NodeIterator)
-        self.assertEqual(len(insp.walk().filter(Base)), 3)
+        self.assertEqual(len(insp.walk().filter(Base)), 4)
 
-        # NodeIterator.call_action will call a certain action on all the nodes.
-        # This will split the SimpleNode Arrays into their isolations
+    def test_walk_public_only(self):
+        insp = self.insp
+        self.assertEqual(len(insp.walk(public_only=True)), 5)
+        self.assertEqual(len(insp.walk().public_only()), 5)
+        self.assertEqual(len(insp.walk().public_only(False)), 6)
+
+    def test_call_action(self):
+        insp = self.insp
+        Base = self.Base
         result = list(insp.walk().filter(Base).call_action('my_action'))
-        self.assertEqual(len(result), 6)
-        self.assertEqual(set(result), { 'b', 'd', 'e', 'e', 'e', 'e' })
+        self.assertEqual(len(result), 7)
+        self.assertEqual(set(result), { 'b', 'd', '_p', 'e', 'e', 'e', 'e' })
 
-        # NodeIterator.filter_on_action
+    def test_filter_on_action(self):
+        insp = self.insp
         result = insp.walk().filter_on_action('my_action')
-        self.assertEqual(len(result), 5)
+        self.assertEqual(len(result), 6)
         result = insp.walk().filter_on_action('my_other_action')
         self.assertEqual(len(result), 2)
         result = insp.walk().filter_on_action('my_other_action').call_action('my_other_action')
         self.assertEqual(set(result), { 'b2', 'd2' })
 
-        # NodeIterator.prefer_isolation
+    def test_prefer_isolation(self):
+        insp = self.insp
+        env = self.env
         result = insp.walk().prefer_isolation(LocalHost2)
         self.assertEqual( set(repr(e) for e in result),
-                    { repr(e) for e in { env, env.B, env.D, env.B.C[LocalHost2], env.B.C[LocalHost2].E }})
+                    { repr(e) for e in { env, env.B, env.D, env._P, env.B.C[LocalHost2], env.B.C[LocalHost2].E }})
 
         # Maybe we should also implement a better Node.__eq__ and Env.__eq__, then we can do this:
         # >> self.assertEqual(set(result), { env, env.B, env.D, env.B.C[LocalHost2], env.B.C[LocalHost2].E })
 
-        # It should be possible to read the content of an iterator multiple times.
+    def test_multiple_iterator(self):
+        insp = self.insp
         node_iterator = insp.walk()
-        self.assertEqual(len(list(node_iterator)), 5)
-        self.assertEqual(len(list(node_iterator)), 5)
-        self.assertEqual(len(node_iterator), 5)
-        self.assertEqual(len(node_iterator), 5)
+        self.assertEqual(len(list(node_iterator)), 6)
+        self.assertEqual(len(list(node_iterator)), 6)
+        self.assertEqual(len(node_iterator), 6)
+        self.assertEqual(len(node_iterator), 6)
 
-        # Calling an unknown action
+    def test_unknown_action(self):
+        insp = self.insp
         self.assertRaises(AttributeError, lambda: list(insp.walk().call_action('my_action2')))
