@@ -217,7 +217,6 @@ class InspectorIteratorTest(unittest.TestCase):
         insp = self.insp
         self.assertEqual(len(insp.walk(public_only=True)), 5)
         self.assertEqual(len(insp.walk().public_only()), 5)
-        self.assertEqual(len(insp.walk().public_only(False)), 6)
 
     def test_call_action(self):
         insp = self.insp

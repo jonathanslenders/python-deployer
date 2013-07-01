@@ -172,7 +172,10 @@ class Inspector(object):
 
         It does not yet isolate SimpleNodes in several nodes.
         """
-        return NodeIterator(self._walk).public_only(public_only)
+        if public_only:
+            return NodeIterator(self._walk).public_only()
+        else:
+            return NodeIterator(self._walk)
 
 
 class _EnvInspector(Inspector):
@@ -240,13 +243,10 @@ class NodeIterator(object):
                     yield n
         return NodeIterator(new_iterator)
 
-    def public_only(self, public_only=True):
+    def public_only(self):
         """
         Filter only public nodes.
         """
-        if not public_only:
-            # Shortcut, no need to filter
-            return self
         def new_iterator():
             for n in self:
                 if not n._node._node_name or not n._node._node_name.startswith('_'):
