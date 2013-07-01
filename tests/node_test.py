@@ -617,7 +617,14 @@ class NodeTest(unittest.TestCase):
             class MyNode(Node):
                 def __init__(self, *a, **kw):
                     pass
-        self.assertRaises(TypeError, run) # TODO: correct exception
+        self.assertRaises(TypeError, run)
+
+    def test_overriding_host_property(self):
+        # It should not be possible to override the host property.
+        def run():
+            class MyNode(Node):
+                host = 'Something'
+        self.assertRaises(TypeError, run)
 
     def test_running_actions_outside_env(self):
         # It should not be possible to run any action directly on the Node
