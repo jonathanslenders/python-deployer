@@ -474,7 +474,7 @@ class NodeTest(unittest.TestCase):
 
             another_node2 = Another
 
-        # For the class definitions, the names don't change.
+        # For the class definitions, the names certainly shoudn't change.
         self.assertEqual(N.__name__, 'N')
         self.assertEqual(N.M.__name__, 'M')
         self.assertEqual(N.M.O.__name__, 'O')
@@ -485,27 +485,23 @@ class NodeTest(unittest.TestCase):
         # For instances (and mappings), they should be named according to the
         # full path.
         n = N()
-        self.assertEqual(n.__class__.__name__, 'N')
-        self.assertEqual(n.M.__class__.__name__, 'N.M')
-        self.assertEqual(n.M.O.__class__.__name__, 'N.M.O')
-        self.assertEqual(n.P.__class__.__name__, 'N.P')
-
-        self.assertIn(n.P[0].__class__.__name__, ['N.P[0]', 'N.P[1]'])
-        self.assertIn(n.P[1].__class__.__name__, ['N.P[0]', 'N.P[1]'])
-
-        self.assertEqual(n.another_node.__class__.__name__, 'N.another_node')
-        self.assertEqual(n.another_node2.__class__.__name__, 'N.another_node2')
-
-        # Test Node.__repr__
         self.assertEqual(repr(n), '<Node N>')
+        self.assertEqual(repr(n.M), '<Node N.M>')
         self.assertEqual(repr(n.M.O), '<Node N.M.O>')
-        self.assertIn(repr(n.P[1]), ['<Node N.P[0]>', '<Node N.P[1]>'])
+        self.assertEqual(repr(n.P), '<Node N.P>')
+
+        self.assertEqual(repr(n.P[0]), '<Node N.P[0]>')
+        self.assertEqual(repr(n.P[1]), '<Node N.P[1]>')
+
+        self.assertEqual(repr(n.another_node), '<Node N.another_node>')
+        self.assertEqual(repr(n.another_node2), '<Node N.another_node2>')
 
         # Test Env.__repr__
         env = Env(n)
         self.assertEqual(repr(env), 'Env(N)')
         self.assertEqual(repr(env.M.O), 'Env(N.M.O)')
-        self.assertIn(repr(env.P[1]), ['Env(N.P[0])', 'Env(N.P[1])'])
+        self.assertEqual(repr(env.P[0]), 'Env(N.P[0])')
+        self.assertEqual(repr(env.P[1]), 'Env(N.P[1])')
 
 
     def test_auto_mapping_from_node_to_simplenode_array(self):
@@ -568,6 +564,12 @@ class NodeTest(unittest.TestCase):
         n = N()
         self.assertEqual(repr(n.M.my_action), '<Action N.M.my_action>')
         self.assertEqual(repr(N.M.my_action), '<Unbound Action my_action>')
+        self.assertEqual(n.M.my_action.name, 'my_action')
+
+        # Env.Action.__repr__
+        env = Env(n)
+        self.assertEqual(repr(env.M.my_action), '<Env.Action N.M.my_action>')
+        self.assertEqual(env.M.my_action.name, 'my_action')
 
     def test_nesting_normal_in_simple(self):
         # Simplenode in Node without using .Array

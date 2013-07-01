@@ -142,6 +142,17 @@ class InspectorTest(unittest.TestCase):
             for i, node in insp.iter_isolations():
                 self.assertIsInstance(node, type)
 
+            # Test get_isolation
+            node = insp.get_isolation((0, 0))
+            self.assertIsInstance(node, type)
+            self.assertEqual(repr(node),
+                '<Node A.B[0].C.D[0]>' if type == Node else 'Env(A.B[0].C.D[0])')
+
+            node = insp.get_isolation((2, 2))
+            self.assertIsInstance(node, type)
+            self.assertEqual(repr(node),
+                '<Node A.B[2].C.D[2]>' if type == Node else 'Env(A.B[2].C.D[2])')
+
         test(Inspector(A().B.C.D), Node)
         test(Inspector(Env(A()).B.C.D), Env)
 
