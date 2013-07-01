@@ -47,10 +47,8 @@ Authors
 -------
 
  - Jonathan Slenders (VikingCo, Mobile Vikings)
+ - Jan Fabry (VikingCo, Mobile Vikings)
 
-Special Thanks to:
-
- - Jan Fabry
 
 History
 -------
