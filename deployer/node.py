@@ -412,6 +412,12 @@ class NodeBase(type):
         if '__init__' in attrs and not getattr(attrs['__init__'], 'internal', False):
             raise TypeError('A Node should not have its own __init__ function.')
 
+        # Verify that nobody is overriding the 'host' property.
+        if 'host' in attrs and (
+                not isinstance(attrs['host'], property) or
+                not getattr(attrs['host'].fget, '_internal', False)):
+            raise TypeError("Please don't override the reserved name 'host' in a Node.")
+
         if name != 'Node':
             # Replace actions/childnodes/properties by descriptors
             for attr_name, attr in attrs.items():
@@ -728,12 +734,13 @@ class SimpleNode(Node):
     __metaclass__ = SimpleNodeBase
     _node_type = NodeTypes.SIMPLE
 
-    @property
     def host(self):
         if self._node_is_isolated:
             return self.hosts.get('host')
         else:
             raise AttributeError
+    host._internal = True
+    host = property(host)
 
 
 class Action(object):
