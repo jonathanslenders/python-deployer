@@ -1,8 +1,6 @@
 from deployer.node import SimpleNode, Node, Env, IsolationIdentifierType, iter_isolations, Action, Group
+from deployer.inspection import filters
 
-__all__ = (
-    'Inspector',
-)
 
 class PathType:
     """
@@ -139,6 +137,7 @@ class Inspector(object):
         return self.node._node_name or self.node.__class__.__name__
 
     def get_full_name(self):
+        #XXX rename to get_full_path??
         return self.node.__class__.__name__
 
     def get_isolation_identifier(self):
@@ -166,16 +165,13 @@ class Inspector(object):
                 if key(c) not in visited:
                     todo.append(c)
 
-    def walk(self, public_only=False):
+    def walk(self, filter=None):
         """
         Recursively walk (topdown) through the nodes and yield them.
 
         It does not yet isolate SimpleNodes in several nodes.
         """
-        if public_only:
-            return NodeIterator(self._walk).public_only()
-        else:
-            return NodeIterator(self._walk)
+        return NodeIterator(self._walk).filter(filter)
 
 
 class _EnvInspector(Inspector):
@@ -222,36 +218,21 @@ class NodeIterator(object):
     def __len__(self):
         return sum(1 for _ in self)
 
-    def filter(self, node_class):
+    def filter(self, filter):
         """
-        Filter on the nodes of type node_class. Node_class can be a Node
-        subclass or tuple of Node classes.
+        Apply filter on this node iterator, and return a new iterator instead.
+        `filter` should be a Filter instance.
         """
-        def new_iterator():
-            for n in self:
-                if isinstance(n, node_class):
-                    yield n
-        return NodeIterator(new_iterator)
+        if filter is not None:
+            assert isinstance(filter, filters.Filter)
 
-    def filter_on_action(self, name):
-        """
-        Filter on the nodes which implement this action.
-        """
-        def new_iterator():
-            for n in self:
-                if Inspector(n).has_action(name):
-                    yield n
-        return NodeIterator(new_iterator)
-
-    def public_only(self):
-        """
-        Filter only public nodes.
-        """
-        def new_iterator():
-            for n in self:
-                if not n._node._node_name or not n._node._node_name.startswith('_'):
-                    yield n
-        return NodeIterator(new_iterator)
+            def new_iterator():
+                for n in self:
+                    if filter._filter(n):
+                        yield n
+            return NodeIterator(new_iterator)
+        else:
+            return self
 
     def prefer_isolation(self, index):
         """

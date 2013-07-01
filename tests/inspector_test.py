@@ -6,7 +6,9 @@ from deployer.groups import Production, Staging, production, staging
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
 from deployer.node import map_roles, dont_isolate_yet, required_property, alias
-from deployer.inspection import Inspector, NodeIterator, PathType
+from deployer.inspection import Inspector, PathType
+from deployer.inspection.inspector import NodeIterator
+from deployer.inspection import filters
 from deployer.host_container import HostsContainer
 
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
@@ -211,27 +213,49 @@ class InspectorIteratorTest(unittest.TestCase):
         Base = self.Base
         self.assertEqual(len(insp.walk()), 6)
         self.assertIsInstance(insp.walk(), NodeIterator)
-        self.assertEqual(len(insp.walk().filter(Base)), 4)
+        self.assertEqual(len(insp.walk().filter(filters.IsInstance(Base))), 4)
 
     def test_walk_public_only(self):
         insp = self.insp
-        self.assertEqual(len(insp.walk(public_only=True)), 5)
-        self.assertEqual(len(insp.walk().public_only()), 5)
+        self.assertEqual(len(insp.walk(filters.PublicOnly)), 5)
+        self.assertEqual(len(insp.walk().filter(filters.PublicOnly)), 5)
+
+    def test_walk_private_only(self):
+        insp = self.insp
+        self.assertEqual(len(insp.walk(filters.PrivateOnly)), 1)
+
+    def test_or_operation(self):
+        insp = self.insp
+        self.assertEqual(len(insp.walk(filters.PrivateOnly | filters.HasAction('my_other_action'))), 3)
+        self.assertEqual({ repr(n) for n in insp.walk(filters.PrivateOnly | filters.HasAction('my_other_action')) },
+                { 'Env(A.B)', 'Env(A.D)', 'Env(A._P)' })
+
+        # Check repr
+        self.assertEqual(repr(filters.PrivateOnly | filters.HasAction('my_other_action')),
+                "PrivateOnly | HasAction('my_other_action')")
+
+    def test_and_operation(self):
+        insp = self.insp
+        self.assertEqual(len(insp.walk(filters.PrivateOnly & filters.IsInstance(self.Base))), 1)
+
+        # Check repr (xxx: maybe this is not the cleanest one.)
+        self.assertEqual(repr(filters.PrivateOnly & filters.IsInstance(self.Base)),
+                "PrivateOnly & IsInstance(<class 'inspector_test.Base'>)")
 
     def test_call_action(self):
         insp = self.insp
         Base = self.Base
-        result = list(insp.walk().filter(Base).call_action('my_action'))
+        result = list(insp.walk().filter(filters.IsInstance(Base)).call_action('my_action'))
         self.assertEqual(len(result), 7)
         self.assertEqual(set(result), { 'b', 'd', '_p', 'e', 'e', 'e', 'e' })
 
     def test_filter_on_action(self):
         insp = self.insp
-        result = insp.walk().filter_on_action('my_action')
+        result = insp.walk().filter(filters.HasAction('my_action'))
         self.assertEqual(len(result), 6)
-        result = insp.walk().filter_on_action('my_other_action')
+        result = insp.walk().filter(filters.HasAction('my_other_action'))
         self.assertEqual(len(result), 2)
-        result = insp.walk().filter_on_action('my_other_action').call_action('my_other_action')
+        result = insp.walk().filter(filters.HasAction('my_other_action')).call_action('my_other_action')
         self.assertEqual(set(result), { 'b2', 'd2' })
 
     def test_prefer_isolation(self):
