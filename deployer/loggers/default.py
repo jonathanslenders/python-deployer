@@ -207,7 +207,11 @@ def print_exception(exception, stdout):
         print termcolor.colored('Attribute:   ', 'yellow'),
         print termcolor.colored(e.attr_name, 'red', attrs=['bold'])
         print termcolor.colored('Query:       ', 'yellow'),
-        print termcolor.colored(e.query, 'red', attrs=['bold'])
+        print termcolor.colored(repr(e.query), 'red', attrs=['bold'])
+        print termcolor.colored('Filename:     ', 'yellow'),
+        print termcolor.colored(e.query._filename, 'red', attrs=['bold'])
+        print termcolor.colored('Line:        ', 'yellow'),
+        print termcolor.colored(e.query._line, 'red', attrs=['bold'])
         print
 
         if e.inner_exception:

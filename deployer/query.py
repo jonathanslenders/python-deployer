@@ -1,21 +1,22 @@
 import inspect
 
 """
+Domain specific language for querying in a deploy tree.
+
 The Query object is technically a Python class descriptor. It exposes an easy
 to read syntax for a node property to point to another Node's class
-property.
+property.  e.g.
 
-e.g.
+::
+    class MyNode(Node):
+        something = True
 
-class MyNode(Node):
-    something = True
+        class MyChildNode(Node):
+            some_property = Q.parent('MyNode').something
+            some_node = Q.parent('MyNode').SomeOtherNode
 
-    class MyChildNode(Node):
-        some_property = Q.parent('MyNode').something
-        some_node = Q.parent('MyNode').SomeOtherNode
-
-    class SomeOtherNode(Node):
-        pass
+        class SomeOtherNode(Node):
+            pass
 """
 
 
@@ -27,7 +28,16 @@ class Query(object):
     Node Query object.
     """
     def __init__(self):
-        pass
+        c = inspect.currentframe()
+
+        # Track the file and line number where this expression was created.
+        self._filename = self._line = None
+        for f in inspect.getouterframes(inspect.currentframe()):
+            self._filename = f[1]
+            self._line = f[2]
+
+            if not 'deployer/query.py' in self._filename:
+                break
 
     @property
     def _query(self):
@@ -86,10 +96,7 @@ class Query(object):
         return operator(other, self, lambda a, b: a/b, '/')
 
     def __repr__(self):
-        return '<Query: %s>' % self.__str__()
-
-    def __str__(self):
-        return 'Q'
+        return 'Query(...)'
 
     # You cannot override and, or and not:
     # Instead, we override the bitwise operators
@@ -136,7 +143,7 @@ class invert(Query):
             return not self.query_before._query(instance)
         return result
 
-    def __str__(self):
+    def __repr__(self):
         return u'~ %s' % str(self.part)
 
 class operator(Query):
@@ -156,7 +163,7 @@ class operator(Query):
             return self.operator(_resolve(self.part1, instance), _resolve(self.part2, instance))
         return result
 
-    def __str__(self):
+    def __repr__(self):
         return u'%s %s %s' % (str(self.part1), self.operator_str, str(self.part2))
 
 
@@ -174,8 +181,8 @@ class itemgetter(Query):
         # The index object can be a query itself. e.g. Q.var[Q.var2]
         return lambda instance: self.query_before._query(instance)[_resolve(self.key, instance)]
 
-    def __str__(self):
-        return '%s[%s]' % (str(self.query_before), self.key)
+    def __repr__(self):
+        return '%s[%s]' % (repr(self.query_before), self.key)
 
 
 class static(Query):
@@ -191,8 +198,8 @@ class static(Query):
         # Return idenity func
         return lambda instance: self.value
 
-    def __str__(self):
-        return '"%s"' % self.value
+    def __repr__(self):
+        return 'Q(%r)' % self.value
 
 
 class attrgetter(Query):
@@ -210,8 +217,8 @@ class attrgetter(Query):
             return getattr(self.query_before._query(instance), self.attrname)
         return q
 
-    def __str__(self):
-        return '%s.%s' % (str(self.query_before), self.attrname)
+    def __repr__(self):
+        return '%r.%s' % (self.query_before, self.attrname)
 
 
 class call(Query):
@@ -228,9 +235,9 @@ class call(Query):
     def _query(self):
         return lambda instance: self.query_before._query(instance)(* self.args, ** self.kwargs)
 
-    def __str__(self):
-        return '%s(%s)' % (str(self.query_before),
-                        ','.join(map(str, self.args) + ['%s=%s' % (k,str(v)) for k,v in self.kwargs.items()] ))
+    def __repr__(self):
+        return '%r(%s)' % (self.query_before,
+                    ','.join(map(repr, self.args) + ['%s=%r' % (k,v) for k,v in self.kwargs.items()] ))
 
 
 class parent(Query):
@@ -252,8 +259,8 @@ class parent(Query):
     def _query(self):
         return lambda instance: self.query_before._query(instance).parent
 
-    def __str__(self):
-        return u'%s.parent' % str(self.query_before)
+    def __repr__(self):
+        return '%r.parent' % self.query_before
 
 
 class find_parent_by_name(Query):
@@ -286,8 +293,8 @@ class find_parent_by_name(Query):
 
         return parentfinder
 
-    def __str__(self):
-        return '%s.parent("%s")' % (str(self.query_before), self.parent_name)
+    def __repr__(self):
+        return '%r.parent(%r)' % (self.query_before, self.parent_name)
 
 class identity(Query):
     """
@@ -308,5 +315,8 @@ class q(identity):
         Handle Q(some_value) as a static value.
         """
         return static(string)
+
+    def __repr__(self):
+        return 'Q'
 
 Q = q()
