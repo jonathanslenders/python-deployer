@@ -135,6 +135,40 @@ class InspectorOnEnvTest(unittest.TestCase):
         for i in insp.walk():
             self.assertIsInstance(i, Env)
 
+class InspectorChildnodesOrder(unittest.TestCase):
+    def test_get_childnodes_order(self):
+        """
+        The inspector should return the childnodes in the order, as they were
+        nested inside the node definition.
+        """
+        # Automatic
+        class Root(Node):
+            class A(Node): pass
+            class B(Node): pass
+
+        self.assertEqual(repr(Inspector(Root()).get_childnodes()), '[<Node Root.A>, <Node Root.B>]')
+        self.assertEqual(repr(Inspector(Env(Root())).get_childnodes()), '[Env(Root.A), Env(Root.B)]')
+
+        # Manually set creation order
+        class Root(Node):
+            class A(Node): pass
+            class B(Node): pass
+            A._node_creation_counter = 44
+            B._node_creation_counter = 45
+
+        self.assertEqual(repr(Inspector(Root()).get_childnodes()), '[<Node Root.A>, <Node Root.B>]')
+        self.assertEqual(repr(Inspector(Env(Root())).get_childnodes()), '[Env(Root.A), Env(Root.B)]')
+
+        # Manually revert the creation order
+        class Root(Node):
+            class A(Node): pass
+            class B(Node): pass
+            A._node_creation_counter = 45
+            B._node_creation_counter = 44
+
+        self.assertEqual(repr(Inspector(Root()).get_childnodes()), '[<Node Root.B>, <Node Root.A>]')
+        self.assertEqual(repr(Inspector(Env(Root())).get_childnodes()), '[Env(Root.B), Env(Root.A)]')
+
 class InspectorTestIterIsolations(unittest.TestCase):
     def setUp(self):
         class A(Node):

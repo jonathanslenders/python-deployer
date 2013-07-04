@@ -58,10 +58,13 @@ class Inspector(object):
         include_private: ignore names starting with underscore.
         verify_parent: check the parent pointer.
         """
-        # TODO: order by _node_creation_counter
+        # Retrieve all nodes.
         def f(i):
             return isinstance(i, Node) and (not verify_parent or i.parent == self.node)
-        return self._filter(include_private, f)
+        nodes = self._filter(include_private, f)
+
+        # Order by _node_creation_counter
+        return sorted(nodes, key=lambda n: n._node_creation_counter)
 
     def has_childnode(self, name):
         try:

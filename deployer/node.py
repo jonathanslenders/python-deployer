@@ -123,10 +123,14 @@ class ChildNodeDescriptor(object):
             isolated = (parent_instance._node_is_isolated and
                             (parent_instance._node_type, self._node_class._node_type) in auto_isolate)
 
+            # We inherit the class in order to override the name and isolated
+            # attributes. However, the creation counter should stay the same,
+            # because it's used to track the order of childnodes in the parent.
             class_ = type(new_name, (self._node_class, ), {
                             '_node_is_isolated': isolated,
                             '_node_name': self.attr_name
                             })
+            class_._node_creation_counter = self._node_class._node_creation_counter
 
             return class_(parent=parent_instance)
         else:
