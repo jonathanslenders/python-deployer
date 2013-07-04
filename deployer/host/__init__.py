@@ -95,6 +95,9 @@ class HostContext(object):
         """
         Set this environment variable
         """
+        if value is None:
+            value = ''
+
         if escape:
             value = "'%s'" % esc1(value)
 
