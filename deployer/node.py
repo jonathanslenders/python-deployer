@@ -794,8 +794,8 @@ class Action(object):
         return self._node_instance.node_group or Group()
 
     @property
-    def supress_result(self):
-        return getattr(self._func, 'supress_result', False)
+    def suppress_result(self):
+        return getattr(self._func, 'suppress_result', False)
 
 class EnvAction(object):
     """
@@ -819,8 +819,8 @@ class EnvAction(object):
         return self._env
 
     @property
-    def supress_result(self):
-        return self._action.supress_result
+    def suppress_result(self):
+        return self._action.suppress_result
 
     def _run_on_node(self, isolation, *a, **kw):
         """
@@ -937,14 +937,14 @@ class EnvAction(object):
             return self._run_on_node(self._env, *a, **kw)
 
 
-def supress_action_result(action):
+def suppress_action_result(action):
     """
     When using a deployment shell, don't print the returned result to stdout.
     For example, when the result is superfluous to be printed, because the
     action itself contains already print statements, while the result
     can be useful for the caller.
     """
-    action.supress_result = True
+    action.suppress_result = True
     return action
 
 def dont_isolate_yet(func):

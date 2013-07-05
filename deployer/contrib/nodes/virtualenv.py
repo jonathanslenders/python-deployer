@@ -1,7 +1,7 @@
 from deployer.contrib.nodes.apt_get import AptGet
 from deployer.contrib.nodes.config import Config
 from deployer.exceptions import ExecCommandFailed
-from deployer.node import SimpleNode, supress_action_result, dont_isolate_yet
+from deployer.node import SimpleNode, suppress_action_result, dont_isolate_yet
 from deployer.query import Q
 from deployer.utils import esc1
 
@@ -125,7 +125,7 @@ class VirtualEnv(SimpleNode):
     def install_ipython(self, version='0.10.2'):
         self.install_package('ipython==%s' % version)
 
-    @supress_action_result
+    @suppress_action_result
     def freeze(self):
         """
         pip freeze

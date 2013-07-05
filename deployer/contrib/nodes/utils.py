@@ -1,6 +1,6 @@
 from deployer.contrib.nodes.django import Django
 from deployer.contrib.nodes.virtualenv import VirtualEnv
-from deployer.node import SimpleNode, Node, supress_action_result
+from deployer.node import SimpleNode, Node, suppress_action_result
 
 from pygments import highlight
 from pygments.formatters import TerminalFormatter as Formatter
@@ -47,7 +47,7 @@ class _Diff(Node):
         print highlight(diff, DiffLexer(), Formatter())
         return diff
 
-    @supress_action_result
+    @suppress_action_result
     def diff(self, virtual_envs=None):
         from deployer.console import select_service
 

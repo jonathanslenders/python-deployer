@@ -2,7 +2,7 @@ from pygments import highlight
 from pygments.lexers import TextLexer, DiffLexer
 from pygments.formatters import TerminalFormatter as Formatter
 
-from deployer.node import SimpleNode, required_property, supress_action_result
+from deployer.node import SimpleNode, required_property, suppress_action_result
 from deployer.utils import esc1
 
 import difflib
@@ -47,7 +47,7 @@ class Config(SimpleNode):
         """
         return self.host.open(self.remote_path, 'rb', use_sudo=True).read()
 
-    @supress_action_result
+    @suppress_action_result
     def diff(self):
         """
         Show changes to be written to the file. (diff between the current and
@@ -63,7 +63,7 @@ class Config(SimpleNode):
 
         return diff
 
-    @supress_action_result
+    @suppress_action_result
     def exists(self):
         """
         True when this config exists.

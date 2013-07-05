@@ -525,7 +525,7 @@ class Action(Handler):
         try:
             env = Env(self.node, pty, logger_interface, is_sandbox=self.sandbox)
             result = getattr(env, self.action_name)(*self.args)
-            supress_result = Inspector(self.node).supress_result_for_action(self.action_name)
+            suppress_result = Inspector(self.node).suppress_result_for_action(self.action_name)
 
             # When the result is a subnode, start a subshell.
             def handle_result(result):
@@ -535,7 +535,7 @@ class Action(Handler):
                     self.shell.state = ShellState(result._node, return_state=self.shell.state)
 
                 # Otherwise, print result
-                elif result is not None and not supress_result:
+                elif result is not None and not suppress_result:
                     print result
 
             if isinstance(result, list):

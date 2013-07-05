@@ -1,6 +1,6 @@
 from deployer.contrib.nodes.uwsgi import Uwsgi
 from deployer.query import Q
-from deployer.node import SimpleNode, SimpleNodeBase, supress_action_result, required_property, isolate_one_only, alias
+from deployer.node import SimpleNode, SimpleNodeBase, suppress_action_result, required_property, isolate_one_only, alias
 from deployer.contrib.nodes.config import Config
 
 
@@ -82,7 +82,7 @@ class DjangoBase(SimpleNodeBase):
         Take the first host, 'cd' to the django project.
         And run this django command using the correct settings module.
         """
-        @supress_action_result
+        @suppress_action_result
         def command(self):
             # Take only the first host. Assume that if we have multiple hosts,
             # they all connect to the same database. So, there's no point in
