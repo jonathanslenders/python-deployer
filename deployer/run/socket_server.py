@@ -14,6 +14,8 @@ from twisted.internet import threads
 from twisted.internet.protocol import Protocol, Factory
 from twisted.internet.error import CannotListenError
 
+from contextlib import nested
+
 import StringIO
 import datetime
 import getpass
@@ -142,10 +144,11 @@ class Connection(object):
     for either an interactive session, for logging,
     or for a second parallel deployment.
     """
-    def __init__(self, root_node, transportHandle, doneCallback, interactive):
-        self.root_node = root_node
-        self.transportHandle = transportHandle
-        self.doneCallback = doneCallback
+    def __init__(self, protocol):
+        self.root_node = protocol.factory.root_node
+        self.extra_loggers = protocol.factory.extra_loggers
+        self.transportHandle = protocol._handle
+        self.doneCallback = protocol.transport.loseConnection
         self.connection_shell = None
 
         # Create PTY
@@ -160,7 +163,8 @@ class Connection(object):
         stdout = os.fdopen(self.slave, 'w', 0)
 
         # Create pty object, for passing to deployment enviroment.
-        self.pty = SocketPty(stdin, stdout, self.runInNewPtys, interactive=interactive)
+        self.pty = SocketPty(stdin, stdout, self.runInNewPtys,
+                    interactive=protocol.factory.interactive)
 
         # Start read loop
         self._startReading()
@@ -420,21 +424,23 @@ class ConnectionShell(object):
 
         # in_shell_logger: Displaying of events in shell
         with self.logger_interface.attach_in_block(DefaultLogger(print_group=False)):
-            # Start at correct location
-            if self.cd_path:
-                self.shell.cd(self.cd_path)
+            # Attach the extra loggers.
+            with nested(* [ self.logger_interface.attach_in_block(l) for l in self.connection.extra_loggers]):
+                # Start at correct location
+                if self.cd_path:
+                    self.shell.cd(self.cd_path)
 
-            # When an action_name is given, call this action immediately,
-            # otherwise, run the interactive cmdloop.
-            if action_name:
-                try:
-                    self.shell.run_action(action_name, *parameters)
+                # When an action_name is given, call this action immediately,
+                # otherwise, run the interactive cmdloop.
+                if action_name:
+                    try:
+                        self.shell.run_action(action_name, *parameters)
+                        exit_status = 0
+                    except ActionException:
+                        exit_status = 1
+                else:
+                    self.shell.cmdloop()
                     exit_status = 0
-                except ActionException:
-                    exit_status = 1
-            else:
-                self.shell.cmdloop()
-                exit_status = 0
 
         # Remove references (shell and session have circular reference)
         self.shell.session = None
@@ -581,12 +587,11 @@ class CliClientProtocol(Protocol):
         self.transport.write(pickle.dumps((action, data)) )
 
     def connectionMade(self):
-        self.connection = Connection(self.factory.root_node, self._handle, self.transport.loseConnection,
-                        interactive=self.factory.interactive)
+        self.connection = Connection(self)
         self.factory.connectionPool.add(self.connection)
 
 
-def startSocketServer(root_node, shutdownOnLastDisconnect, interactive, socket=None):
+def startSocketServer(root_node, shutdownOnLastDisconnect, interactive, socket=None, extra_loggers=None):
     """
     Bind the first available unix socket.
     Return the socket file.
@@ -598,6 +603,7 @@ def startSocketServer(root_node, shutdownOnLastDisconnect, interactive, socket=N
     factory.shutdownOnLastDisconnect = shutdownOnLastDisconnect
     factory.root_node = root_node
     factory.interactive = interactive
+    factory.extra_loggers = extra_loggers or []
 
     # Listen on socket.
     if socket:
@@ -624,7 +630,7 @@ def startSocketServer(root_node, shutdownOnLastDisconnect, interactive, socket=N
 # =================[ Startup]=================
 
 def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50,
-                interactive=True, logfile=None, socket=None):
+                interactive=True, logfile=None, socket=None, extra_loggers=None):
     """
     Start web server
     If daemonized, this will start the server in the background,
@@ -635,7 +641,7 @@ def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread
 
     # Start server
     socket2 = startSocketServer(root_node, shutdownOnLastDisconnect=shutdown_on_last_disconnect,
-                        interactive=interactive, socket=socket)
+                        interactive=interactive, socket=socket, extra_loggers=extra_loggers)
 
     def run_server():
         # Set logging

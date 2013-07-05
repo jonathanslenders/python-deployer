@@ -13,6 +13,7 @@ from deployer.loggers.default import DefaultLogger
 from deployer.pseudo_terminal import Pty
 from deployer.shell import Shell, ShellHandler, GroupHandler
 
+from contextlib import nested
 from operator import attrgetter
 from termcolor import colored
 
@@ -136,6 +137,7 @@ class Session(object):
         self.protocol = protocol
         self.root_service = protocol.transport.factory.root_service
         self.auth_backend = protocol.transport.factory.auth_backend
+        self.extra_loggers = protocol.transport.factory.extra_loggers
 
         self.doneCallback = doneCallback
         self.writeCallback = writeCallback
@@ -180,9 +182,9 @@ class Session(object):
                 shell.session = self # Assign session to shell
                 self.shell = shell
 
-                logger_interface.attach(in_shell_logger)
-                shell.cmdloop()
-                logger_interface.detach(in_shell_logger)
+                with logger_interface.attach_in_block(in_shell_logger):
+                    with nested(* [logger_interface.attach_in_block(l) for l in self.extra_loggers]):
+                        shell.cmdloop()
 
                 # Remove references (shell and session had circular reference)
                 self.shell = None
@@ -304,7 +306,7 @@ class TelnetDeployer(StatefulTelnetProtocol):
 
 # =================[ Startup]=================
 
-def start(root_service, auth_backend=None, port=8023, logfile=None):
+def start(root_service, auth_backend=None, port=8023, logfile=None, extra_loggers=None):
     """
     Start telnet server
     """
@@ -323,6 +325,7 @@ def start(root_service, auth_backend=None, port=8023, logfile=None):
     factory.protocol = lambda: TelnetTransport(TelnetDeployer)
     factory.root_service = root_service()
     factory.auth_backend = auth_backend
+    factory.extra_loggers = extra_loggers or []
 
     # Handle signals
     def handle_sigint(signal, frame):
