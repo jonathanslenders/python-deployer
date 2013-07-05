@@ -793,6 +793,9 @@ class Action(object):
     def node_group(self):
         return self._node_instance.node_group or Group()
 
+    @property
+    def supress_result(self):
+        return getattr(self._func, 'supress_result', False)
 
 class EnvAction(object):
     """
@@ -814,6 +817,10 @@ class EnvAction(object):
     def node(self):
         # In an Env, the node is the Env.
         return self._env
+
+    @property
+    def supress_result(self):
+        return self._action.supress_result
 
     def _run_on_node(self, isolation, *a, **kw):
         """

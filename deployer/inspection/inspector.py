@@ -96,7 +96,7 @@ class Inspector(object):
         raise AttributeError('Action not found.')
 
     def supress_result_for_action(self, name):
-        return getattr(self.get_actions(name), 'supress_result', False)
+        return self.get_action(name).supress_result
 
     def get_path(self, path_type=PathType.NAME_ONLY):
         """

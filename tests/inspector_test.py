@@ -5,7 +5,7 @@ from deployer.node import Node, SimpleNode, Env
 from deployer.groups import Production, Staging, production, staging
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
-from deployer.node import map_roles, dont_isolate_yet, required_property, alias
+from deployer.node import map_roles, dont_isolate_yet, required_property, supress_action_result, alias
 from deployer.inspection import Inspector, PathType
 from deployer.inspection.inspector import NodeIterator
 from deployer.inspection import filters
@@ -313,3 +313,27 @@ class InspectorIteratorTest(unittest.TestCase):
     def test_unknown_action(self):
         insp = self.insp
         self.assertRaises(AttributeError, lambda: list(insp.walk().call_action('my_action2')))
+
+
+class SupressResultTest(unittest.TestCase):
+    def setUp(self):
+        class Root(Node):
+            def a(self):
+                pass
+
+            @supress_action_result
+            def b(self):
+                pass
+
+        self.env = Env(Root())
+        self.env_insp = Inspector(self.env)
+        self.node_insp = Inspector(Root())
+
+    def test_supress_decorator(self):
+        # On an node object
+        self.assertEqual(self.node_insp.supress_result_for_action('a'), False)
+        self.assertEqual(self.node_insp.supress_result_for_action('b'), True)
+
+        # On an env object
+        self.assertEqual(self.env_insp.supress_result_for_action('a'), False)
+        self.assertEqual(self.env_insp.supress_result_for_action('b'), True)
