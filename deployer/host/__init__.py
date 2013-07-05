@@ -201,13 +201,18 @@ class Host(object):
         # We add "cd /", to be sure that at least no error get thrown because
         # we're in a non existing directory right now.
 
-        # TODO: Some hosts give 'inet addr:', other 'enet adr:' back.
-        #       probably use the 'ip address show dev eth0' instead.
         return self._run_silent(
                 """cd /; /sbin/ifconfig "%s" | grep 'inet ad' | """
                 """ cut -d: -f2 | awk '{ print $1}' """ % interface).strip()
 
-
+    def ifconfig(self):
+        """
+        Return the network information for this host.
+        """
+        # We add "cd /", to be sure that at least no error get thrown because
+        # we're in a non existing directory right now.
+        from deployer.utils import parse_ifconfig_output
+        return parse_ifconfig_output(self._run_silent('cd /; /sbin/ifconfig'))
 
     def _wrap_command(self, command, context, sandbox):
         """

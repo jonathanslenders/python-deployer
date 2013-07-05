@@ -2,6 +2,7 @@ from deployer.host import LocalHost, HostContext
 from deployer.host_container import HostsContainer, HostContainer
 from deployer.loggers import LoggerInterface
 from deployer.pseudo_terminal import Pty, DummyPty
+from deployer.utils import IfConfig
 
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
 
@@ -111,6 +112,11 @@ class HostTest(unittest.TestCase):
         os.remove(name1)
         os.remove(name2)
         os.remove(name3)
+
+    def test_ifconfig(self):
+        # ifconfig should return an IfConfig instance.
+        host = LocalHost1.get_instance()
+        self.assertIsInstance(host.ifconfig(), IfConfig)
 
 if __name__ == '__main__':
     unittest.main()
