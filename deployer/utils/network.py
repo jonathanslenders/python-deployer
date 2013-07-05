@@ -9,12 +9,20 @@ class NetworkInterface(object):
         return 'NetworkInterface(name=%r, ip=%r)' % (self.name, self.ip)
 
 
+class IfConfig(object):
+    def __init__(self):
+        self.interfaces = []
+
+    def __repr__(self):
+        return 'IfConfig(interfaces=%r)' % self.interfaces
+
+
 def parse_ifconfig_output(output, only_active_interfaces=True):
     """
     Parse the output of an `ifconfig` command and return a list of
     NetworkInterface objects.
     """
-    interfaces = []
+    ifconfig = IfConfig()
     current_interface = None
 
     for l in output.split('\n'):
@@ -23,7 +31,7 @@ def parse_ifconfig_output(output, only_active_interfaces=True):
             # Start a new interface.
             if not l[0].isspace():
                 current_interface = NetworkInterface(l.split()[0].rstrip(':'))
-                interfaces.append(current_interface)
+                ifconfig.interfaces.append(current_interface)
                 l = ' '.join(l.split()[1:])
 
             if current_interface:
@@ -33,6 +41,6 @@ def parse_ifconfig_output(output, only_active_interfaces=True):
 
     # Return only the interfaces that have an IP address.
     if only_active_interfaces:
-        return filter(lambda i: i.ip, interfaces)
-    else:
-        return interfaces
+        ifconfig.interfaces = filter(lambda i: i.ip, ifconfig.interfaces)
+
+    return ifconfig
