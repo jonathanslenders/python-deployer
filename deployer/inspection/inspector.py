@@ -98,7 +98,7 @@ class Inspector(object):
                 return a
         raise AttributeError('Action not found.')
 
-    #def get_properties(self, include_private=True):
+    #def _get_properties(self, include_private=True):
     #    """
     #    List the names of all the properties.
     #    """
@@ -115,15 +115,18 @@ class Inspector(object):
     def _get_query(self, name):
         """
         Returns an Action object that wraps this Query.
+        Private because, normally end-user code does not deal with
+        Action-instances, because queries appear to be automatically resolved
+        during attribute access. And this returns an Action instance.
         """
         for q in self._get_queries():
             if q.name == name:
                 return q
         raise AttributeError('Query not found.')
 
-    def _has_query(self, name):
+    def has_query(self, name):
         try:
-            self.get_action(name)
+            self._get_query(name)
             return True
         except AttributeError:
             return False

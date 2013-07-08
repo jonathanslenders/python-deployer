@@ -500,7 +500,7 @@ class InspectQuery(Handler):
                 yield query_action.name, InspectQuery2(self.shell, query_action.name)
 
     def get_subhandler(self, name):
-        if Inspector(self.shell.state.node)._has_query(name):
+        if Inspector(self.shell.state.node).has_query(name):
             return InspectQuery2(self.shell, name)
 
 

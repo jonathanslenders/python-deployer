@@ -1,7 +1,7 @@
 import unittest
 
 from deployer.query import Q, QueryResult
-from deployer.node import Node, SimpleNode, Env
+from deployer.node import Node, SimpleNode, Env, Action
 from deployer.groups import Production, Staging, production, staging
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
@@ -344,11 +344,26 @@ class QueryInspectionTest(unittest.TestCase):
         class Root(Node):
             attr = 'value'
             query = Q.attr + Q.attr
+            def my_action(self): pass
         self.env = Env(Root())
         self.env_insp = Inspector(self.env)
+        self.node_insp = Inspector(Root())
 
-    def test_query_inspection(self):
-        # XXX: This is an internal function, used for the shell.
+    def test_has_query(self):
+        self.assertEqual(self.env_insp.has_query('query'), True)
+        self.assertEqual(self.env_insp.has_query('not_a_query'), False)
+
+        self.assertEqual(self.node_insp.has_query('query'), True)
+        self.assertEqual(self.node_insp.has_query('not_a_query'), False)
+
+    def test_get_query(self):
+        self.assertIsInstance(self.node_insp._get_query('query'), Action)
+        self.assertRaises(AttributeError, self.node_insp._get_query, 'not_a_query')
+
+    def test_trace_query(self):
+        # _trace_query is private because it's for internal use. (In the
+        # shell.)
         result = self.env_insp._trace_query('query')
         self.assertIsInstance(result, QueryResult)
         self.assertEqual(result.result, 'valuevalue')
+
