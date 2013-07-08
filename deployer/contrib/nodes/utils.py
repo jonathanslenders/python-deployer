@@ -49,14 +49,12 @@ class _Diff(Node):
 
     @suppress_action_result
     def diff(self, virtual_envs=None):
-        from deployer.console import select_service
-
         def filter(service):
             # Only allow services of this kind
             return service.isinstance(self.SERVICE_CLASSES)
 
-        s1 = select_service(self._pty, self.root, prompt=self.prompt, filter=filter)
-        s2 = select_service(self._pty, self.root, prompt=self.prompt2, filter=filter)
+        s1 = self.console.select_node(self.root, prompt=self.prompt, filter=filter)
+        s2 = self.console.select_node(self.root, prompt=self.prompt2, filter=filter)
         return self._print_output(self._call(s1), self._call(s2))
     __call__ = diff
 

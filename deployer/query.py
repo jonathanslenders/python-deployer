@@ -1,22 +1,23 @@
 import inspect
 
-"""
-Domain specific language for querying in a deploy tree.
+# Domain specific language for querying in a deploy tree.
 
-The Query object is technically a Python class descriptor. It exposes an easy
-to read syntax for a node property to point to another Node's class
-property.  e.g.
+__doc__ = \
+"""
+Queries provide syntactic sugar for expressions inside nodes.
 
 ::
+
     class MyNode(Node):
-        something = True
+        do_something = True
 
         class MyChildNode(Node):
-            some_property = Q.parent('MyNode').something
-            some_node = Q.parent('MyNode').SomeOtherNode
+            do_something = Q.parent.do_something
 
-        class SomeOtherNode(Node):
-            pass
+            def setup(self):
+                if self.do_something:
+                    ...
+                    pass
 """
 
 
@@ -62,7 +63,9 @@ class Query(object):
 
     @property
     def parent(self):
-        """ Go the to current parent of this node.  """
+        """
+        Go to the current parent of this node.
+        """
         return Parent(self)
 
     # Operator overloads

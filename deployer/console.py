@@ -4,6 +4,32 @@ from termcolor import colored
 import sys
 import random
 
+__doc__ = \
+"""
+The ``console`` object is an interface for interaction with the user from
+within a ``Node``. Among the input methods are choice lists, plain text input,
+password input, and other.
+
+It has output methods that take the terminal size into account, like pagination
+and multi-column display. It takes care of the pty underneat.
+
+Example:
+
+::
+
+    class MyNode(Node):
+        def do_something(self):
+            if self.console.confirm('Should we really do this?', default=True):
+                # Do it...
+                pass
+
+.. note:: When the script runs in a shell that was started with
+    ``interactive=False``, the default options will always be chosen
+    automatically.
+
+"""
+
+
 class NoInput(Exception):
     pass
 
@@ -132,7 +158,8 @@ class Console(object):
 
     def confirm(self, question, default=None):
         """
-        Print this yes/no question, and return True when the user answers 'yes'.
+        Print this yes/no question, and return ``True`` when the user answers
+        'yes'.
         """
         answer = 'invalid'
 
@@ -146,67 +173,67 @@ class Console(object):
         return answer in ('yes', 'y')
 
     #
-    # Service selector
+    # Node selector
     #
 
-    def select_service(self, root_service, prompt='Select service', filter=None):
+    def select_node(self, root_node, prompt='Select a node', filter=None):
         """
-        Show autocompletion for service selection.
+        Show autocompletion for node selection.
         """
         from deployer.cli import ExitCLILoop, Handler, HandlerType, CLInterface
 
-        class ServiceHandler(Handler):
-            def __init__(self, service):
-                self.service = service
+        class NodeHandler(Handler):
+            def __init__(self, node):
+                self.node = node
 
             @property
             def is_leaf(self):
-                return not filter or filter(self.service)
+                return not filter or filter(self.node)
 
             @property
             def handler_type(self):
-                class ServiceType(HandlerType):
-                    color = self.service.get_group().color
-                return ServiceType()
+                class NodeType(HandlerType):
+                    color = self.node.get_group().color
+                return NodeType()
 
             def complete_subhandlers(self, part):
-                for name, subservice in self.service.get_subservices():
+                for name, subnode in self.node.get_subnodes():
                     if name.startswith(part):
-                        yield name, ServiceHandler(subservice)
+                        yield name, NodeHandler(subnode)
 
             def get_subhandler(self, name):
-                if self.service.has_subservice(name):
-                    subservice = self.service.get_subservice(name)
-                    return ServiceHandler(subservice)
+                if self.node.has_subnode(name):
+                    subnode = self.node.get_subnode(name)
+                    return NodeHandler(subnode)
 
             def __call__(self, context):
-                raise ExitCLILoop(self.service)
+                raise ExitCLILoop(self.node)
 
-        root_handler = ServiceHandler(root_service)
+        root_handler = NodeHandler(root_node)
 
         class Shell(CLInterface):
             @property
             def prompt(self):
                 return colored('\n%s > ' % prompt, 'cyan')
 
-            not_found_message = 'Service not found...'
-            not_a_leaf_message = 'Not a valid service...'
+            not_found_message = 'Node not found...'
+            not_a_leaf_message = 'Not a valid node...'
 
-        service_result = Shell(self._pty, root_handler).cmdloop()
+        node_result = Shell(self._pty, root_handler).cmdloop()
 
-        if not service_result:
+        if not node_result:
             raise NoInput
 
-        return select_service_isolation(service_result)
+        return select_node_isolation(node_result)
 
-    def select_service_isolation(self, service):
+    def select_node_isolation(self, node):
         """
         Ask for a host, from a list of hosts.
         """
-        if service._is_isolated:
-            return service
+        if node._is_isolated:
+            return node
         else:
-            options = [ (i.name, i.service) for i in service.get_isolations() ]
+            options = [ (i.name, i.node) for i in node.get_isolations() ]
             return self.choice('Choose a host', options, allow_random=True)
 
     def lesspipe(self, line_iterator):
