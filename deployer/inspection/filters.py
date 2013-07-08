@@ -3,15 +3,14 @@ __doc__ = \
 Filters for NodeIterator
 ------------------------
 
-The iterator that ``Inspector.walk()`` returns, can be filtered to limit the
-yielded nodes according to certain conditions.
+This is the iterator that ``Inspector.walk()`` returns. It supports filtered to
+limit the yielded nodes according to certain conditions.
 
-A filter is a Filter instance or an AND or OR operation of several
-filters.
-
-Example usage:
+A filter is a ``Filter`` instance or an AND or OR operation of several
+filters. For instance:
 
 ::
+
     from deployer.inspection.filters import HasAction, PublicOnly
     Inspector(node).walk(HasAction('my_action') & PublicOnly)
 """
@@ -60,9 +59,6 @@ class OrFilter(Filter):
 
 
 class _PublicOnly(Filter):
-    """
-    Filter on public nodes.
-    """
     def _filter(self, node):
         return not (node._node_name and node._node_name.startswith('_'))
 
@@ -70,12 +66,12 @@ class _PublicOnly(Filter):
         return 'PublicOnly'
 
 PublicOnly = _PublicOnly()
+"""
+Filter on public nodes.
+"""
 
 
 class _PrivateOnly(Filter):
-    """
-    Filter on private nodes.
-    """
     def _filter(self, node):
         return node._node_name and node._node_name.startswith('_')
 
@@ -83,6 +79,9 @@ class _PrivateOnly(Filter):
         return 'PrivateOnly'
 
 PrivateOnly = _PrivateOnly()
+"""
+Filter on private nodes.
+"""
 
 
 class IsInstance(Filter):

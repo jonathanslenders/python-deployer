@@ -21,8 +21,11 @@ class Console(object):
 
     def input(self, label, is_password=False, answers=None, default=None):
         """
-        Ask for input. (like raw_input, but nice colored.)
-        'answers' can be either None or a list of the accepted answers.
+        Ask for plain text input. (Similar to raw_input.)
+
+        :param is_password: Show stars instead of the actual user input.
+        :param answers: A list of the accepted answers or None.
+        :param default: Default answer.
         """
         def print_question():
             answers_str = (' [%s]' % (','.join(answers)) if answers else '')

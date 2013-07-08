@@ -16,8 +16,8 @@ The cool thing is that when the script runs in a shell that was started with an
 interactive=False parameter, the default options will be chosen automatically.
 It also takes care of the pty object underneat.
 
-Class attributes
-----------------
+Reference
+---------
 
 .. automodule:: deployer.console
     :members:

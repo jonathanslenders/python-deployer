@@ -11,8 +11,4 @@ Authors
 -------
 
 - Jonathan Slenders (VikingCo, Mobile Vikings)
-
-Suggestions and contributions from:
-- Jan Fabry
-
-
+- Jan Fabry (VikingCo, Mobile Vikings)

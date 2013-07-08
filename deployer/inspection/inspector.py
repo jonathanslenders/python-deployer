@@ -55,8 +55,9 @@ class Inspector(object):
     def get_childnodes(self, include_private=True, verify_parent=True):
         """
         Return a list of childnodes.
-        include_private: ignore names starting with underscore.
-        verify_parent: check the parent pointer.
+
+        :param include_private: ignore names starting with underscore.
+        :param verify_parent: check that the parent matches the current node.
         """
         # Retrieve all nodes.
         def f(i):
@@ -67,6 +68,9 @@ class Inspector(object):
         return sorted(nodes, key=lambda n: n._node_creation_counter)
 
     def has_childnode(self, name):
+        """
+        Returns ``True`` when this node has a childnode called ``name``.
+        """
         try:
             self.get_childnode(name)
             return True
@@ -74,18 +78,27 @@ class Inspector(object):
             return False
 
     def get_childnode(self, name):
+        """
+        Return the childnode with this name or raise ``AttributeError``.
+        """
         for c in self.get_childnodes():
             if Inspector(c).get_name() == name:
                 return c
         raise AttributeError('Childnode not found.')
 
     def get_actions(self, include_private=True):
+        """
+        Return a list of ``Action`` instances for the actions in this node.
+        """
         actions = self._filter(include_private, lambda i: isinstance(i, Action) and not i.is_property)
 
         # Order alphabetically.
         return sorted(actions.values(), key=lambda a:a._attr_name)
 
     def has_action(self, name):
+        """
+        Returns ``True`` when this node has an action called ``name``.
+        """
         try:
             self.get_action(name)
             return True
@@ -93,6 +106,9 @@ class Inspector(object):
             return False
 
     def get_action(self, name):
+        """
+        Return the ``Action`` with this name or raise ``AttributeError``.
+        """
         for a in self.get_actions():
             if a.name == name:
                 return a
@@ -165,6 +181,15 @@ class Inspector(object):
             node = node.parent
         return node
 
+    def get_parent(self): # TODO: unittest!!
+        """
+        Return the parent node or raise ``AttributeError``.
+        """
+        if self.parent:
+            return self.parent
+        else:
+            raise AttributeError('No parent found. Is this the root node?')
+
     def get_group(self):
         """
         Return the group to which this node belongs.
@@ -173,16 +198,24 @@ class Inspector(object):
                 Inspector(self.node.parent).get_group() if self.node.parent else Group())
 
     def get_name(self):
+        """
+        Return the name of this node.
+
+        Note: when a node is nested in a parent node, the name becomes the
+        attribute name of this node in the parent.
+        """
         return self.node._node_name or self.node.__class__.__name__
 
-    def get_full_name(self):
-        #XXX rename to get_full_path??
+    def get_full_name(self): #XXX deprecate!!!
         return self.node.__class__.__name__
 
     def get_isolation_identifier(self):
         return self.node._node_isolation_identifier
 
     def is_callable(self):
+        """
+        Return ``True`` when this node implements ``__call__``.
+        """
         return hasattr(self.node, '__call__')
 
     def _walk(self):
@@ -209,6 +242,8 @@ class Inspector(object):
         Recursively walk (topdown) through the nodes and yield them.
 
         It does not yet isolate SimpleNodes in several nodes.
+
+        :returns: A ``NodeIterator`` instance.
         """
         return NodeIterator(self._walk).filter(filter)
 
