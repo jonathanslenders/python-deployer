@@ -12,10 +12,10 @@ A Python framework for automatic application deployment on Posix systems.
 * :ref:`modindex`
 * :ref:`search`
 
-Key features are:
+Important key features are:
 
  - Interactive execution of remote commands.
- - Parallel execution.
+ - Fast parallel execution.
  - Reusability of all deployment code.
 
 Table of content
