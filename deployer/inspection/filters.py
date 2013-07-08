@@ -16,6 +16,7 @@ filters. For instance:
 """
 
 __all__ = (
+        'Filter',
         'PublicOnly',
         'PrivateOnly',
         'IsInstance',
@@ -24,6 +25,9 @@ __all__ = (
 
 
 class Filter(object):
+    """
+    Base class for ``Inspector.walk`` filters.
+    """
     def _filter(self):
         raise NotImplementedError
 

@@ -1,3 +1,29 @@
+
+__doc__ = \
+"""
+A ``Group`` can be attached to every Node, in order to put them in categories.
+
+Typically, you have group names like ``alpha``, ``beta`` and ``production``.
+The interactive shell will show the nodes in other colours, depending on the
+group they're in.
+
+For instance.
+
+::
+
+    from deployer.groups import production, staging
+
+    class N(Node):
+        @production
+        class Child(Node):
+            pass
+"""
+
+__all__ = (
+        'Group',
+        'set_group'
+)
+
 class Group(object):
     """
     Group to which a node belongs.
@@ -17,14 +43,11 @@ def set_group(group):
     """
     Set the group for this node.
 
-    >> @set_group(Group)
-    >> class MyNode(Node):
-    >>     pass
+    ::
 
-    This is equivalent to.
-
-    >> class MyNode(Node):
-    >>     node_group = Group
+        @set_group(Staging)
+        class MyNode(Node):
+            pass
     """
     def group_setter(node):
         return type(node.__name__, (node,), { 'node_group': group })

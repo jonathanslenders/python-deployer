@@ -62,7 +62,7 @@ class HostsContainer(object):
     @classmethod
     def from_definition(cls, hosts_class, **kw):
         """
-        Create a host container from a Hosts class.
+        Create a ``HostContainer`` from a Hosts class.
         """
         hosts = { }
         for k in dir(hosts_class):
@@ -86,7 +86,7 @@ class HostsContainer(object):
 
     def __eq__(self, other):
         """
-        Return True when the roles/hosts are the same.
+        Return ``True`` when the roles/hosts are the same.
         """
         if self.roles != other.roles:
             return False
@@ -120,7 +120,7 @@ class HostsContainer(object):
 
     def __contains__(self, host):
         """
-        Return true when this host appears in this host container.
+        Return ``True`` when this host appears in this host container.
         """
         return host in self._all
 
@@ -138,15 +138,14 @@ class HostsContainer(object):
 
     def filter(self, *roles):
         """
-        Usage:
-            hosts.filter('role1', 'role2')
-            or
-            hosts.filter('*') # Returns everything
-            or
-            hosts.filter( ['role1', 'role2' ]) # TODO: deprecate
-            or
-            host.filter('role1', MyHostClass) # This means: take 'role1' from this container, but add an instance of this class
+        Examples:
 
+        ::
+
+            hosts.filter('role1', 'role2')
+            hosts.filter('*') # Returns everything
+            hosts.filter( ['role1', 'role2' ]) # TODO: deprecate
+            host.filter('role1', MyHostClass) # This means: take 'role1' from this container, but add an instance of this class
         """
         if len(roles) == 1 and any(isinstance(roles[0], t) for t in (tuple, list)):
             roles = roles[0]
@@ -155,7 +154,7 @@ class HostsContainer(object):
 
     def get(self, *roles):
         """
-        Similar to filter(), but returns exactly one host instead of a list.
+        Similar to ``filter()``, but returns exactly one host instead of a list.
         """
         result = self.filter(*roles)
         if len(result) == 1:
@@ -176,8 +175,9 @@ class HostsContainer(object):
     @wraps(Host.run)
     def run(self, *a, **kw):
         """
-        Call 'run' with this parameters on every host.
-        Return an array of all the results.
+        Call ``run`` with this parameters on every host.
+
+        :returns: An array of all the results.
         """
         # First create a list of callables
         def closure(host):
@@ -215,7 +215,7 @@ class HostsContainer(object):
     @wraps(Host.sudo)
     def sudo(self, *args, **kwargs):
         """
-        Call 'sudo' with this parameters on every host.
+        Call ``sudo`` with this parameters on every host.
         """
         kwargs['use_sudo'] = True
         return HostsContainer.run(self, *args, **kwargs)
@@ -250,7 +250,7 @@ class HostsContainer(object):
     #
     def exists(self, filename, use_sudo=True):
         """
-        Returns whether this file exists on this hosts.
+        Returns ``True`` when this file exists on the hosts.
         """
         def on_host(container):
             return container._host.get_instance().exists(filename, use_sudo=use_sudo)

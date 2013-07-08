@@ -4,11 +4,24 @@ from deployer.inspection import filters
 
 class PathType:
     """
-    Options for Inspector.get_path()
+    Types for displaying the ``Node`` address in a tree.
+    It's an options for Inspector.get_path()
     """
+
     NAME_ONLY = 'NAME_ONLY'
+    """
+    A list of names.
+    """
+
     NODE_AND_NAME = 'NODE_AND_NAME'
+    """
+    A list of ``(Node, name)`` tuples.
+    """
+
     NODE_ONLY = 'NODE_ONLY'
+    """
+    A list of nodes.
+    """
 
 
 class Inspector(object):
@@ -57,7 +70,9 @@ class Inspector(object):
         Return a list of childnodes.
 
         :param include_private: ignore names starting with underscore.
+        :type include_private: bool
         :param verify_parent: check that the parent matches the current node.
+        :type verify_parent: bool
         """
         # Retrieve all nodes.
         def f(i):
@@ -89,6 +104,9 @@ class Inspector(object):
     def get_actions(self, include_private=True):
         """
         Return a list of ``Action`` instances for the actions in this node.
+
+        :param include_private: Include actions starting with an underscore.
+        :type include_private: bool
         """
         actions = self._filter(include_private, lambda i: isinstance(i, Action) and not i.is_property)
 
@@ -141,6 +159,9 @@ class Inspector(object):
         raise AttributeError('Query not found.')
 
     def has_query(self, name):
+        """
+        Returns ``True`` when the attribute ``name`` of this node is a Query.
+        """
         try:
             self._get_query(name)
             return True
@@ -148,11 +169,17 @@ class Inspector(object):
             return False
 
     def suppress_result_for_action(self, name):
+        """
+        ``True`` when the ``@suppress_result`` decorator has been used around this action.
+        """
         return self.get_action(name).suppress_result
 
     def get_path(self, path_type=PathType.NAME_ONLY):
         """
         Return a (name1, name2, ...) tuple, defining the path from the root until here.
+
+        :param path_type: Path formatting.
+        :type path_type: :class:`.PathType`
         """
         result = []
         n = self.node
@@ -243,7 +270,8 @@ class Inspector(object):
 
         It does not yet isolate SimpleNodes in several nodes.
 
-        :returns: A ``NodeIterator`` instance.
+        :param filter: A :class:`.filters.Filter` instance.
+        :returns: A :class:`.NodeIterator` instance.
         """
         return NodeIterator(self._walk).filter(filter)
 
@@ -340,9 +368,8 @@ class NodeIterator(object):
     def call_action(self, name, *a, **kw):
         """
         Call a certain action on all the nodes.
-
-        This will split the SimpleNode Arrays into their isolations.
         """
+        # Note: This will split the SimpleNode Arrays into their isolations.
         for n in self:
             for index, node in Inspector(n).iter_isolations():
                 action = getattr(node, name)

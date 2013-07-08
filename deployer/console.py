@@ -6,12 +6,12 @@ import random
 
 __doc__ = \
 """
-The ``console`` object is an interface for interaction with the user from
-within a ``Node``. Among the input methods are choice lists, plain text input,
-password input, and other.
+The ``console`` object is an interface for user interaction from within a
+``Node``. Among the input methods are choice lists, plain text input and password
+input.
 
 It has output methods that take the terminal size into account, like pagination
-and multi-column display. It takes care of the pty underneat.
+and multi-column display. It takes care of the pseudo terminal underneat.
 
 Example:
 
@@ -116,7 +116,7 @@ class Console(object):
 
     def choice(self, question, options, allow_random=False, default=None):
         """
-        `options`: (name, value) list
+        :options: A list of (name, value) tuples.
         """
         if len(options) == 0:
             raise NoInput('No options given.')
@@ -238,7 +238,12 @@ class Console(object):
 
     def lesspipe(self, line_iterator):
         """
-        Paginator for output.
+        Paginator for output. This will print one page at a time. When the user
+        presses a key, the next page is printed. ``Ctrl-c`` or ``q`` will quit
+        the paginator.
+
+        :line_iterator: A generator function that yields lines (without
+                        trailing newline)
         """
         height = self._pty.get_size()[0] - 1
 
@@ -275,8 +280,8 @@ class Console(object):
 
     def in_columns(self, item_iterator, margin_left=0):
         """
-        `item_iterator' should be an iterable, which yields either
-        basestring, or (colored_item, length)
+        :item_iterator: An iterable, which yields either ``basestring``
+                        instances, or (colored_item, length) tuples.
         """
         # Helper functions for extracting items from the iterator
         def get_length(item):

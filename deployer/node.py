@@ -201,9 +201,9 @@ class Env(object):
     """
     Wraps a Node into a context where actions can be executed.
 
-    Instead of 'self', the first parameter of a Node-action will
-    be this instance. It acts like a proxy to the Node, but in the meantime
-    it takes care of logging, sandboxing, the terminal and context.
+    Instead of ``self``, the first parameter of a ``Node``-action will be this
+    instance. It acts like a proxy to the ``Node``, but in the meantime it
+    takes care of logging, sandboxing, the terminal and context.
     """
     def __init__(self, node, pty=None, logger=None, is_sandbox=False):
         assert isinstance(node, Node)
@@ -256,6 +256,9 @@ class Env(object):
 
     @property
     def hosts(self):
+        """
+        :class:`deployer.host_container.HostsContainer` instance. This is the proxy to the actual hosts.
+        """
         # Create a new HostsContainer object which is identical to the one of the Node object,
         # but add pty/logger/sandbox settings.
         return HostsContainer(self._node.hosts._hosts, self._pty, self._logger, self._is_sandbox,
@@ -263,6 +266,9 @@ class Env(object):
 
     @property
     def console(self):
+        """
+        Interface for user input. Returns a :class:`deployer.console.Console` instance.
+        """
         if not self._pty:
             raise AttributeError('Console is not available in Env when no pty was given.')
         return Console(self._pty)
@@ -580,7 +586,7 @@ def get_node_path(node):
 
 class Node(object):
     """
-    Base class for any deployment node.
+    This is the base class for any deployment node.
     """
     __metaclass__ = NodeBase
     __slots__ = ('hosts', 'parent')
@@ -737,7 +743,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
 
 class SimpleNode(Node):
     """
-    A SimpleNode is a Node which has only one role, named 'host'.
+    A ``SimpleNode`` is a ``Node`` which has only one role, named ``host``.
     Multiple hosts can be given for this role, but all of them will be isolated,
     during execution. This allows parallel executing of functions on each 'cell'.
     """
@@ -755,9 +761,9 @@ class SimpleNode(Node):
 
 class Action(object):
     """
-    Service actions, which are defined as just functions, will be wrapped into
+    Node actions, which are defined as just functions, will be wrapped into
     this Action class. When one such action is called, this class will make
-    sure that a correct 'env' object is passed into the function as its first
+    sure that a correct ``env`` object is passed into the function as its first
     argument.
     """
     def __init__(self, attr_name, node_instance, func, is_property=False, is_query=False):

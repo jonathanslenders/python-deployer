@@ -61,10 +61,10 @@ class HostContext(object):
         """
         Prefix all commands with given command plus ``&&``.
 
-        ``
-        with host.prefix('workon environment'):
-            host.run('./manage.py migrate')
-        ``
+        ::
+
+            with host.prefix('workon environment'):
+                host.run('./manage.py migrate')
         """
         class Prefix(object):
             def __enter__(context):
@@ -76,11 +76,13 @@ class HostContext(object):
 
     def cd(self, path):
         """
-        # Execute commands in this directory.
-        # Nesting of cd-statements is allowed.
+        Execute commands in this directory.
+        Nesting of cd-statements is allowed.
 
-        with host.cd('~/directory'):
-            host.run('ls')
+        ::
+
+            with host.cd('~/directory'):
+                host.run('ls')
         """
         class CD(object):
             def __enter__(context):
@@ -559,14 +561,16 @@ class Host(object):
         """
         Open file handler to remote file. Can be used both as:
 
-        1)
+        ::
 
-        >> with host.open('/path/to/somefile', wb') as f:
-        >>     f.write('some content')
+            with host.open('/path/to/somefile', wb') as f:
+                f.write('some content')
 
-        2)
+        or:
 
-        >> host.open('/path/to/somefile', wb').write('some content')
+        ::
+
+            host.open('/path/to/somefile', wb').write('some content')
         """
         logger = logger or self.dummy_logger
         context = context or HostContext()
