@@ -1,4 +1,4 @@
-from deployer.node import SimpleNode, Node, Env, IsolationIdentifierType, iter_isolations, Action, Group
+from deployer.node import SimpleNode, Node, Env, EnvAction, IsolationIdentifierType, iter_isolations, Action, Group
 from deployer.inspection import filters
 
 
@@ -43,13 +43,13 @@ class Inspector(object):
         raise AttributeError('Isolation not found')
 
     def _filter(self, include_private, filter):
-        childnodes = []
+        childnodes = { }
         for name in dir(self.node.__class__):
             if not name.startswith('__') and name != 'parent':
                 if include_private or not name.startswith('_'):
                     attr = getattr(self.node, name)
                     if filter(attr):
-                        childnodes.append(attr)
+                        childnodes[name] = attr
         return childnodes
 
     def get_childnodes(self, include_private=True, verify_parent=True):
@@ -61,7 +61,7 @@ class Inspector(object):
         # Retrieve all nodes.
         def f(i):
             return isinstance(i, Node) and (not verify_parent or i.parent == self.node)
-        nodes = self._filter(include_private, f)
+        nodes = self._filter(include_private, f).values()
 
         # Order by _node_creation_counter
         return sorted(nodes, key=lambda n: n._node_creation_counter)
@@ -80,7 +80,10 @@ class Inspector(object):
         raise AttributeError('Childnode not found.')
 
     def get_actions(self, include_private=True):
-        return self._filter(include_private, lambda i: isinstance(i, Action) and not i.is_property)
+        actions = self._filter(include_private, lambda i: isinstance(i, Action) and not i.is_property)
+
+        # Order alphabetically.
+        return sorted(actions.values(), key=lambda a:a._attr_name)
 
     def has_action(self, name):
         try:
@@ -94,6 +97,36 @@ class Inspector(object):
             if a.name == name:
                 return a
         raise AttributeError('Action not found.')
+
+    #def get_properties(self, include_private=True):
+    #    """
+    #    List the names of all the properties.
+    #    """
+    #    return self._filter(include_private, lambda i:
+    #            not isinstance(Node) and (
+    #                    isinstance(i, Action) and i.is_property) or
+    #                    not isinstance(i, Action))
+
+    def _get_queries(self, include_private=True):
+        # Internal only. For the shell.
+        return self._filter(include_private, lambda i:
+                    isinstance(i, Action) and i.is_query).values()
+
+    def _get_query(self, name):
+        """
+        Returns an Action object that wraps this Query.
+        """
+        for q in self._get_queries():
+            if q.name == name:
+                return q
+        raise AttributeError('Query not found.')
+
+    def _has_query(self, name):
+        try:
+            self.get_action(name)
+            return True
+        except AttributeError:
+            return False
 
     def suppress_result_for_action(self, name):
         return self.get_action(name).suppress_result
@@ -206,6 +239,14 @@ class _EnvInspector(Inspector):
         for node in Inspector._walk(self):
             yield self.env._Env__wrap_node(node)
 
+    def _trace_query(self, name):
+        """
+        Execute this query, but return the QueryResult wrapper instead of the
+        actual result. This wrapper contains trace information for debugging.
+        """
+        action = self._get_query(name)
+        query_result = EnvAction(self.env, action)(return_query_result=True)
+        return query_result
 
 
 class NodeIterator(object):
@@ -251,7 +292,7 @@ class NodeIterator(object):
                     try:
                         yield n[index]
                     except KeyError:
-                        # TODO: maybe: yield n here not 100% sure, whether this is the best.
+                        # TODO: maybe: yield n here. Not 100% sure, whether this is the best.
                         pass
                 # Otherwise, just yield the node.
                 else:

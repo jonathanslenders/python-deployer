@@ -1,6 +1,6 @@
 import unittest
 
-from deployer.query import Q
+from deployer.query import Q, QueryResult
 from deployer.node import Node, SimpleNode, Env
 from deployer.groups import Production, Staging, production, staging
 from deployer.pseudo_terminal import Pty, DummyPty
@@ -337,3 +337,18 @@ class SuppressResultTest(unittest.TestCase):
         # On an env object
         self.assertEqual(self.env_insp.suppress_result_for_action('a'), False)
         self.assertEqual(self.env_insp.suppress_result_for_action('b'), True)
+
+
+class QueryInspectionTest(unittest.TestCase):
+    def setUp(self):
+        class Root(Node):
+            attr = 'value'
+            query = Q.attr + Q.attr
+        self.env = Env(Root())
+        self.env_insp = Inspector(self.env)
+
+    def test_query_inspection(self):
+        # XXX: This is an internal function, used for the shell.
+        result = self.env_insp._trace_query('query')
+        self.assertIsInstance(result, QueryResult)
+        self.assertEqual(result.result, 'valuevalue')

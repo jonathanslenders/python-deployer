@@ -136,6 +136,7 @@ class ChildNodeDescriptor(object):
         else:
             return self._node_class
 
+
 class QueryDescriptor(object):
     def __init__(self, node_name, attr_name, query):
         self.node_name = node_name
@@ -144,20 +145,25 @@ class QueryDescriptor(object):
 
     def __get__(self, instance, owner):
         if instance:
-            def run(i):
+            def run_query(i, return_query_result=False):
                 """
                 Wrapper for the query function which properly handles exceptions.
                 """
                 try:
-                    return self.query._query(i)
+                    if return_query_result:
+                        # Return the QueryResult wrapper instead.
+                        return self.query._execute_query(i)
+                    else:
+                        return self.query._execute_query(i).result
+
                 except Exception, e:
                     from deployer.exceptions import QueryException
                     raise QueryException(i._node, self.attr_name, self.query, e)
 
             # Make sure that a nice name is passed to Action
-            run.__name__ = str('query:%s' % self.query.__str__())
+            run_query.__name__ = str('query:%s' % self.query.__str__())
 
-            return Action(self.attr_name, instance, run, is_property=True)
+            return Action(self.attr_name, instance, run_query, is_query=True)
         else:
             return self.query
 
@@ -229,7 +235,7 @@ class Env(object):
         """
         env_action = EnvAction(self, action)
 
-        if action.is_property:
+        if action.is_property or action.is_query:
             # Properties are automatically called upon retrieval
             return env_action()
         else:
@@ -754,11 +760,12 @@ class Action(object):
     sure that a correct 'env' object is passed into the function as its first
     argument.
     """
-    def __init__(self, attr_name, node_instance, func, is_property=False):
+    def __init__(self, attr_name, node_instance, func, is_property=False, is_query=False):
         self._attr_name = attr_name
         self._node_instance = node_instance # XXX: this should be the Env object?
         self._func = func # TODO: wrap _func in something that checks whether the first argument is an Env instance.
         self.is_property = is_property
+        self.is_query = is_query
 
     def __call__(self, env, *a, **kw):
         """
@@ -796,6 +803,7 @@ class Action(object):
     @property
     def suppress_result(self):
         return getattr(self._func, 'suppress_result', False)
+
 
 class EnvAction(object):
     """

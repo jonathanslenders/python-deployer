@@ -485,6 +485,52 @@ class Sandbox(Node):
         Node.__init__(self, node, shell, True)
 
 
+class InspectQuery(Handler):
+    handler_type = BuiltinType()
+    is_leaf = False
+
+    def __init__(self, shell):
+        self.shell = shell
+
+    def complete_subhandlers(self, part):
+        include_private = part.startswith('_')
+
+        for query_action in Inspector(self.shell.state.node)._get_queries(include_private=include_private):
+            if query_action.name.startswith(part):
+                yield query_action.name, InspectQuery2(self.shell, query_action.name)
+
+    def get_subhandler(self, name):
+        if Inspector(self.shell.state.node)._has_query(name):
+            return InspectQuery2(self.shell, name)
+
+
+class InspectQuery2(Handler):
+    handler_type = BuiltinType()
+    is_leaf = True
+
+    def __init__(self, shell, attr_name):
+        self.shell = shell
+        self.attr_name = attr_name
+
+    def __call__(self):
+        console = Console(self.shell.pty)
+        def run():
+            # Execute query in sandboxed environment.
+            try:
+                env = Env(self.shell.state.node, self.shell.pty, self.shell.logger_interface, is_sandbox=True)
+                insp = Inspector(env)
+                result = insp._trace_query(self.attr_name)
+            except Exception, e:
+                yield 'Failed to execute query: %r' % e
+                return
+
+            # Print query and all subqueries with their results.
+            for subquery in result.walk_through_subqueries():
+                yield termcolor.colored(repr(subquery[0]), 'cyan')
+                yield '    %s' % subquery[1]
+
+        console.lesspipe(run())
+
 class Action(Handler):
     """
     Node action node.
@@ -576,6 +622,7 @@ class RootHandler(ShellHandler):
             'ls': Ls,
             '--connect': Connect,
             '--inspect': Inspect,
+            '--query': InspectQuery,
             '--version': Version,
             '--source-code': SourceCode,
     }
@@ -695,6 +742,10 @@ class ShellState(object):
     @property
     def previous_node(self):
          return self._prev_node
+
+    @property
+    def node(self):
+        return self._node
 
 
 class Shell(CLInterface):
