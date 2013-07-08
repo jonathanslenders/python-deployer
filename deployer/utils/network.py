@@ -19,8 +19,9 @@ class IfConfig(object):
 
 def parse_ifconfig_output(output, only_active_interfaces=True):
     """
-    Parse the output of an `ifconfig` command and return a list of
-    NetworkInterface objects.
+    Parse the output of an `ifconfig` command.
+
+    :returns: A list of ``NetworkInterface`` objects.
     """
     ifconfig = IfConfig()
     current_interface = None

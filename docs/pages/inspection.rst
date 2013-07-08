@@ -1,10 +1,8 @@
 Inspection
 ==========
 
-TODO: example and docs.
-
-Reference
----------
+.. automodule:: deployer.inspection
+    :members:
 
 .. automodule:: deployer.inspection.inspector
     :members:

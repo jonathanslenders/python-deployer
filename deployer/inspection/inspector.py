@@ -13,7 +13,7 @@ class PathType:
 
 class Inspector(object):
     """
-    Introspection of a Node object.
+    Introspection of a ``Node`` instance.
     """
     def __init__(self, node):
         if isinstance(node, Env):

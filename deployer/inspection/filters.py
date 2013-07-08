@@ -3,8 +3,8 @@ __doc__ = \
 Filters for NodeIterator
 ------------------------
 
-This is the iterator that ``Inspector.walk()`` returns. It supports filtered to
-limit the yielded nodes according to certain conditions.
+``NodeIterator`` is the iterator that ``Inspector.walk()`` returns. It supports
+filtering to limit the yielded nodes according to certain conditions.
 
 A filter is a ``Filter`` instance or an AND or OR operation of several
 filters. For instance:
@@ -86,7 +86,7 @@ Filter on private nodes.
 
 class IsInstance(Filter):
     """
-    Filter on the nodes which are an instance of this Node class.
+    Filter on the nodes which are an instance of this ``Node`` class.
     """
     def __init__(self, node_class):
         self.node_class = node_class

@@ -7,16 +7,27 @@ import sys
 import termios
 import logging
 
+__doc__ = \
+"""
+.. note:: This module is mainly for internal use.
+
+Pty implements a terminal abstraction. This can be around the default stdin/out
+pair, but also around a pseudo terminal that was created through the
+``openpty`` system call.
+"""
+
 
 class Pty(object):
     """
-    Group stdin/stdout as a terminal instance.
+    Terminal abstraction around a stdin/stdout pair.
 
     Contains helper function, for opening an additional Pty,
     if parallel deployments are supported.
 
-    When `interactive` is False, we should never ask for input, after
-    any deploy command has been started.
+    :stdin: The input stream. (``sys.__stdin__`` by default)
+    :stdout: The output stream. (``sys.__stdout__`` by default)
+    :interactive: When ``False``, we should never ask for input during
+                         the deployment. Choose default options when possible.
     """
     def __init__(self, stdin=None, stdout=None, interactive=True):
         self.stdin = stdin or sys.__stdin__
@@ -28,7 +39,9 @@ class Pty(object):
         # Thanks to fabric (fabfile.org), and
         # http://sqizit.bartletts.id.au/2011/02/14/pseudo-terminals-in-python/
         """
-        Get the rows/cols for this pty
+        Get the size of this pseudo terminal.
+
+        :returns: A (rows, cols) tuple.
         """
         if self.stdout.isatty():
             # Buffer for the C call
@@ -44,12 +57,27 @@ class Pty(object):
             return 24, 80
 
     def get_width(self):
+        """
+        Return the width.
+        """
         return self.get_size()[1]
 
     def get_height(self):
+        """
+        Return the height.
+        """
         return self.get_size()[0]
 
     def set_size(self, rows, cols):
+        """
+        Set terminal size.
+
+        (This is also mainly for internal use. Setting the terminal size
+        automatically happens when the window resizes. However, sometimes the process
+        that created a pseudo terminal, and the process that's attached to the output window
+        are not the same, e.g. in case of a telnet connection, or unix domain socket, and then
+        we have to sync the sizes by hand.)
+        """
         if self.stdout.isatty():
             # Buffer for the C call
             buf = array.array('h', [rows, cols, 0, 0 ])
@@ -71,10 +99,12 @@ class Pty(object):
 
     def run_in_auxiliary_ptys(self, callbacks):
         """
-        Open an additional terminal, and call this function with the
-        new 'pty' as parameter. The callback can run in another thread.
-        (The default behaviour is not in parallel, but has a compatible API
-        which runs everything sequential.)
+        Open an additional terminal, and call this callback with the new 'pty'
+        as parameter. The callback can potentially run in another thread.
+
+        The default behaviour is not in parallel, but sequential.
+        Socket_server however, inherits this pty, and overrides this function
+        for parrallel execution.
         """
         logging.info('Could not open auxiliary pty. Running sequential.')
 
@@ -96,6 +126,13 @@ class Pty(object):
 
 
 class DummyPty(Pty):
+    """
+    Pty compatible object which insn't attached to an interactive terminal, but
+    to dummy StringIO instead.
+
+    This is mainly for unit testing, normally you want to see the execution in
+    your terminal.
+    """
     def __init__(self, input_data=''):
         # StringIO for stdout
         self._output = StringIO.StringIO()
@@ -131,7 +168,8 @@ def _pty_size(self):
 
 def select(*args, **kwargs):
     """
-    This is a wrapper around select.select.
+    Wrapper around select.select.
+
     When the SIGWINCH signal is handled, other system calls, like select
     are aborted in Python. This wrapper will retry the system call.
     """
