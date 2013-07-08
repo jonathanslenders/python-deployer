@@ -27,6 +27,7 @@ Table of content
    pages/getting_started
    pages/console
    pages/exceptions
+   pages/interactive_shell
    pages/groups
    pages/host_container
    pages/inspection

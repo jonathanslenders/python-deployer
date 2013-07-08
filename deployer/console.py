@@ -23,8 +23,8 @@ Example:
                 # Do it...
                 pass
 
-.. note:: When the script runs in a shell that was started with
-    ``interactive=False``, the default options will always be chosen
+.. note:: When the script runs in a shell that was started with the
+    ``--non-interactive`` option, the default options will always be chosen
     automatically.
 
 """
@@ -36,7 +36,7 @@ class NoInput(Exception):
 
 class Console(object):
     """
-    Interface for getting user input during a deployment at a pseudo terminal.
+    Interface for user interaction from within a ``Node``.
     """
     def __init__(self, pty):
         self._pty = pty
@@ -50,6 +50,7 @@ class Console(object):
         Ask for plain text input. (Similar to raw_input.)
 
         :param is_password: Show stars instead of the actual user input.
+        :type is_password: bool
         :param answers: A list of the accepted answers or None.
         :param default: Default answer.
         """
@@ -116,7 +117,10 @@ class Console(object):
 
     def choice(self, question, options, allow_random=False, default=None):
         """
-        :options: A list of (name, value) tuples.
+        :param options: List of (name, value) tuples.
+        :type options: list
+        :param allow_random: If ``True``, the default option becomes 'choose random'.
+        :type allow_random: bool
         """
         if len(options) == 0:
             raise NoInput('No options given.')
@@ -159,7 +163,7 @@ class Console(object):
     def confirm(self, question, default=None):
         """
         Print this yes/no question, and return ``True`` when the user answers
-        'yes'.
+        'Yes'.
         """
         answer = 'invalid'
 
@@ -242,8 +246,8 @@ class Console(object):
         presses a key, the next page is printed. ``Ctrl-c`` or ``q`` will quit
         the paginator.
 
-        :line_iterator: A generator function that yields lines (without
-                        trailing newline)
+        :param line_iterator: A generator function that yields lines (without
+                              trailing newline)
         """
         height = self._pty.get_size()[0] - 1
 
@@ -280,8 +284,8 @@ class Console(object):
 
     def in_columns(self, item_iterator, margin_left=0):
         """
-        :item_iterator: An iterable, which yields either ``basestring``
-                        instances, or (colored_item, length) tuples.
+        :param item_iterator: An iterable, which yields either ``basestring``
+                              instances, or (colored_item, length) tuples.
         """
         # Helper functions for extracting items from the iterator
         def get_length(item):

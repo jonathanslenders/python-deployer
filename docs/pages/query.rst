@@ -6,6 +6,8 @@ For instance:
 
 ::
 
+    from deployer.query import Q
+
     class MyNode(Node):
         do_something = True
 
@@ -67,6 +69,8 @@ A query can even do complex calculations:
 
 ::
 
+    from deployer.query import Q
+
     class Root(Node):
         class A(Node):
             length = 4
@@ -82,9 +86,9 @@ A query can even do complex calculations:
         size_str = Q('The size is %s x %s') % (Q.A.height, Q.A.width)
 
 
-.. note:: Python does not support overloading of the ``and``, ``or`` and
-          ``not`` operators. You should use the bitwise equivalents ``&``, ``|``
-          and ``~`` instead.
+.. note:: Python does not support overloading the ``and``, ``or`` and ``not``
+          operators. You should use the bitwise equivalents ``&``, ``|`` and
+          ``~`` instead.
 
 Reference
 ---------

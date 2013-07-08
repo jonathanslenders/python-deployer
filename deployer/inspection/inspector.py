@@ -201,7 +201,7 @@ class Inspector(object):
 
     def get_root(self):
         """
-        Return the root node of the tree.
+        Return the root ``Node`` of the tree.
         """
         node = self.node
         while node.parent:
@@ -210,7 +210,7 @@ class Inspector(object):
 
     def get_parent(self): # TODO: unittest!!
         """
-        Return the parent node or raise ``AttributeError``.
+        Return the parent ``Node`` or raise ``AttributeError``.
         """
         if self.parent:
             return self.parent
@@ -268,7 +268,7 @@ class Inspector(object):
         """
         Recursively walk (topdown) through the nodes and yield them.
 
-        It does not yet isolate SimpleNodes in several nodes.
+        It does not split ``SimpleNodes`` nodes in several isolations.
 
         :param filter: A :class:`.filters.Filter` instance.
         :returns: A :class:`.NodeIterator` instance.
