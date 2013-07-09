@@ -99,12 +99,15 @@ class Pty(object):
 
     def run_in_auxiliary_ptys(self, callbacks):
         """
-        Open an additional terminal, and call this callback with the new 'pty'
-        as parameter. The callback can potentially run in another thread.
+        For each callback, open an additional terminal, and call it with the
+        new 'pty' as parameter. The callback can potentially run in another
+        thread.
 
         The default behaviour is not in parallel, but sequential.
         Socket_server however, inherits this pty, and overrides this function
         for parrallel execution.
+
+        :param callbacks: A list of callables.
         """
         logging.info('Could not open auxiliary pty. Running sequential.')
 

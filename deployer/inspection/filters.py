@@ -12,7 +12,7 @@ filters. For instance:
 ::
 
     from deployer.inspection.filters import HasAction, PublicOnly
-    Inspector(node).walk(HasAction('my_action') & PublicOnly)
+    Inspector(node).walk(HasAction('my_action') & PublicOnly & ~ InGroup(Staging))
 """
 
 __all__ = (
@@ -21,7 +21,10 @@ __all__ = (
         'PrivateOnly',
         'IsInstance',
         'HasAction',
+        'InGroup',
 )
+
+from deployer.groups import Group
 
 
 class Filter(object):
@@ -36,6 +39,9 @@ class Filter(object):
 
     def __or__(self, other_filter):
         return OrFilter(self, other_filter)
+
+    def __invert__(self):
+        return NotFilter(self)
 
 
 class AndFilter(Filter):
@@ -60,6 +66,17 @@ class OrFilter(Filter):
 
     def __repr__(self):
         return '%r | %r' % (self.filter1, self.filter2)
+
+
+class NotFilter(Filter):
+    def __init__(self, filter1):
+        self.filter1 = filter1
+
+    def _filter(self, node):
+        return not self.filter1._filter(node)
+
+    def __repr__(self):
+        return '~ %r' % self.filter1
 
 
 class _PublicOnly(Filter):
@@ -91,6 +108,8 @@ Filter on private nodes.
 class IsInstance(Filter):
     """
     Filter on the nodes which are an instance of this ``Node`` class.
+
+    :param node_class: A :class:`deployer.node.Node` subclass.
     """
     def __init__(self, node_class):
         self.node_class = node_class
@@ -115,3 +134,21 @@ class HasAction(Filter):
 
     def __repr__(self):
         return 'HasAction(%r)' % self.action_name
+
+
+class InGroup(Filter):
+    """
+    Filter nodes that are in this group.
+
+    :param group: A :class:`deployer.groups.Group` subclass.
+    """
+    def __init__(self, group):
+        assert issubclass(group, Group)
+        self.group = group
+
+    def _filter(self, node):
+        from deployer.inspection.inspector import Inspector
+        return Inspector(node).get_group() == self.group
+
+    def __repr__(self):
+        return 'InGroup(%r)' % self.group

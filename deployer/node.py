@@ -245,9 +245,23 @@ class Env(object):
         """
         Dynamically initialize a node from within another node.
         This will make sure that the node class is initialized with the
-        correct logger, sandbox and pty settings.
+        correct logger, sandbox and pty settings. e.g:
 
-        - node_class, on object, inheriting from Node
+        :param node_class: A ``Node`` subclass.
+
+        ::
+
+            class SomeNode(Node):
+                def action(self):
+                    pass
+
+            class RootNode(Node):
+                def action(self):
+                    # Wrap SomeNode into an Env object
+                    node = self.initialize_node(SomeNode)
+
+                    # Use the node.
+                    node.action2()
         """
         return self.__wrap_node(node_class())
 

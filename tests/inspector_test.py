@@ -218,6 +218,7 @@ class InspectorIteratorTest(unittest.TestCase):
         class A(Node):
             def my_action(self): return 'a'
 
+            @production
             class B(Base):
                 def my_action(self): return 'b'
                 def my_other_action(self): return 'b2'
@@ -228,13 +229,16 @@ class InspectorIteratorTest(unittest.TestCase):
 
                     def my_action(self): return 'c'
 
+                    @staging
                     class E(Base):
                         def my_action(self): return 'e'
 
+            @production
             class D(Base):
                 def my_action(self): return 'd'
                 def my_other_action(self): return 'd2'
 
+            @staging
             class _P(Base):
                 # A private node
                 def my_action(self): return '_p'
@@ -276,6 +280,11 @@ class InspectorIteratorTest(unittest.TestCase):
         self.assertEqual(repr(filters.PrivateOnly & filters.IsInstance(self.Base)),
                 "PrivateOnly & IsInstance(<class 'inspector_test.Base'>)")
 
+    def test_not_operation(self):
+        insp = self.insp
+        self.assertEqual(len(insp.walk(~ filters.PrivateOnly)), 5)
+        self.assertEqual(repr(~ filters.PrivateOnly), '~ PrivateOnly')
+
     def test_call_action(self):
         insp = self.insp
         Base = self.Base
@@ -291,6 +300,14 @@ class InspectorIteratorTest(unittest.TestCase):
         self.assertEqual(len(result), 2)
         result = insp.walk().filter(filters.HasAction('my_other_action')).call_action('my_other_action')
         self.assertEqual(set(result), { 'b2', 'd2' })
+
+    def test_filter_on_group(self):
+        insp = self.insp
+        # Following are production nodes B, B.C, B.D
+        self.assertEqual(len(list(insp.walk().filter(filters.InGroup(Production)))), 3)
+
+        for node in insp.walk().filter(filters.InGroup(Production)):
+            self.assertEqual(Inspector(node).get_group(), Production)
 
     def test_prefer_isolation(self):
         insp = self.insp

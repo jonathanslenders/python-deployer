@@ -3,6 +3,32 @@ The node object
 
 TODO: examples and documentation.
 
+::
+
+    from deployer.node import SimpleNode
+
+    class SayHello(SimpleNode):
+        def hello(self):
+            self.host.run('echo hello world')
+
+.. note:: It is interesting to know that ``self`` is actually not a ``Node`` instance,
+      but an ``Env`` object which will proxy this actual Node class. This is
+      because there is some metaclass magic going on, which takes care of sandboxing,
+      logging and some other nice stuff, that you get for free.
+
+      Except that a few other variables like ``self.console`` are available,
+      you normally won't notice anything.
+
+
+Running the code
+----------------
+
+::
+
+    from deployer.node import Env
+
+    env = Env(MyNode())
+    env.hello()
 
 
 Inheritance
@@ -16,8 +42,19 @@ Expansion of double underscores
 
 TODO: ...
 
-Using contrib.nodes
+The difference between Node and SimpleNode
+------------------------------------------
+
+TODO: ...
+
+.Array and .JustOne
 *******************
+
+TODO: ...
+
+
+Using contrib.nodes
+-------------------
 
 The deployer framework is delivered with a `contrib.nodes` directory which
 contains nodes that should be generic enough to be usable by a lot of people.
