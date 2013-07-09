@@ -84,6 +84,9 @@ class DeploymentClient(object):
         try:
             tmux_env = os.environ.get('TMUX', '')
             xterm_env = os.environ.get('XTERM', '')
+            display_env = os.environ.get('DISPLAY', '')
+            colorterm_env = os.environ.get('COLORTERM', '')
+
             if tmux_env:
                 # Construct tmux split command
                 swap = (' && (tmux last-pane || true)' if not focus else '')
@@ -94,15 +97,16 @@ class DeploymentClient(object):
                     # pane, that we use the same virtualenv for this command.
                 path_env = os.environ.get('PATH', '')
 
-                subprocess.call(r'TMUX=%s tmux split-window "PATH=\"%s\" %s" %s %s' % (tmux_env, path_env, self.new_window_command, swap, tiled),
+                subprocess.call(r'TMUX=%s tmux split-window "PATH=\"%s\" %s" %s %s' %
+                        (tmux_env, path_env, self.new_window_command, swap, tiled),
                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            elif xterm_env:
-                # When in a gnome-terminal:
-                if os.environ.get('COLORTERM', '') == 'gnome-terminal':
-                    subprocess.call('gnome-terminal -e "%s" &' % self.new_window_command, shell=True)
-                # Fallback to xterm
-                else:
-                    subprocess.call('xterm -e %s &' % self.new_window_command, shell=True)
+             
+            # When in a gnome-terminal:
+            elif display_env and colorterm_env == 'gnome-terminal':
+                subprocess.call('gnome-terminal -e "%s" &' % self.new_window_command, shell=True)
+	    # Fallback to xterm
+            elif display_env and xterm_env:
+                subprocess.call('xterm -e %s &' % self.new_window_command, shell=True)
             else:
                 # Failed, print err.
                 sys.stdout.write(
@@ -190,10 +194,12 @@ class DeploymentClient(object):
             })))
 
         self._read_loop()
-        sys.stdout.write('\n')
 
         # Reset terminal state
         termios.tcsetattr(sys.stdin, termios.TCSAFLUSH, tcattr)
+
+        # Put the cursor again at the left margin.
+        sys.stdout.write('\r\n')
 
         # Set exit status
         sys.exit(self.exit_status)
