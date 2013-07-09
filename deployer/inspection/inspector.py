@@ -108,7 +108,8 @@ class Inspector(object):
         :param include_private: Include actions starting with an underscore.
         :type include_private: bool
         """
-        actions = self._filter(include_private, lambda i: isinstance(i, Action) and not i.is_property)
+        actions = self._filter(include_private, lambda i: isinstance(i, Action) and
+                    not i.is_property and not i.is_query)
 
         # Order alphabetically.
         return sorted(actions.values(), key=lambda a:a._attr_name)
