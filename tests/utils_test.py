@@ -69,3 +69,13 @@ class UtilsTest(unittest.TestCase):
                 "NetworkInterface(name='lo0', ip='127.0.0.1'), " +
                 "NetworkInterface(name='en0', ip='10.126.120.72'), " +
                 "NetworkInterface(name='en2', ip='10.126.100.28')])")
+
+        # get_interface
+        self.assertEqual(repr(parse_ifconfig_output(output_1).get_interface('eth0')),
+                "NetworkInterface(name='eth0', ip='10.0.3.15')")
+        self.assertRaises(AttributeError, parse_ifconfig_output(output_1).get_interface, 'eth100')
+
+        # get_adress
+        self.assertEqual(repr(parse_ifconfig_output(output_1).get_address('10.0.3.15')),
+                "NetworkInterface(name='eth0', ip='10.0.3.15')")
+        self.assertRaises(AttributeError, parse_ifconfig_output(output_1).get_address, '10.100.100.100')

@@ -20,13 +20,13 @@ class IfConfig(object):
         for i in self.interfaces:
             if i.name == name:
                 return i
-        return AttributeError
+        raise AttributeError
 
     def get_address(self, ip):
         for i in self.interfaces:
             if i.ip == ip:
                 return i
-        return AttributeError
+        raise AttributeError
 
 
 def parse_ifconfig_output(output, only_active_interfaces=True):
