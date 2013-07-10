@@ -8,8 +8,9 @@ from deployer.utils import esc1
 import os
 
 
-def _pip_install(suffix=''):
-    return "pip install --exists-action=w %s" % suffix
+def _pip_install(suffix='', use_mirrors=True):
+    use_mirrors = '--use-mirrors' if use_mirrors else ''
+    return "pip install %s --exists-action=w %s" % (use_mirrors, suffix)
 
 class VirtualEnv(SimpleNode):
     """
