@@ -16,6 +16,18 @@ class IfConfig(object):
     def __repr__(self):
         return 'IfConfig(interfaces=%r)' % self.interfaces
 
+    def get_interface(self, name):
+        for i in self.interfaces:
+            if i.name == name:
+                return i
+        return AttributeError
+
+    def get_address(self, ip):
+        for i in self.interfaces:
+            if i.ip == ip:
+                return i
+        return AttributeError
+
 
 def parse_ifconfig_output(output, only_active_interfaces=True):
     """
