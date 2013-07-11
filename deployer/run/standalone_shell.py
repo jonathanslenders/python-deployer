@@ -7,7 +7,7 @@ from deployer.loggers.default import DefaultLogger, IndentedDefaultLogger
 from deployer.loggers.trace import TracePrinter
 from deployer.exceptions import ActionException
 from deployer.pseudo_terminal import Pty
-from deployer.shell import Shell, ShellHandler, GroupHandler, BuiltinType
+from deployer.shell import Shell, ShellHandler, BuiltinType
 
 from contextlib import nested
 

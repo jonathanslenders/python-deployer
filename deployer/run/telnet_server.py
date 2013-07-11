@@ -11,7 +11,7 @@ from deployer.loggers import Actions
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger
 from deployer.pseudo_terminal import Pty
-from deployer.shell import Shell, ShellHandler, GroupHandler
+from deployer.shell import Shell, ShellHandler
 
 from contextlib import nested
 from operator import attrgetter
