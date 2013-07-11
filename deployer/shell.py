@@ -46,11 +46,6 @@ class BuiltinType(HandlerType):
 
 # Utils for navigation
 
-def find_root_node(node): # XXX: use inspector for this.
-    while node.parent:
-        node = node.parent
-    return node
-
 
 class ShellHandler(Handler):
     def __init__(self, shell):
@@ -59,20 +54,19 @@ class ShellHandler(Handler):
 
 class AUTOCOMPLETE_TYPE:
     NODE = 'NODE'
-    #ATTRIBUTE = 'ATTRIBUTE' # Can be a constant, an action or a query
     ACTION = 'ACTION'
     ACTION_AND_ARGS = 'ACTION_AND_ARGS'
 
     QUERY_ATTRIBUTE = 'QUERY_ATTRIBUTE'
     PROPERTY_ATTRIBUTE = 'PROPERTY'
-    CONSTANT_ATTRIBUTE = 'CONNSTANT'
+    CONSTANT_ATTRIBUTE = 'CONNSTANT' # TODO: inspection on this type.
 
 
 class NodeACHandler(ShellHandler):
     """
-    ShellHandler which has node path completion.  Depending on the
+    ShellHandler which implements node path completion.  Depending on the
     ``autocomplete_types`` attribute, it can complete on nodes, actions, or any
-    attribute value.
+    other attribute value.
     """
     autocomplete_types = [AUTOCOMPLETE_TYPE.NODE]
 
@@ -209,7 +203,7 @@ class NodeACHandler(ShellHandler):
 
         # Root node
         if parent and '/'.startswith(part):
-            root = find_root_node(parent)
+            root = Inspector(parent).get_root()
             yield '/', cls(self.shell, root)
 
         # Parent node
@@ -494,8 +488,6 @@ class Inspect(NodeACHandler):
         console.lesspipe(run())
 
 
-
-
 class Cd(NodeACHandler):
     def __call__(self):
         self.shell.state.cd(self.node)
@@ -603,7 +595,6 @@ class Clear(ShellHandler):
     def __call__(self):
         sys.stdout.write('\033[2J\033[0;0H')
         sys.stdout.flush()
-
 
 
 class Node(NodeACHandler):
