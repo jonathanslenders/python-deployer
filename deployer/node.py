@@ -145,25 +145,7 @@ class QueryDescriptor(object):
 
     def __get__(self, instance, owner):
         if instance:
-            def run_query(i, return_query_result=False):
-                """
-                Wrapper for the query function which properly handles exceptions.
-                """
-                try:
-                    if return_query_result:
-                        # Return the QueryResult wrapper instead.
-                        return self.query._execute_query(i)
-                    else:
-                        return self.query._execute_query(i).result
-
-                except Exception, e:
-                    from deployer.exceptions import QueryException
-                    raise QueryException(i._node, self.attr_name, self.query, e)
-
-            # Make sure that a nice name is passed to Action
-            run_query.__name__ = str('query:%s' % self.query.__str__())
-
-            return Action(self.attr_name, instance, run_query, is_query=True)
+            return Action.from_query(self.attr_name, instance, self.query)
         else:
             return self.query
 
@@ -192,7 +174,7 @@ class PropertyDescriptor(object):
 
     def __get__(self, instance, owner):
         if instance:
-            return Action(self.attr_name, instance, self.attribute.fget, is_property=True)
+            return Action.from_property(self.attr_name, instance, self.attribute.fget)
         else:
             return self.attribute
 
@@ -780,12 +762,49 @@ class Action(object):
     sure that a correct ``env`` object is passed into the function as its first
     argument.
     """
-    def __init__(self, attr_name, node_instance, func, is_property=False, is_query=False):
+    def __init__(self, attr_name, node_instance, func, is_property=False, is_query=False, query=None):
         self._attr_name = attr_name
         self._node_instance = node_instance # XXX: this should be the Env object?
         self._func = func # TODO: wrap _func in something that checks whether the first argument is an Env instance.
         self.is_property = is_property
         self.is_query = is_query
+        self.query = query
+
+    @classmethod
+    def from_query(cls, attr_name, node_instance, query):
+        # Make a callable from this query.
+        def run_query(i, return_query_result=False):
+            """
+            Handles exceptions properly. -> wrap anything that goes wrong in
+            QueryException.
+            """
+            try:
+                if return_query_result:
+                    # Return the QueryResult wrapper instead.
+                    return query._execute_query(i)
+                else:
+                    return query._execute_query(i).result
+
+            except Exception, e:
+                from deployer.exceptions import QueryException
+                raise QueryException(i._node, attr_name, query, e)
+
+        # Make sure that a nice name is passed to Action
+        run_query.__name__ = str('query:%s' % query.__str__())
+
+        return cls(attr_name, node_instance, run_query, is_query=True, query=query)
+
+    @classmethod
+    def from_property(cls, attr_name, node_instance, func):
+        return cls(attr_name, node_instance, func, is_property=True)
+
+    def __repr__(self):
+        # Mostly useful for debugging.
+        if self._node_instance:
+            return '<Action %s.%s>' % (get_node_path(self._node_instance), self._attr_name)
+        else:
+            return "<Unbound Action %s>" % self._attr_name
+
 
     def __call__(self, env, *a, **kw):
         """
@@ -800,13 +819,6 @@ class Action(object):
         else:
             raise TypeError('Action is not callable. '
                 'Please wrap the Node instance in an Env object first.')
-
-    def __repr__(self):
-        # Mostly useful for debugging.
-        if self._node_instance:
-            return '<Action %s.%s>' % (get_node_path(self._node_instance), self._attr_name)
-        else:
-            return "<Unbound Action %s>" % self._attr_name
 
     @property
     def name(self):

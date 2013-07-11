@@ -23,6 +23,13 @@ class PathType:
     A list of nodes.
     """
 
+class AttributeType:
+    PROPERTY = 'PROPERTY'
+    QUERY = 'QUERY'
+    ACTION = 'ACTION'
+    CHILD_NODE = 'CHILD_NODE'
+    CONSTANT = 'CONSTANT'
+
 
 class Inspector(object):
     """
@@ -114,7 +121,7 @@ class Inspector(object):
         # Order alphabetically.
         return sorted(actions.values(), key=lambda a:a._attr_name)
 
-    def has_action(self, name):
+    def has_action(self, name): # TODO: unittest
         """
         Returns ``True`` when this node has an action called ``name``.
         """
@@ -124,7 +131,7 @@ class Inspector(object):
         except AttributeError:
             return False
 
-    def get_action(self, name):
+    def get_action(self, name): # TODO: unittest
         """
         Return the ``Action`` with this name or raise ``AttributeError``.
         """
@@ -133,28 +140,45 @@ class Inspector(object):
                 return a
         raise AttributeError('Action not found.')
 
-    #def _get_properties(self, include_private=True):
-    #    """
-    #    List the names of all the properties.
-    #    """
-    #    return self._filter(include_private, lambda i:
-    #            not isinstance(Node) and (
-    #                    isinstance(i, Action) and i.is_property) or
-    #                    not isinstance(i, Action))
+    def get_properties(self, include_private=True): # TODO: unittest
+        """
+        List all the properties. (This are Action instances.)
+        """
+        # The @property descriptor is in a Node replaced by the
+        # node.PropertyDescriptor. This returns an Action object instead of
+        # executing it directly.
+        return self._filter(include_private, lambda i:
+                        isinstance(i, Action) and i.is_property).values()
 
-    def _get_queries(self, include_private=True):
+    def get_property(self, name): # TODO: unittest
+        for p in self.get_properties():
+            if p.name == name:
+                return p
+        raise AttributeError('Property not found.')
+
+    def has_property(self, name): # TODO: unittest
+        """
+        Returns ``True`` when the attribute ``name`` is a @property.
+        """
+        try:
+            self.get_property(name)
+            return True
+        except AttributeError:
+            return False
+
+    def get_queries(self, include_private=True): # TODO: unittest
         # Internal only. For the shell.
         return self._filter(include_private, lambda i:
                     isinstance(i, Action) and i.is_query).values()
 
-    def _get_query(self, name):
+    def get_query(self, name): # TODO: unittest
         """
-        Returns an Action object that wraps this Query.
+        Returns an Action object that wraps the Query.
         Private because, normally end-user code does not deal with
         Action-instances, because queries appear to be automatically resolved
         during attribute access. And this returns an Action instance.
         """
-        for q in self._get_queries():
+        for q in self.get_queries():
             if q.name == name:
                 return q
         raise AttributeError('Query not found.')
@@ -164,7 +188,7 @@ class Inspector(object):
         Returns ``True`` when the attribute ``name`` of this node is a Query.
         """
         try:
-            self._get_query(name)
+            self.get_query(name)
             return True
         except AttributeError:
             return False
@@ -311,9 +335,20 @@ class _EnvInspector(Inspector):
         Execute this query, but return the QueryResult wrapper instead of the
         actual result. This wrapper contains trace information for debugging.
         """
-        action = self._get_query(name)
+        action = self.get_query(name)
         query_result = EnvAction(self.env, action)(return_query_result=True)
         return query_result
+
+    def _execute_property(self, name):
+        """
+        Executes the property in this environment.
+        """
+        action = self.get_property(name)
+        return EnvAction(self.env, action)()
+
+    def get_action(self, name): # TODO: unittest
+        # TODO: wrap in EnvAction...)
+        raise NotImplementedError
 
 
 class NodeIterator(object):

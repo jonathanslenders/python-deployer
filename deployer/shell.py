@@ -46,114 +46,217 @@ class BuiltinType(HandlerType):
 
 # Utils for navigation
 
-def find_root_node(node):
+def find_root_node(node): # XXX: use inspector for this.
     while node.parent:
         node = node.parent
     return node
 
-
-def create_navigable_handler(call_handler):
-    """
-    Crete a ShellHandler which has node path completion.
-    """
-    class PathHandler(ShellHandler):
-        is_leaf = True
-
-        @property
-        def handler_type(self):
-            return type_of_node(self.node)
-
-        def __init__(self, shell, node):
-            ShellHandler.__init__(self, shell)
-            self.node = node
-
-        def get_subhandler(self, name):
-            parent = self.node.parent
-
-            if name == '.':
-                return self
-
-            if name == '-' and self.shell.state.can_cdback:
-                return PathHandler(self.shell, self.shell.state.previous_node)
-
-            if parent and name == '/':
-                root = find_root_node(parent)
-                return PathHandler(self.shell, root)
-
-            if parent and name == '..':
-                return PathHandler(self.shell, parent)
-
-            elif name.startswith(':'):
-                ids = tuple(name[1:].split(':'))
-                try:
-                    return PathHandler(self.shell, Inspector(self.node).get_isolation(ids, IsolationIdentifierType.HOSTS_SLUG))
-                except AttributeError:
-                    pass
-
-            for c in Inspector(self.node).get_childnodes(include_private=True):
-                if Inspector(c).get_name() == name:
-                    return PathHandler(self.shell, c)
-
-        def complete_subhandlers(self, part):
-            parent = self.node.parent
-
-            if '.'.startswith(part):
-                yield '.', self
-
-            if '-'.startswith(part) and self.shell.state.can_cdback:
-                yield '-', PathHandler(self.shell, self.shell.state.previous_node)
-
-            if parent and '/'.startswith(part):
-                root = find_root_node(parent)
-                yield '/', PathHandler(self.shell, root)
-
-            if parent and '..'.startswith(part):
-                yield ('..', PathHandler(self.shell, parent))
-
-            for i, n in Inspector(self.node).iter_isolations(IsolationIdentifierType.HOSTS_SLUG):
-                # Prefix all isolations with colons.
-                name = ':%s' % ':'.join(i)
-                if name.startswith(part):
-                    yield name, PathHandler(self.shell, n)
-
-            # Note: when an underscore has been typed, include private too.
-            include_private = part.startswith('_')
-            for c in Inspector(self.node).get_childnodes(include_private=include_private):
-                name = Inspector(c).get_name()
-                if name.startswith(part):
-                    yield name, PathHandler(self.shell, c)
-
-        __call__ = call_handler
-
-    class RootHandler(PathHandler):
-        handler_type = BuiltinType()
-
-        def __init__(self, shell):
-            PathHandler.__init__(self, shell, shell.state._node)
-
-    return RootHandler
-
-# Handlers
 
 class ShellHandler(Handler):
     def __init__(self, shell):
         self.shell = shell
 
 
-class GroupHandler(ShellHandler):
-    """
-    Contains a static group of subhandlers.
-    """
-    subhandlers = { }
+class AUTOCOMPLETE_TYPE:
+    NODE = 'NODE'
+    #ATTRIBUTE = 'ATTRIBUTE' # Can be a constant, an action or a query
+    ACTION = 'ACTION'
+    ACTION_AND_ARGS = 'ACTION_AND_ARGS'
 
-    def complete_subhandlers(self, part):
-        for name, h in self.subhandlers.items():
-            if name.startswith(part):
-                yield name, h(self.shell)
+    QUERY_ATTRIBUTE = 'QUERY_ATTRIBUTE'
+    PROPERTY_ATTRIBUTE = 'PROPERTY'
+    CONSTANT_ATTRIBUTE = 'CONNSTANT'
+
+
+class NodeACHandler(ShellHandler):
+    """
+    ShellHandler which has node path completion.  Depending on the
+    ``autocomplete_types`` attribute, it can complete on nodes, actions, or any
+    attribute value.
+    """
+    autocomplete_types = [AUTOCOMPLETE_TYPE.NODE]
+
+    def __init__(self, shell, node=None, attr_name=None, args=None):
+        ShellHandler.__init__(self, shell)
+        self._root = node is None
+        self.node = node or shell.state._node
+        self.attr_name = attr_name
+        self.args = args or []
+
+    @property
+    def is_leaf(self):
+        return self.get_type() is not None
+
+    def get_type(self):
+        """
+        Return the ``AUTOCOMPLETE_TYPE`` for this node.
+        """
+        insp = Inspector(self.node)
+        atypes = self.autocomplete_types
+
+        if AUTOCOMPLETE_TYPE.NODE in atypes and not self.attr_name:
+            return AUTOCOMPLETE_TYPE.NODE
+
+        if AUTOCOMPLETE_TYPE.ACTION in atypes and insp.has_action(self.attr_name):
+            return AUTOCOMPLETE_TYPE.ACTION
+
+        if AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE in atypes and insp.has_query(self.attr_name):
+            return AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE
+
+        if AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE in atypes and insp.has_property(self.attr_name):
+            return AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE
+
+    @property
+    def handler_type(self):
+        if self._root:
+            return BuiltinType()
+        else:
+            node_color = Inspector(self.node).get_group().color
+
+            def get_postfix():
+                type_ = self.get_type()
+                if type_ == AUTOCOMPLETE_TYPE.ACTION:
+                    return '*'
+
+                if type_ == AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE:
+                    return '?'
+
+                if type_ == AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE:
+                    return '@'
+
+                return ''
+
+            class Type(HandlerType):
+                color = node_color
+                postfix = get_postfix()
+            return Type()
 
     def get_subhandler(self, name):
-        if name in self.subhandlers:
-            return self.subhandlers[name](self.shell)
+        parent = self.node.parent
+        cls = self.__class__
+
+        # Current node
+        if name == '.':
+            return self
+
+        # Previous location
+        if name == '-' and self.shell.state.can_cdback:
+            return cls(self.shell, self.shell.state.previous_node)
+
+        # Root node
+        if parent and name == '/':
+            root = find_root_node(parent)
+            return cls(self.shell, root)
+
+        # Parent node
+        if parent and name == '..':
+            return cls(self.shell, parent)
+
+        # TODO: ~ --> home.
+
+        # Isolation
+        elif name.startswith(':'):
+            ids = tuple(name[1:].split(':'))
+            try:
+                node = Inspector(self.node).get_isolation(ids, IsolationIdentifierType.HOSTS_SLUG)
+                return cls(self.shell, node)
+            except AttributeError: pass
+
+        # Childnodes
+        try:
+            node = Inspector(self.node).get_childnode(name)
+            return cls(self.shell, node)
+        except AttributeError: pass
+
+        # Actions
+        if AUTOCOMPLETE_TYPE.ACTION in self.autocomplete_types:
+            try:
+                action = Inspector(self.node).get_action(name)
+                return cls(self.shell, self.node, name)
+            except AttributeError: pass
+
+        if AUTOCOMPLETE_TYPE.ACTION_AND_ARGS in self.autocomplete_types and self.attr_name:
+            return cls(self.shell, self.node, self.attr_name, self.args + [name])
+
+        # Queries
+        if AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE in self.autocomplete_types:
+            try:
+                action = Inspector(self.node).get_query(name)
+                return cls(self.shell, self.node, action.name)
+            except AttributeError:
+                pass
+
+        # Properties
+        if AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE in self.autocomplete_types:
+            try:
+                action = Inspector(self.node).get_property(name)
+                return cls(self.shell, self.node, action.name)
+            except AttributeError:
+                pass
+
+    def complete_subhandlers(self, part):
+        parent = self.node.parent
+        include_private = part.startswith('_')
+        cls = self.__class__
+
+        # Current node
+        if '.'.startswith(part):
+            yield '.', self
+
+        # Previous location
+        if '-'.startswith(part) and self.shell.state.can_cdback:
+            yield '-', cls(self.shell, self.shell.state.previous_node)
+
+        # Root node
+        if parent and '/'.startswith(part):
+            root = find_root_node(parent)
+            yield '/', cls(self.shell, root)
+
+        # Parent node
+        if parent and '..'.startswith(part):
+            yield ('..', cls(self.shell, parent))
+
+        # TODO: ~ -->> Home
+
+        # Isolation
+        for i, n in Inspector(self.node).iter_isolations(IsolationIdentifierType.HOSTS_SLUG):
+            if i:
+                # Prefix all isolations with colons.
+                name = ':%s' % ':'.join(i)
+                if name.startswith(part):
+                    yield name, cls(self.shell, n)
+
+        # Childnodes:
+        # Note: when an underscore has been typed, include private too.
+        for c in Inspector(self.node).get_childnodes(include_private=include_private):
+            name = Inspector(c).get_name()
+            if name.startswith(part):
+                yield name, cls(self.shell, c)
+
+        # Actions
+        if AUTOCOMPLETE_TYPE.ACTION in self.autocomplete_types:
+            for action in Inspector(self.node).get_actions(include_private=include_private):
+                if action.name.startswith(part):
+                    yield action.name, cls(self.shell, self.node, action.name)
+
+        # Queries
+        if AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE in self.autocomplete_types:
+            for action in Inspector(self.node).get_queries(include_private=include_private):
+                if action.name.startswith(part):
+                    yield action.name, cls(self.shell, self.node, action.name)
+
+        # Properties
+        if AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE in self.autocomplete_types:
+            for action in Inspector(self.node).get_properties(include_private=include_private):
+                if action.name.startswith(part):
+                    yield action.name, cls(self.shell, self.node, action.name)
+
+
+    def __call__(self):
+        raise NotImplementedError
+
+
+# Handlers
 
 
 class Version(ShellHandler):
@@ -170,199 +273,303 @@ class Version(ShellHandler):
         print termcolor.colored('  <%s>' % self.shell.root_node.__class__.__name__, 'red')
 
 
-@create_navigable_handler
-def Connect(self):
+class Connect(NodeACHandler):
     """
     Open interactive SSH connection with this host.
     """
-    from deployer.contrib.nodes import connect
-    from deployer.host_container import HostsContainer
+    def __call__(self):
+        from deployer.contrib.nodes import connect
+        from deployer.host_container import HostsContainer
 
-    class Connect(connect.Connect):
-        class Hosts:
-            host = self.node.hosts._all
+        class Connect(connect.Connect):
+            class Hosts:
+                host = self.node.hosts._all
 
-    env = Env(Connect(), pty=self.shell.pty)
+        env = Env(Connect(), pty=self.shell.pty)
 
-    # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
-    Action(Connect(), 'with_host', self.shell, False).__call__()
-
-
-@create_navigable_handler
-def Find(self):
-    def _list_nested_nodes(node, prefix):
-        for a in Inspector(node).get_actions():
-            yield '%s %s' % (prefix, termcolor.colored(a.name, Inspector(a.node).get_group().color))
-
-        for c in Inspector(node).get_childnodes():
-            # Check the parent, to avoid loops.
-            if c.parent == node:
-                name = Inspector(c).get_name()
-                for i in _list_nested_nodes(c, '%s %s' % (prefix, termcolor.colored(name, Inspector(c).get_group().color))):
-                    yield i
-
-    Console(self.shell.pty).lesspipe(_list_nested_nodes(self.node, ''))
+        # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
+        Action(Connect(), 'with_host', self.shell, False).__call__()
 
 
-@create_navigable_handler
-def Inspect(self):
+class Find(NodeACHandler):
+    def __call__(self):
+        def _list_nested_nodes(node, prefix):
+            for a in Inspector(node).get_actions():
+                yield '%s %s' % (prefix, termcolor.colored(a.name, Inspector(a.node).get_group().color))
+
+            for c in Inspector(node).get_childnodes():
+                # Check the parent, to avoid loops.
+                if c.parent == node:
+                    name = Inspector(c).get_name()
+                    for i in _list_nested_nodes(c, '%s %s' % (prefix, termcolor.colored(name, Inspector(c).get_group().color))):
+                        yield i
+
+        Console(self.shell.pty).lesspipe(_list_nested_nodes(self.node, ''))
+
+
+class Inspect(NodeACHandler):
     """
     Inspection of the current node. Show host mappings and other information.
     """
-    console = Console(self.shell.pty)
+    autocomplete_types = [
+            AUTOCOMPLETE_TYPE.NODE,
+            AUTOCOMPLETE_TYPE.ACTION,
+            AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE,
+            AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE ]
 
-    def inspect():
-        # Print full name
-        yield termcolor.colored('  Node:    ', 'cyan') + \
-              termcolor.colored(Inspector(self.node).get_full_name(), 'yellow')
+    def __call__(self):
+        type_ = self.get_type()
 
-        # Print mro
-        yield termcolor.colored('  Mro:', 'cyan')
-        i = 1
-        for m in self.node.__class__.__mro__:
-            if m.__module__ != 'deployer.node' and m != object:
-                yield termcolor.colored('              %i ' % i, 'cyan') + \
-                      termcolor.colored('%s.' % m.__module__, 'red') + \
-                      termcolor.colored('%s' % m.__name__, 'yellow')
-                i += 1
+        if type_ == AUTOCOMPLETE_TYPE.NODE:
+            self._inspect_node()
 
-        # File names
-        yield termcolor.colored('  Files:', 'cyan')
-        i = 1
-        for m in self.node.__class__.__mro__:
-            if m.__module__ != 'deployer.node' and m != object:
-                yield termcolor.colored('              %i ' % i, 'cyan') + \
-                      termcolor.colored(getfile(m), 'red')
-                i += 1
+        if type_ == AUTOCOMPLETE_TYPE.ACTION:
+            self._inspect_action()
 
-        # Print host mappings
-        yield termcolor.colored('  Hosts:', 'cyan')
+        if type_ == AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE:
+            self._inspect_query_attribute()
 
-        for role in sorted(self.node.hosts._hosts.keys()):
-            items = self.node.hosts._hosts[role]
-            yield termcolor.colored('         "%s"' % role, 'yellow')
+        if type_ == AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE:
+            self._inspect_property_attribute()
+
+    def _inspect_node(self):
+        console = Console(self.shell.pty)
+
+        def inspect():
+            # Print full name
+            yield termcolor.colored('  Node:    ', 'cyan') + \
+                  termcolor.colored(Inspector(self.node).get_full_name(), 'yellow')
+
+            # Print mro
+            yield termcolor.colored('  Mro:', 'cyan')
             i = 1
-            for host in sorted(items, key=lambda h:h.slug):
-                yield termcolor.colored('            %3i ' % i, 'cyan') + \
-                      termcolor.colored('%-25s (%s)' % (host.slug, getattr(host, 'address', '')), 'red')
-                i += 1
+            for m in self.node.__class__.__mro__:
+                if m.__module__ != 'deployer.node' and m != object:
+                    yield termcolor.colored('              %i ' % i, 'cyan') + \
+                          termcolor.colored('%s.' % m.__module__, 'red') + \
+                          termcolor.colored('%s' % m.__name__, 'yellow')
+                    i += 1
 
-        # Print the first docstring (look to the parents)
-        for m in self.node.__class__.__mro__:
-            if m.__module__ != 'deployer.node' and m != object and m.__doc__:
-                yield termcolor.colored('  Docstring:\n', 'cyan') + \
-                      termcolor.colored(m.__doc__ or '<None>', 'red')
-                break
+            # File names
+            yield termcolor.colored('  Files:', 'cyan')
+            i = 1
+            for m in self.node.__class__.__mro__:
+                if m.__module__ != 'deployer.node' and m != object:
+                    yield termcolor.colored('              %i ' % i, 'cyan') + \
+                          termcolor.colored(getfile(m), 'red')
+                    i += 1
 
-        # Actions
-        yield termcolor.colored('  Actions:', 'cyan')
+            # Print host mappings
+            yield termcolor.colored('  Hosts:', 'cyan')
 
-        def item_iterator():
-            for a in Inspector(self.node).get_actions():
-                yield termcolor.colored(a.name, 'red'), len(a.name)
+            for role in sorted(self.node.hosts._hosts.keys()):
+                items = self.node.hosts._hosts[role]
+                yield termcolor.colored('         "%s"' % role, 'yellow')
+                i = 1
+                for host in sorted(items, key=lambda h:h.slug):
+                    yield termcolor.colored('            %3i ' % i, 'cyan') + \
+                          termcolor.colored('%-25s (%s)' % (host.slug, getattr(host, 'address', '')), 'red')
+                    i += 1
 
-        for line in console.in_columns(item_iterator(), margin_left=13):
-            yield line
+            # Print the first docstring (look to the parents)
+            for m in self.node.__class__.__mro__:
+                if m.__module__ != 'deployer.node' and m != object and m.__doc__:
+                    yield termcolor.colored('  Docstring:\n', 'cyan') + \
+                          termcolor.colored(m.__doc__ or '<None>', 'red')
+                    break
 
-        # Nodes
-        yield termcolor.colored('  Sub nodes:', 'cyan')
+            # Actions
+            yield termcolor.colored('  Actions:', 'cyan')
 
-            # Group by node group
-        grouper = lambda c:Inspector(c).get_group()
-        for group, nodes in groupby(sorted(Inspector(self.node).get_childnodes(), key=grouper), grouper):
-            yield termcolor.colored('         "%s"' % group.name, 'yellow')
-
-            # Create iterator for all the items in this group
             def item_iterator():
-                for n in nodes:
-                    name = Inspector(n).get_name()
+                for a in Inspector(self.node).get_actions():
+                    yield termcolor.colored(a.name, 'red'), len(a.name)
 
-                    if n.parent == self.node:
-                        text = termcolor.colored(name, type_of_node(n).color)
-                        length = len(name)
-                    else:
-                        full_name = Inspector(n).get_full_name()
-                        text = termcolor.colored('%s -> %s' % (name, full_name), type_of_node(n).color)
-                        length = len('%s -> %s' % (name, full_name))
-                    yield text, length
-
-            # Show in columns
             for line in console.in_columns(item_iterator(), margin_left=13):
                 yield line
 
-    console.lesspipe(inspect())
+            # Nodes
+            yield termcolor.colored('  Sub nodes:', 'cyan')
+
+                # Group by node group
+            grouper = lambda c:Inspector(c).get_group()
+            for group, nodes in groupby(sorted(Inspector(self.node).get_childnodes(), key=grouper), grouper):
+                yield termcolor.colored('         "%s"' % group.name, 'yellow')
+
+                # Create iterator for all the items in this group
+                def item_iterator():
+                    for n in nodes:
+                        name = Inspector(n).get_name()
+
+                        if n.parent == self.node:
+                            text = termcolor.colored(name, type_of_node(n).color)
+                            length = len(name)
+                        else:
+                            full_name = Inspector(n).get_full_name()
+                            text = termcolor.colored('%s -> %s' % (name, full_name), type_of_node(n).color)
+                            length = len('%s -> %s' % (name, full_name))
+                        yield text, length
+
+                # Show in columns
+                for line in console.in_columns(item_iterator(), margin_left=13):
+                    yield line
+
+        console.lesspipe(inspect())
+
+    def _inspect_action(self):
+        console = Console(self.shell.pty)
+        action = Inspector(self.node).get_action(self.attr_name)
+
+        def run():
+            yield termcolor.colored('  Action name:   ', 'cyan') + \
+                  termcolor.colored(self.attr_name, 'yellow')
+            yield termcolor.colored('  __repr__:      ', 'cyan') + \
+                  termcolor.colored(repr(action._func), 'yellow')
+            yield termcolor.colored('  Node:          ', 'cyan') + \
+                  termcolor.colored(repr(self.node), 'yellow')
+        console.lesspipe(run())
+
+    def _get_env_inspector(self):
+        """
+        Created a sandboxed environment for evaluation of attributes.
+        (attributes shouldn't have side effects on servers, so sandboxing is fine.)
+        """
+        env = Env(self.node, self.shell.pty, self.shell.logger_interface, is_sandbox=True)
+        env2 = Console(self.shell.pty).select_node_isolation(env)
+        return Inspector(env2)
+
+    def _inspect_query_attribute(self):
+        console = Console(self.shell.pty)
+        query = Inspector(self.node).get_query(self.attr_name).query
+
+        def run():
+            yield termcolor.colored('  Node:       ', 'cyan') + \
+                  termcolor.colored(Inspector(self.node).get_full_name(), 'yellow')
+            yield termcolor.colored('  Filename:   ', 'cyan') + \
+                  termcolor.colored(query._filename, 'yellow')
+            yield termcolor.colored('  Line:       ', 'cyan') + \
+                  termcolor.colored(query._line, 'yellow')
+            yield termcolor.colored('  Expression: ', 'cyan') + \
+                  termcolor.colored(repr(query.query), 'yellow')
+            yield ''
+
+            # Execute query in sandboxed environment.
+            yield 'Trace query:'
+            try:
+                insp = self._get_env_inspector()
+                result = insp._trace_query(self.attr_name)
+            except Exception, e:
+                yield 'Failed to execute query: %r' % e
+                return
+
+            # Print query and all subqueries with their results.
+            for subquery in result.walk_through_subqueries():
+                yield termcolor.colored(repr(subquery[0]), 'cyan')
+                yield '    %s' % subquery[1]
+
+        console.lesspipe(run())
+
+    def _inspect_property_attribute(self):
+        console = Console(self.shell.pty)
+        action = Inspector(self.node).get_property(self.attr_name)
+
+        def run():
+            yield termcolor.colored('  Property name:   ', 'cyan') + \
+                  termcolor.colored(self.attr_name, 'yellow')
+            yield termcolor.colored('  __repr__:      ', 'cyan') + \
+                  termcolor.colored(repr(action._func), 'yellow')
+            yield termcolor.colored('  Node:          ', 'cyan') + \
+                  termcolor.colored(repr(self.node), 'yellow')
+
+            # Value
+            try:
+                insp = self._get_env_inspector()
+                value = insp._execute_property(self.attr_name)
+
+                yield termcolor.colored('  Value:          ', 'cyan') + \
+                      termcolor.colored(repr(value), 'yellow')
+            except Exception, e:
+                yield termcolor.colored('  Value:          ', 'cyan') + \
+                      termcolor.colored('Failed to evaluate value...', 'yellow')
+        console.lesspipe(run())
 
 
-@create_navigable_handler
-def Cd(self):
-    self.shell.state.cd(self.node)
 
 
-@create_navigable_handler
-def Ls(self):
+class Cd(NodeACHandler):
+    def __call__(self):
+        self.shell.state.cd(self.node)
+
+
+class Ls(NodeACHandler):
     """
     List subnodes and actions in the current node.
     """
-    w = self.shell.stdout.write
-    console = Console(self.shell.pty)
+    def __call__(self):
+        w = self.shell.stdout.write
+        console = Console(self.shell.pty)
 
-    def run():
-        # Print nodes
-        if Inspector(self.node).get_childnodes():
-            yield termcolor.colored(' ** Nodes **', 'cyan')
-            def column_iterator():
-                for c in Inspector(self.node).get_childnodes():
-                    name = Inspector(c).get_name()
-                    yield termcolor.colored(name, type_of_node(c).color), len(name)
-            for line in console.in_columns(column_iterator()):
-                yield line
+        def run():
+            # Print nodes
+            if Inspector(self.node).get_childnodes():
+                yield 'Child nodes:'
 
-        # Print actions
-        if Inspector(self.node).get_actions():
-            yield termcolor.colored(' ** Actions **', 'cyan')
-            def column_iterator():
-                for a in Inspector(self.node).get_actions():
-                    yield termcolor.colored(a.name, type_of_action(a).color), len(a.name)
-            for line in console.in_columns(column_iterator()):
-                yield line
+                def column_iterator():
+                    for c in Inspector(self.node).get_childnodes():
+                        name = Inspector(c).get_name()
+                        yield termcolor.colored(name, type_of_node(c).color), len(name)
+                for line in console.in_columns(column_iterator()):
+                    yield line
 
-    console.lesspipe(run())
+            # Print actions
+            if Inspector(self.node).get_actions():
+                yield 'Actions:'
 
-@create_navigable_handler
-def SourceCode(self):
+                def column_iterator():
+                    for a in Inspector(self.node).get_actions():
+                        yield termcolor.colored(a.name, type_of_action(a).color), len(a.name)
+                for line in console.in_columns(column_iterator()):
+                    yield line
+
+        console.lesspipe(run())
+
+
+class SourceCode(NodeACHandler):
     """
     Print the source code of a node.
     """
-    options = []
+    def __call__(self):
+        options = []
 
-    for m in self.node.__class__.__mro__:
-        if m.__module__ != 'deployer.node' and m != object:
-            options.append( ('%s.%s' % (
-                  termcolor.colored(m.__module__, 'red'),
-                  termcolor.colored(m.__name__, 'yellow')), m) )
+        for m in self.node.__class__.__mro__:
+            if m.__module__ != 'deployer.node' and m != object:
+                options.append( ('%s.%s' % (
+                      termcolor.colored(m.__module__, 'red'),
+                      termcolor.colored(m.__name__, 'yellow')), m) )
 
-    if len(options) > 1:
-        try:
-            node_class = Console(self.shell.pty).choice('Choose node definition', options)
-        except NoInput:
-            return
-    else:
-        node_class = options[0][1]
+        if len(options) > 1:
+            try:
+                node_class = Console(self.shell.pty).choice('Choose node definition', options)
+            except NoInput:
+                return
+        else:
+            node_class = options[0][1]
 
-    def run():
-        try:
-            # Retrieve source
-            source = inspect.getsource(node_class)
+        def run():
+            try:
+                # Retrieve source
+                source = inspect.getsource(node_class)
 
-            # Highlight code
-            source = highlight(source, PythonLexer(), TerminalFormatter())
+                # Highlight code
+                source = highlight(source, PythonLexer(), TerminalFormatter())
 
-            for l in source.split('\n'):
-                yield l.rstrip('\n')
-        except IOError:
-            yield 'Could not retrieve source code.'
+                for l in source.split('\n'):
+                    yield l.rstrip('\n')
+            except IOError:
+                yield 'Could not retrieve source code.'
 
-    Console(self.shell.pty).lesspipe(run())
+        Console(self.shell.pty).lesspipe(run())
+
 
 class Exit(ShellHandler):
     """
@@ -398,180 +605,28 @@ class Clear(ShellHandler):
         sys.stdout.flush()
 
 
-class Node(Handler):
+
+class Node(NodeACHandler):
     """
     Node node.
     """
-    def __init__(self, node, shell, sandbox):
-        self.node = node
-        self.sandbox = sandbox
-        self.shell = shell
-
-    @property
-    def is_leaf(self):
-        return Inspector(self.node).is_callable()
-
-    @property
-    def handler_type(self):
-        if not self.node.parent:
-            # For the root node, return the built-in type
-            return BuiltinType()
-        else:
-            return type_of_node(self.node)
-
-    def complete_subhandlers(self, part):
-        include_private = part.startswith('_')
-
-        if self.node.parent and '..'.startswith(part):
-            yield '..', Node(self.node.parent, self.shell, self.sandbox)
-
-        if '/'.startswith(part):
-            root = find_root_node(self.node)
-            yield '/', Node(root, self.shell, self.sandbox)
-
-        for action in Inspector(self.node).get_actions(include_private=include_private):
-            if action.name.startswith(part):
-                yield action.name, Action(self.node, action.name, self.shell, self.sandbox)
-
-        for n in Inspector(self.node).get_childnodes(include_private=include_private):
-            name = Inspector(n).get_name()
-            if name.startswith(part):
-                yield name, Node(n, self.shell, self.sandbox)
-
-        for i, n in Inspector(self.node).iter_isolations(IsolationIdentifierType.HOSTS_SLUG):
-            # Prefix all isolations with colons.
-            name = ':%s' % ':'.join(i)
-            if name.startswith(part):
-                yield name, Node(n, self.shell, self.sandbox)
-
-        if self.is_leaf and '&'.startswith(part):
-            yield '&', Action(self.node, '__call__', self.shell, self.sandbox, fork=True)
-
-    def get_subhandler(self, name):
-        if name == '..' and self.node.parent:
-            return Node(self.node.parent, self.shell, self.sandbox)
-
-        elif name == '/':
-            return Node(find_root_node(self.node), self.shell, self.sandbox)
-
-        elif Inspector(self.node).has_childnode(name):
-            child = Inspector(self.node).get_childnode(name)
-            return Node(child, self.shell, self.sandbox)
-
-        elif Inspector(self.node).has_action(name):
-            return Action(self.node, name, self.shell, self.sandbox)
-
-        elif name.startswith(':'):
-            # Prefix all isolations with colons.
-            ids = tuple(name[1:].split(':'))
-            try:
-                return Node(Inspector(self.node).get_isolation(ids, IsolationIdentifierType.HOSTS_SLUG),
-                                    self.shell, self.sandbox)
-            except AttributeError:
-                pass
-
-        elif name == '&' and self.is_leaf:
-            return Action(self.node, '__call__', self.shell, self.sandbox, fork=True)
+    sandbox = False
+    autocomplete_types = [
+            AUTOCOMPLETE_TYPE.ACTION,
+            AUTOCOMPLETE_TYPE.ACTION_AND_ARGS,
+            ]
 
     def __call__(self):
-        if self.is_leaf:
-            return Action(self.node, '__call__', self.shell, self.sandbox).__call__()
-
-
-class Sandbox(Node):
-    handler_type = BuiltinType()
-
-    def __init__(self, node, shell):
-        Node.__init__(self, node, shell, True)
-
-
-class InspectQuery(Handler):
-    handler_type = BuiltinType()
-    is_leaf = False
-
-    def __init__(self, shell):
-        self.shell = shell
-
-    def complete_subhandlers(self, part):
-        include_private = part.startswith('_')
-
-        for query_action in Inspector(self.shell.state.node)._get_queries(include_private=include_private):
-            if query_action.name.startswith(part):
-                yield query_action.name, InspectQuery2(self.shell, query_action.name)
-
-    def get_subhandler(self, name):
-        if Inspector(self.shell.state.node).has_query(name):
-            return InspectQuery2(self.shell, name)
-
-
-class InspectQuery2(Handler):
-    handler_type = BuiltinType()
-    is_leaf = True
-
-    def __init__(self, shell, attr_name):
-        self.shell = shell
-        self.attr_name = attr_name
-
-    def __call__(self):
-        console = Console(self.shell.pty)
-        def run():
-            # Execute query in sandboxed environment.
-            try:
-                env = Env(self.shell.state.node, self.shell.pty, self.shell.logger_interface, is_sandbox=True)
-                insp = Inspector(env)
-                result = insp._trace_query(self.attr_name)
-            except Exception, e:
-                yield 'Failed to execute query: %r' % e
-                return
-
-            # Print query and all subqueries with their results.
-            for subquery in result.walk_through_subqueries():
-                yield termcolor.colored(repr(subquery[0]), 'cyan')
-                yield '    %s' % subquery[1]
-
-        console.lesspipe(run())
-
-class Action(Handler):
-    """
-    Node action node.
-    """
-    is_leaf = True
-
-    def __init__(self, node, action_name, shell, sandbox, *args, **kwargs):
-        self.node = node
-        self.action_name = action_name
-        self.shell = shell
-        self.sandbox = sandbox
-        self.args = args
-        self.fork = kwargs.get('fork', False)
-
-    @property
-    def handler_type(self):
-        if self.fork:
-            return BuiltinType()
-        else:
-            return type_of_node(self.node)
-
-    def __call__(self):
-        if self.fork:
-            def action(pty):
-                self._run_action(pty)
-
-            self.shell.pty.run_in_auxiliary_ptys(action)
-        else:
-            self._run_action(self.shell.pty)
-
-    def _run_action(self, pty):
         # Execute
         logger_interface = self.shell.logger_interface
 
         # Command
-        command = '%s.%s()' % (Inspector(self.node).get_full_name(), self.action_name)
+        command = '%s.%s()' % (Inspector(self.node).get_full_name(), self.attr_name)
 
         try:
-            env = Env(self.node, pty, logger_interface, is_sandbox=self.sandbox)
-            result = getattr(env, self.action_name)(*self.args)
-            suppress_result = Inspector(self.node).suppress_result_for_action(self.action_name)
+            env = Env(self.node, self.shell.pty, logger_interface, is_sandbox=self.sandbox)
+            result = getattr(env, self.attr_name)(*self.args)
+            suppress_result = Inspector(self.node).suppress_result_for_action(self.attr_name)
 
             # When the result is a subnode, start a subshell.
             def handle_result(result):
@@ -597,20 +652,9 @@ class Action(Handler):
         except Exception, e:
             logger_interface.log_exception(e)
 
-    def complete_subhandlers(self, part):
-        # Autocompletion for the & parameter
-        if not self.fork and '&'.startswith(part):
-            yield '&', Action(self.node, self.action_name, self.shell, self.sandbox, *self.args, fork=True)
 
-    def get_subhandler(self, part):
-        # Get subnodes of this Action, this matches to actions with parameters.
-        if self.fork:
-            # Cannot write anything behind the & operator
-            return None
-        elif part == '&':
-            return Action(self.node, self.action_name, self.shell, self.sandbox, *self.args, fork=True)
-        else:
-            return Action(self.node, self.action_name, self.shell, self.sandbox, *(self.args + (part,)))
+class Sandbox(Node):
+    sandbox = True
 
 
 class RootHandler(ShellHandler):
@@ -620,16 +664,12 @@ class RootHandler(ShellHandler):
             'exit': Exit,
             'find': Find,
             'ls': Ls,
+            'sandbox': Sandbox,
             '--connect': Connect,
             '--inspect': Inspect,
-            '--query': InspectQuery,
             '--version': Version,
             '--source-code': SourceCode,
     }
-
-    @property
-    def current_node(self):
-        return Node(self.shell.state._node, self.shell, sandbox=False)
 
     @property
     def sandboxed_current_node(self):
@@ -653,22 +693,14 @@ class RootHandler(ShellHandler):
             if name.startswith(part):
                 yield name, h(self.shell)
 
-        # Sandbox
-        if 'sandbox'.startswith(part):
-            yield 'sandbox', self.sandboxed_current_node
-
-        # Nodes autocomplete for 'Do' -> 'do' is optional.
-        dot = self.current_node
-        if '.'.startswith(part):
-            yield '.', dot
-
-        for name, h in dot.complete_subhandlers(part):
+        # Nodes.
+        for name, h in Node(self.shell).complete_subhandlers(part):
             yield name, h
 
     def get_subhandler(self, name):
         # Current node
         if name == '.':
-            return self.current_node
+            return Node(self.shell)
 
         # Default built-ins
         if name in self.subhandlers:
@@ -677,16 +709,12 @@ class RootHandler(ShellHandler):
         if self.shell.state.can_return and name == 'return':
             return Return(self.shell)
 
-        if name == 'sandbox':
-            return self.sandboxed_current_node
-
         # Extensions
         if name in self.shell.extensions:
             return self.shell.extensions[name](self.shell)
 
-        # Nodes autocomplete for 'Do' -> 'do' is optional.
-        dot = self.current_node
-        return dot.get_subhandler(name)
+        # Nodes.
+        return Node(self.shell).get_subhandler(name)
 
 
 class ShellState(object):

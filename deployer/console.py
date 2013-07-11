@@ -234,11 +234,19 @@ class Console(object):
         """
         Ask for a host, from a list of hosts.
         """
-        if node._is_isolated:
-            return node
-        else:
-            options = [ (i.name, i.node) for i in node.get_isolations() ]
+        from deployer.inspection import Inspector
+        from deployer.node import IsolationIdentifierType
+
+        # List isolations first. (This is a list of index/node tuples.)
+        options = [
+                (' '.join(index), node) for index, node in
+                Inspector(node).iter_isolations(identifier_type=IsolationIdentifierType.HOSTS_SLUG)
+                ]
+
+        if len(options) > 1:
             return self.choice('Choose a host', options, allow_random=True)
+        else:
+            return options[0][1]
 
     def lesspipe(self, line_iterator):
         """
