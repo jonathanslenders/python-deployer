@@ -139,7 +139,7 @@ class NodeACHandler(ShellHandler):
 
         # Root node
         if parent and name == '/':
-            root = find_root_node(parent)
+            root = Inspector(parent).get_root()
             return cls(self.shell, root)
 
         # Parent node
