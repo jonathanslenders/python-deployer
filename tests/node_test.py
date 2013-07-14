@@ -746,6 +746,41 @@ class NodeTest(unittest.TestCase):
         env.B.C[0].action()
         env.B.C[1].action()
 
+    def test_isolated_siblings(self):
+        """
+        Going from one isolated SimpleNode through the parent to its sibling.
+        """
+        this = self
+
+        class Root(Node):
+            class Hosts:
+                host = LocalHost1, LocalHost2
+
+            @map_roles(host='host')
+            class A(SimpleNode.Array):
+                class B(SimpleNode):
+                    q1 = Q.parent.C
+                    q2 = Q.parent.parent.A.C
+
+                    def action(self):
+                        # parent.C belongs to the same isolation.
+                        this.assertEqual(repr(self.parent.C), 'Env(Root.A[0].C)')
+                        this.assertEqual(repr(self.q1), 'Env(Root.A[0].C)')
+
+                        # If we go two levels up, and end up in the root, then
+                        # we get a list of isolations.
+                        this.assertEqual(repr(list(self.parent.parent.A.C)), '[Env(Root.A[0].C), Env(Root.A[1].C)]')
+                        this.assertEqual(len(list(self.parent.parent.A.C)), 2)
+                        this.assertEqual(repr(list(self.q2)), '[Env(Root.A[0].C), Env(Root.A[1].C)]')
+                        this.assertEqual(len(list(self.q2)), 2)
+
+
+                class C(SimpleNode):
+                    pass
+
+        env = Env(Root())
+        env.A[0].B.action()
+
     def test_initialize_node(self):
         class A(Node):
             class Hosts:
