@@ -431,14 +431,14 @@ class Inspect(NodeACHandler):
                   termcolor.colored(repr(self.node), 'yellow')
         console.lesspipe(run())
 
-    def _get_env_inspector(self):
+    def _get_env(self):
         """
         Created a sandboxed environment for evaluation of attributes.
         (attributes shouldn't have side effects on servers, so sandboxing is fine.)
+        Returns an ``Env`` object.
         """
         env = Env(self.node, self.shell.pty, self.shell.logger_interface, is_sandbox=True)
-        env2 = Console(self.shell.pty).select_node_isolation(env)
-        return Inspector(env2)
+        return Console(self.shell.pty).select_node_isolation(env)
 
     def _inspect_query_attribute(self):
         console = Console(self.shell.pty)
@@ -458,8 +458,8 @@ class Inspect(NodeACHandler):
             # Execute query in sandboxed environment.
             yield 'Trace query:'
             try:
-                insp = self._get_env_inspector()
-                result = insp._trace_query(self.attr_name)
+                insp = Inspector(self._get_env())
+                result = insp.trace_query(self.attr_name)
             except Exception, e:
                 yield 'Failed to execute query: %r' % e
                 return
@@ -485,8 +485,7 @@ class Inspect(NodeACHandler):
 
             # Value
             try:
-                insp = self._get_env_inspector()
-                value = insp._execute_property(self.attr_name)
+                value = getattr(self._get_env(), self.attr_name)
 
                 yield termcolor.colored('  Value:          ', 'cyan') + \
                       termcolor.colored(repr(value), 'yellow')

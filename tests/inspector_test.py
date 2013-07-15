@@ -5,7 +5,7 @@ from deployer.node import Node, SimpleNode, Env, Action
 from deployer.groups import Production, Staging, production, staging
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.loggers import LoggerInterface
-from deployer.node import map_roles, dont_isolate_yet, required_property, suppress_action_result, alias
+from deployer.node import map_roles, dont_isolate_yet, required_property, suppress_action_result, alias, EnvAction
 from deployer.inspection import Inspector, PathType
 from deployer.inspection.inspector import NodeIterator
 from deployer.inspection import filters
@@ -30,6 +30,17 @@ class InspectorTest(unittest.TestCase):
             def c(self): pass
             c.__name__ = 'another-name' # Even if we override this name, Action.name should remain 'c'
 
+            @property
+            def p1(self):
+                return 'p1'
+
+            @property
+            def p2(self):
+                return 'p1'
+
+            query1 = Q.something
+            query2 = Q.something_else
+
         self.s = Root()
         self.insp = Inspector(self.s)
 
@@ -40,19 +51,62 @@ class InspectorTest(unittest.TestCase):
         for a in insp.get_actions():
             self.assertIn(a.name, ['a', 'b', 'c'])
 
-    def test_has_childnodes(self):
+    def test_get_childnode(self):
+        insp = self.insp
+        self.assertEqual(repr(insp.get_childnode('A')), '<Node Root.A>')
+        self.assertIsInstance(insp.get_childnode('A'), Node)
+        self.assertRaises(AttributeError, insp.get_childnode, 'unknown_childnode')
+
+    def test_has_childnode(self):
         insp = self.insp
         self.assertEqual(insp.has_childnode('A'), True)
         self.assertEqual(insp.has_childnode('C'), False)
-        self.assertEqual(repr(insp.get_childnode('A')), '<Node Root.A>')
-        self.assertRaises(AttributeError, insp.get_childnode, 'unknown_childnode')
+
+    def test_get_actions(self):
+        insp = self.insp
+        self.assertEqual(len(insp.get_actions()), 3)
+        self.assertEqual(repr(insp.get_actions()), '[<Action Root.a>, <Action Root.b>, <Action Root.c>]')
+
+    def test_get_action(self):
+        insp = self.insp
+        self.assertIsInstance(insp.get_action('a'), Action)
+        self.assertEqual(repr(insp.get_action('a')), '<Action Root.a>')
+        self.assertRaises(AttributeError, insp.get_action, 'unknown_action')
 
     def test_has_action(self):
         insp = self.insp
         self.assertEqual(insp.has_action('a'), True)
         self.assertEqual(insp.has_action('d'), False)
-        self.assertEqual(repr(insp.get_action('a')), '<Action Root.a>')
-        self.assertRaises(AttributeError, insp.get_action, 'unknown_action')
+
+    def test_get_properties(self):
+        insp = self.insp
+        self.assertEqual(repr(insp.get_properties()), '[<Action Root.p1>, <Action Root.p2>]')
+
+    def test_get_property(self):
+        insp = self.insp
+        self.assertIsInstance(insp.get_property('p1'), Action)
+        self.assertEqual(repr(insp.get_property('p1')), '<Action Root.p1>')
+        self.assertRaises(AttributeError, insp.get_property, 'unknown_property')
+
+    def has_property(self):
+        insp = self.insp
+        self.assertEqual(insp.has_property('p1'), True)
+        self.assertEqual(insp.has_property('unknown_property'), False)
+
+    def test_get_queries(self):
+        insp = self.insp
+        self.assertEqual(repr(insp.get_queries()), '[<Action Root.query1>, <Action Root.query2>]')
+
+    def test_get_query(self):
+        insp = self.insp
+        self.assertIsInstance(insp.get_query('query1'), Action)
+        self.assertEqual(repr(insp.get_query('query1')), '<Action Root.query1>')
+        self.assertRaises(AttributeError, insp.get_query, 'unknown_query')
+
+    def test_has_query(self):
+        insp = self.insp
+        self.assertEqual(insp.has_query('query1'), True)
+        self.assertEqual(insp.has_query('unknown_query'), False)
 
     def test_get_path(self):
         s = self.s
@@ -100,6 +154,7 @@ class InspectorTest(unittest.TestCase):
         self.assertEqual(len(list(insp.walk())), 2)
         self.assertEqual({ Inspector(i).get_name() for i in insp.walk() }, { 'B', 'C' })
 
+
 class InspectorOnEnvTest(unittest.TestCase):
     def setUp(self):
         class Root(Node):
@@ -113,6 +168,14 @@ class InspectorOnEnvTest(unittest.TestCase):
             def action2(self):
                 return 'action-root2'
 
+            @property
+            def p1(self):
+                return 'p1'
+
+            @property
+            def p2(self):
+                return 'p2'
+
         self.env = Env(Root())
         self.insp = Inspector(self.env)
 
@@ -121,12 +184,32 @@ class InspectorOnEnvTest(unittest.TestCase):
         self.assertEqual(repr(insp.get_childnodes()), '[Env(Root.A), Env(Root.B)]')
         self.assertEqual(insp.get_childnode('B').action(), 'action-b')
 
+    def test_get_childnode(self):
+        insp = self.insp
+        self.assertEqual(repr(insp.get_childnode('A')), 'Env(Root.A)')
+        self.assertIsInstance(insp.get_childnode('A'), Env)
+        self.assertRaises(AttributeError, insp.get_childnode, 'unknown_childnode')
+
     def test_get_actions(self):
         insp = self.insp
-        self.assertEqual(len(insp.get_actions()), 2)
+        self.assertIsInstance(insp.get_actions()[0], EnvAction)
+
+    def test_get_action(self):
+        insp = self.insp
         self.assertEqual(repr(insp.get_action('action')), '<Env.Action Root.action>')
+        self.assertIsInstance(insp.get_action('action'), EnvAction)
         self.assertEqual(insp.get_action('action')(), 'action-root')
         self.assertEqual(insp.get_action('action').name, 'action')
+
+    def test_get_properties(self):
+        insp = self.insp
+        self.assertEqual(repr(insp.get_properties()), '[<Env.Action Root.p1>, <Env.Action Root.p2>]')
+        self.assertIsInstance(insp.get_properties()[0], EnvAction)
+
+    def test_get_property(self):
+        insp = self.insp
+        self.assertEqual(repr(insp.get_property('p1')), '<Env.Action Root.p1>')
+        self.assertIsInstance(insp.get_property('p1'), EnvAction)
 
     def test_walk(self):
         insp = self.insp
@@ -378,9 +461,9 @@ class QueryInspectionTest(unittest.TestCase):
         self.assertRaises(AttributeError, self.node_insp.get_query, 'not_a_query')
 
     def test_trace_query(self):
-        # _trace_query is private because it's for internal use. (In the
+        # trace_query is private because it's for internal use. (In the
         # shell.)
-        result = self.env_insp._trace_query('query')
+        result = self.env_insp.trace_query('query')
         self.assertIsInstance(result, QueryResult)
         self.assertEqual(result.result, 'valuevalue')
 

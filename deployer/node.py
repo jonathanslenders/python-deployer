@@ -34,7 +34,7 @@ class required_property(property):
         self.owner = ''
 
         def fget(obj):
-            raise NotImplementedError('Property %s of %s is not defined: %s' % (self.name, self.owner, self.description))
+            raise NotImplementedError('Required property %s of %s is not defined: %s' % (self.name, self.owner, self.description))
 
         property.__init__(self, fget)
 
@@ -210,14 +210,19 @@ class Env(object):
     def __repr__(self):
         return 'Env(%s)' % get_node_path(self._node)
 
-    def __wrap_action(self, action):
+    def __wrap_action(self, action, auto_evaluate=True):
         """
         Wrap the action in an EnvAction object when it's called from the Env.
         This will make sure that __call__ will run it in this Env environment.
+
+        :param auto_evaluate: Call properties and queries immediately upon retrieval.
+                              This is the default behaviour.
+        :type auto_evaluate: bool
         """
+        assert isinstance(action, Action)
         env_action = EnvAction(self, action)
 
-        if action.is_property or action.is_query:
+        if (action.is_property or action.is_query) and auto_evaluate:
             # Properties are automatically called upon retrieval
             return env_action()
         else:
@@ -248,6 +253,7 @@ class Env(object):
         return self.__wrap_node(node_class())
 
     def __wrap_node(self, node):
+        assert isinstance(node, Node)
         return Env(node, self._pty, self._logger, self._is_sandbox)
 
     @property
@@ -761,10 +767,12 @@ class Action(object):
     this Action class. When one such action is called, this class will make
     sure that a correct ``env`` object is passed into the function as its first
     argument.
+    :param node_instance: The Node Env to which this Action is bound.
+    :type node_instance: None or :class:`deployer.node.Env`
     """
     def __init__(self, attr_name, node_instance, func, is_property=False, is_query=False, query=None):
         self._attr_name = attr_name
-        self._node_instance = node_instance # XXX: this should be the Env object?
+        self._node_instance = node_instance
         self._func = func # TODO: wrap _func in something that checks whether the first argument is an Env instance.
         self.is_property = is_property
         self.is_query = is_query
@@ -843,11 +851,14 @@ class EnvAction(object):
     Calling this will execute the action in the environment.
     """
     def __init__(self, env, action):
+        assert isinstance(env, Env)
+        assert isinstance(action, Action)
+
         self._env = env
         self._action = action
 
     def __repr__(self):
-        return '<Env.Action %s.%s>' % (get_node_path(self._env._node), self._action._attr_name)
+        return '<Env.Action %s.%s>' % (get_node_path(self._env._node), self._action.name)
 
     @property
     def name(self):
@@ -861,6 +872,14 @@ class EnvAction(object):
     @property
     def suppress_result(self):
         return self._action.suppress_result
+
+    @property
+    def is_property(self):
+        return self._action.is_property
+
+    @property
+    def is_query(self):
+        return self._action.is_query
 
     def _run_on_node(self, isolation, *a, **kw):
         """

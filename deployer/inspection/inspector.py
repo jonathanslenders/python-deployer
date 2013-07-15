@@ -1,5 +1,6 @@
 from deployer.node import SimpleNode, Node, Env, EnvAction, IsolationIdentifierType, iter_isolations, Action, Group
 from deployer.inspection import filters
+from functools import wraps
 
 
 class PathType:
@@ -119,9 +120,9 @@ class Inspector(object):
                     not i.is_property and not i.is_query)
 
         # Order alphabetically.
-        return sorted(actions.values(), key=lambda a:a._attr_name)
+        return sorted(actions.values(), key=lambda a:a.name)
 
-    def has_action(self, name): # TODO: unittest
+    def has_action(self, name):
         """
         Returns ``True`` when this node has an action called ``name``.
         """
@@ -131,7 +132,7 @@ class Inspector(object):
         except AttributeError:
             return False
 
-    def get_action(self, name): # TODO: unittest
+    def get_action(self, name):
         """
         Return the ``Action`` with this name or raise ``AttributeError``.
         """
@@ -140,23 +141,26 @@ class Inspector(object):
                 return a
         raise AttributeError('Action not found.')
 
-    def get_properties(self, include_private=True): # TODO: unittest
+    def get_properties(self, include_private=True):
         """
         List all the properties. (This are Action instances.)
         """
         # The @property descriptor is in a Node replaced by the
         # node.PropertyDescriptor. This returns an Action object instead of
         # executing it directly.
-        return self._filter(include_private, lambda i:
-                        isinstance(i, Action) and i.is_property).values()
+        actions = self._filter(include_private, lambda i:
+                        isinstance(i, Action) and i.is_property)
 
-    def get_property(self, name): # TODO: unittest
+        # Order alphabetically
+        return sorted(actions.values(), key=lambda a:a.name)
+
+    def get_property(self, name):
         for p in self.get_properties():
             if p.name == name:
                 return p
         raise AttributeError('Property not found.')
 
-    def has_property(self, name): # TODO: unittest
+    def has_property(self, name):
         """
         Returns ``True`` when the attribute ``name`` is a @property.
         """
@@ -168,8 +172,11 @@ class Inspector(object):
 
     def get_queries(self, include_private=True): # TODO: unittest
         # Internal only. For the shell.
-        return self._filter(include_private, lambda i:
-                    isinstance(i, Action) and i.is_query).values()
+        actions = self._filter(include_private, lambda i:
+                    isinstance(i, Action) and i.is_query)
+
+        # Order alphabetically
+        return sorted(actions.values(), key=lambda a:a.name)
 
     def get_query(self, name): # TODO: unittest
         """
@@ -310,16 +317,22 @@ class _EnvInspector(Inspector):
         nodes = Inspector.get_childnodes(self, include_private)
         return map(self.env._Env__wrap_node, nodes)
 
-    def get_childnode(self, name):
-        for c in self.get_childnodes():
-            if Inspector(c).get_name() == name:
-                return c
-        raise AttributeError('Childnode not found.')
+    @wraps(Inspector.get_actions)
+    def get_actions(self, *a, **kw):
+        return map(self.env._Env__wrap_action, Inspector.get_actions(self, *a, **kw))
 
-    def get_actions(self, include_private=True):
+    @wraps(Inspector.get_properties)
+    def get_properties(self, *a, **kw):
         actions = []
-        for a in Inspector.get_actions(self, include_private):
-            actions.append(self.env._Env__wrap_action(a))
+        for a in Inspector.get_properties(self, *a, **kw):
+            actions.append(self.env._Env__wrap_action(a, auto_evaluate=False))
+        return actions
+
+    @wraps(Inspector.get_queries)
+    def get_queries(self, *a, **kw):
+        actions = []
+        for a in Inspector.get_queries(self, *a, **kw):
+            actions.append(self.env._Env__wrap_action(a, auto_evaluate=False))
         return actions
 
     def iter_isolations(self, *a, **kw):
@@ -330,21 +343,15 @@ class _EnvInspector(Inspector):
         for node in Inspector._walk(self):
             yield self.env._Env__wrap_node(node)
 
-    def _trace_query(self, name):
+    def trace_query(self, name):
         """
-        Execute this query, but return the QueryResult wrapper instead of the
-        actual result. This wrapper contains trace information for debugging.
+        Execute this query, but return the ``QueryResult`` wrapper instead of
+        the actual result. This wrapper contains trace information for
+        debugging.
         """
-        action = self.get_query(name)
-        query_result = EnvAction(self.env, action)(return_query_result=True)
+        env_action = self.get_query(name)
+        query_result = env_action(return_query_result=True)
         return query_result
-
-    def _execute_property(self, name):
-        """
-        Executes the property in this environment.
-        """
-        action = self.get_property(name)
-        return EnvAction(self.env, action)()
 
 
 class NodeIterator(object):
