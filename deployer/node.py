@@ -21,6 +21,12 @@ __all__ = (
     'SimpleNode',
     'required_property'
     'role_mapping',
+
+    # Decorators.
+    'suppress_action_result',
+    'dont_isolate_yet',
+    'isolate_only_one',
+    'alias',
 )
 
 class required_property(property):

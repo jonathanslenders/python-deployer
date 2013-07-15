@@ -24,6 +24,7 @@ class PathType:
     A list of nodes.
     """
 
+
 class AttributeType:
     PROPERTY = 'PROPERTY'
     QUERY = 'QUERY'
@@ -143,7 +144,10 @@ class Inspector(object):
 
     def get_properties(self, include_private=True):
         """
-        List all the properties. (This are Action instances.)
+        Return the attributes that are properties.
+
+        This are the members of this node that were wrapped in ``@property``
+        :returns: A list of ``Action`` instances.
         """
         # The @property descriptor is in a Node replaced by the
         # node.PropertyDescriptor. This returns an Action object instead of
@@ -155,6 +159,10 @@ class Inspector(object):
         return sorted(actions.values(), key=lambda a:a.name)
 
     def get_property(self, name):
+        """
+        Returns the property with this name or raise AttributeError.
+        :returns: ``Action`` instance.
+        """
         for p in self.get_properties():
             if p.name == name:
                 return p
@@ -170,7 +178,10 @@ class Inspector(object):
         except AttributeError:
             return False
 
-    def get_queries(self, include_private=True): # TODO: unittest
+    def get_queries(self, include_private=True):
+        """
+        Return the attributes that are :class:`deployer.query.Query` instances.
+        """
         # Internal only. For the shell.
         actions = self._filter(include_private, lambda i:
                     isinstance(i, Action) and i.is_query)
@@ -178,12 +189,12 @@ class Inspector(object):
         # Order alphabetically
         return sorted(actions.values(), key=lambda a:a.name)
 
-    def get_query(self, name): # TODO: unittest
+    def get_query(self, name):
         """
-        Returns an Action object that wraps the Query.
-        Private because, normally end-user code does not deal with
-        Action-instances, because queries appear to be automatically resolved
-        during attribute access. And this returns an Action instance.
+        Returns the Action object that wraps the Query with this name or raise
+        AttributeError.
+
+        :returns: An ``Action`` instance.
         """
         for q in self.get_queries():
             if q.name == name:
@@ -202,7 +213,7 @@ class Inspector(object):
 
     def suppress_result_for_action(self, name):
         """
-        ``True`` when the ``@suppress_result`` decorator has been used around this action.
+        ``True`` when :func:`deployer.node.suppress_action_result` has been applied to this action.
         """
         return self.get_action(name).suppress_result
 
@@ -231,7 +242,7 @@ class Inspector(object):
 
         return tuple(result[::-1])
 
-    def get_root(self):
+    def get_root(self): # TODO: unittest!!
         """
         Return the root ``Node`` of the tree.
         """
@@ -251,7 +262,7 @@ class Inspector(object):
 
     def get_group(self):
         """
-        Return the group to which this node belongs.
+        Return the :class:`deployer.groups.Group` to which this node belongs.
         """
         return self.node.node_group or (
                 Inspector(self.node.parent).get_group() if self.node.parent else Group())
