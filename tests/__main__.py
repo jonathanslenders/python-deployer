@@ -3,7 +3,7 @@ from host_container_test import *
 from host_test import *
 from inspector_test import *
 from node_test import *
-from q_object_test import *
+from query_test import *
 from utils_test import *
 
 if __name__ == '__main__':
