@@ -1,11 +1,4 @@
 
-
-# Features:
-#   - logging of all manual activity of all hosts on one central server.
-#   - easy configuration
-#   - allowing setup of multi-server deployments
-#   - should be extensible with a web interface.
-
 import StringIO
 import contextlib
 import copy
@@ -31,8 +24,6 @@ from deployer.std import raw_mode
 from deployer.utils import esc1
 
 from twisted.internet import fdesc
-
-# ================ Hosts =====================================
 
 
 class HostContext(object):
@@ -187,8 +178,9 @@ class Host(object):
 
     def exists(self, filename, use_sudo=True, **kw):
         """
-        Returns whether this file exists on this hosts.
+        Returns ``True`` when a file named ``filename`` exists on this hosts.
         """
+        # Note: the **kw is required for passing in a HostContext.
         try:
             self._run_silent("test -f '%s' || test -d '%s'" % (esc1(filename), esc1(filename)),
                         use_sudo=use_sudo, **kw)
@@ -210,6 +202,8 @@ class Host(object):
     def ifconfig(self):
         """
         Return the network information for this host.
+
+        :returns: A :class:`deployer.utils.IfConfig` instance.
         """
         # We add "cd /", to be sure that at least no error get thrown because
         # we're in a non existing directory right now.
@@ -256,23 +250,28 @@ class Host(object):
         result.append(command)
         return ''.join(result)
 
-    def _run_silent(self, command, **kw):
-        pty = DummyPty()
-        kw['interactive'] = False
-        kw['logger'] = None
-        return self._run(pty, command, **kw)
-
-    def _run_silent_sudo(self, command, **kw):
-        kw['use_sudo'] = True
-        return self._run_silent(command, **kw)
-
-    def _run(self, pty, command='echo "no command given"', use_sudo=False, sandbox=False, interactive=True,
+    def run(self, pty, command='echo "no command given"', use_sudo=False, sandbox=False, interactive=True,
                         logger=None, user=None, ignore_exit_status=False, initial_input=None, context=None):
         """
-        Execute this command.
-        When `interactive`, it will use stdin/stdout and use an interactive loop, otherwise, it will
-        return the output.
-        When the command fails and ignore_exit_status is false, it will raise ExecCommandFailed
+        Execute this shell command on the host.
+
+        :param pty: The pseudo terminal wrapper which handles the stdin/stdout.
+        :type pty: :class:`deployer.pseudo_terminal.Pty`
+        :param command: The shell command.
+        :type command: basestring
+        :param use_sudo: Run as superuser.
+        :type use_sudo: bool
+        :param sandbox: Validate syntax instead of really executing. (Wrap the command in ``bash -n``.)
+        :type sandbox: bool
+        :param interactive: Start an interactive event loop which allows
+                            interaction with the remote command. Otherwise, just return the output.
+        :type interactive: bool
+        :param logger: The logger interface.
+        :type logger: LoggerInterface
+        :param initial_input: When ``interactive``, send this input first to the host.
+        :type initial_input: basestring
+        :param context:
+        :type context: :class:`deployer.host.HostContext;
         """
         assert isinstance(command, basestring)
 
@@ -497,7 +496,7 @@ class Host(object):
                                      #       for some unit tests, where the
                                      #       input ends, before the output is
                                      #       finished. But I think we need this
-                                     #       anyway.  As long as threre is data
+                                     #       anyway.  As long as there is data
                                      #       to read on the SSH channel, we can
                                      #       go on. But better remove stdin
                                      #       from the select() call, just to
@@ -683,19 +682,22 @@ class Host(object):
 
     # Some simple wrappers for the commands
 
-    def run(self, *args, **kwargs):
-        """
-        Run this command.
-        """
-        return self._run(*args, **kwargs)
-
-
     def sudo(self, *args, **kwargs):
         """
         Run this command using sudo.
         """
         kwargs['use_sudo'] = True
         return self.run(*args, **kwargs)
+
+    def _run_silent(self, command, **kw):
+        pty = DummyPty()
+        kw['interactive'] = False
+        kw['logger'] = None
+        return self.run(pty, command, **kw)
+
+    def _run_silent_sudo(self, command, **kw):
+        kw['use_sudo'] = True
+        return self._run_silent(command, **kw)
 
 
 class SSHBackend(object):

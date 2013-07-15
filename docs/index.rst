@@ -6,7 +6,8 @@
 Python-deploy-framework
 =======================
 
-A Python framework for automatic application deployment on Posix systems.
+A Python framework for automatic deployment and remote execution on Posix
+systems.
 
 * :ref:`genindex`
 * :ref:`modindex`
