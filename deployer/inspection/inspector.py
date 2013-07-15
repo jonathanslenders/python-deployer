@@ -346,10 +346,6 @@ class _EnvInspector(Inspector):
         action = self.get_property(name)
         return EnvAction(self.env, action)()
 
-    def get_action(self, name): # TODO: unittest
-        # TODO: wrap in EnvAction...)
-        raise NotImplementedError
-
 
 class NodeIterator(object):
     """
