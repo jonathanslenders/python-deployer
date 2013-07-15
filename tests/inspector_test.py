@@ -374,8 +374,8 @@ class QueryInspectionTest(unittest.TestCase):
         self.assertEqual(self.node_insp.has_query('not_a_query'), False)
 
     def test_get_query(self):
-        self.assertIsInstance(self.node_insp._get_query('query'), Action)
-        self.assertRaises(AttributeError, self.node_insp._get_query, 'not_a_query')
+        self.assertIsInstance(self.node_insp.get_query('query'), Action)
+        self.assertRaises(AttributeError, self.node_insp.get_query, 'not_a_query')
 
     def test_trace_query(self):
         # _trace_query is private because it's for internal use. (In the
