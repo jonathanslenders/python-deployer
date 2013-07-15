@@ -91,6 +91,9 @@ class NodeACHandler(ShellHandler):
         if AUTOCOMPLETE_TYPE.NODE in atypes and not self.attr_name:
             return AUTOCOMPLETE_TYPE.NODE
 
+        if AUTOCOMPLETE_TYPE.ACTION in atypes and not self.attr_name and insp.is_callable():
+            return AUTOCOMPLETE_TYPE.ACTION
+
         if AUTOCOMPLETE_TYPE.ACTION in atypes and insp.has_action(self.attr_name):
             return AUTOCOMPLETE_TYPE.ACTION
 
@@ -279,10 +282,15 @@ class Connect(NodeACHandler):
             class Hosts:
                 host = self.node.hosts._all
 
-        env = Env(Connect(), pty=self.shell.pty)
+        env = Env(Connect(), self.shell.pty, self.shell.logger_interface)
 
         # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
-        Action(Connect(), 'with_host', self.shell, False).__call__()
+        try:
+            env.with_host()
+        except ActionException, e:
+            pass
+        except Exception, e:
+            self.shell.logger_interface.log_exception(e)
 
 
 class Find(NodeACHandler):
@@ -611,13 +619,17 @@ class Node(NodeACHandler):
         # Execute
         logger_interface = self.shell.logger_interface
 
-        # Command
-        command = '%s.%s()' % (Inspector(self.node).get_full_name(), self.attr_name)
-
         try:
+            # Create env
             env = Env(self.node, self.shell.pty, logger_interface, is_sandbox=self.sandbox)
-            result = getattr(env, self.attr_name)(*self.args)
-            suppress_result = Inspector(self.node).suppress_result_for_action(self.attr_name)
+
+            # Call action
+            if self.attr_name is not None:
+                result = getattr(env, self.attr_name)(*self.args)
+                suppress_result = Inspector(self.node).suppress_result_for_action(self.attr_name)
+            else:
+                result = env(*self.args)
+                suppress_result = False
 
             # When the result is a subnode, start a subshell.
             def handle_result(result):
