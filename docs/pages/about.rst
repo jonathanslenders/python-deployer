@@ -4,8 +4,12 @@ About
 Special thanks to
 -----------------
 
-This framework depends on two major libraries: Paramiko and Twisted Matrix.
-A small amount of code was also inspired by Fabric.
+This framework depends on two major libraries: `Paramiko`_ and `Twisted Matrix`_.
+A small amount of code was also inspired by `Fabric`_.
+
+.. _Paramiko: https://github.com/paramiko/paramiko
+.. _Twisted Matrix: http://twistedmatrix.com/
+.. _Fabric: http://docs.fabfile.org/
 
 Authors
 -------
