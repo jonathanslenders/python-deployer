@@ -1,19 +1,22 @@
+from deployer.cli import CLInterface, Handler, HandlerType
+from deployer.console import Console
+from deployer.console import NoInput
+from deployer.inspection import Inspector, PathType
+from deployer.node import ActionException, Env, IsolationIdentifierType
+
+from inspect import getfile
+from itertools import groupby
+
+from pygments import highlight
+from pygments.formatters import TerminalFormatter
+from pygments.lexers import PythonLexer, PythonTracebackLexer
+
+import deployer
+import inspect
 import socket
 import sys
 import termcolor
 import traceback
-
-from deployer.cli import CLInterface, Handler, HandlerType
-from deployer.service import ActionException
-from deployer.console import Console
-from itertools import groupby
-import deployer
-
-from pygments import highlight
-from pygments.formatters import TerminalFormatter as Formatter
-from pygments.lexers import PythonTracebackLexer
-
-from inspect import getfile
 
 __all__ = ('Shell', )
 
@@ -25,16 +28,15 @@ class ActionType(HandlerType):
         self.color = color
         self.postfix = '*'
 
-def type_of_service(service):
-    group = service.get_group()
-    return ServiceType(group.color)
+def type_of_node(node):
+    group = Inspector(node).get_group()
+    return NodeType(group.color)
 
 def type_of_action(action):
-    group = action.get_group()
+    group = action.node_group
     return ActionType(group.color)
 
-
-class ServiceType(HandlerType):
+class NodeType(HandlerType):
     def __init__(self, color):
         self.color = color
 
@@ -44,100 +46,214 @@ class BuiltinType(HandlerType):
 
 # Utils for navigation
 
-def find_root_service(service):
-    while service.parent:
-        service = service.parent
-    return service
-
-
-def create_navigable_handler(call_handler):
-    """
-    Crete a ShellHandler which has service path completion.
-    """
-    class PathHandler(ShellHandler):
-        is_leaf = True
-
-        @property
-        def handler_type(self):
-            return type_of_service(self.service)
-
-        def __init__(self, shell, service):
-            ShellHandler.__init__(self, shell)
-            self.service = service
-
-        def get_subhandler(self, name):
-            parent = self.service.parent
-
-            if name == '.':
-                return self
-
-            if name == '-' and self.shell.state.can_cdback:
-                return PathHandler(self.shell, self.shell.state.previous_service)
-
-            if parent and name == '/':
-                root = find_root_service(parent)
-                return PathHandler(self.shell, root)
-
-            if parent and name == '..':
-                return PathHandler(self.shell, parent)
-
-            for n, s in self.service.get_subservices(include_private=True):
-                if name == n:
-                    return PathHandler(self.shell, s)
-
-        def complete_subhandlers(self, part):
-            parent = self.service.parent
-
-            if '.'.startswith(part):
-                yield '.', self
-
-            if '-'.startswith(part) and self.shell.state.can_cdback:
-                yield '-', PathHandler(self.shell, self.shell.state.previous_service)
-
-            if parent and '/'.startswith(part):
-                root = find_root_service(parent)
-                yield '/', PathHandler(self.shell, root)
-
-            if parent and '..'.startswith(part):
-                yield ('..', PathHandler(self.shell, parent))
-
-            # Note: when an underscore has been typed, include private too.
-            include_private = part.startswith('_')
-            for name, s in self.service.get_subservices(include_private=include_private):
-                if name.startswith(part):
-                    yield name, PathHandler(self.shell, s)
-
-        __call__ = call_handler
-
-    class RootHandler(PathHandler):
-        handler_type = BuiltinType()
-
-        def __init__(self, shell):
-            PathHandler.__init__(self, shell, shell.state._service)
-
-    return RootHandler
-
-# Handlers
 
 class ShellHandler(Handler):
     def __init__(self, shell):
         self.shell = shell
 
 
-class GroupHandler(ShellHandler):
-    """
-    Contains a static group of subhandlers.
-    """
-    subhandlers = { }
+class AUTOCOMPLETE_TYPE:
+    NODE = 'NODE'
+    ACTION = 'ACTION'
+    ACTION_AND_ARGS = 'ACTION_AND_ARGS'
 
-    def complete_subhandlers(self, part):
-        for name, h in self.subhandlers.items():
-            if name.startswith(part):
-                yield name, h(self.shell)
+    QUERY_ATTRIBUTE = 'QUERY_ATTRIBUTE'
+    PROPERTY_ATTRIBUTE = 'PROPERTY'
+    CONSTANT_ATTRIBUTE = 'CONNSTANT' # TODO: inspection on this type.
+
+
+class NodeACHandler(ShellHandler):
+    """
+    ShellHandler which implements node path completion.  Depending on the
+    ``autocomplete_types`` attribute, it can complete on nodes, actions, or any
+    other attribute value.
+    """
+    autocomplete_types = [AUTOCOMPLETE_TYPE.NODE]
+
+    def __init__(self, shell, node=None, attr_name=None, args=None):
+        ShellHandler.__init__(self, shell)
+        self._root = node is None
+        self.node = node or shell.state._node
+        self.attr_name = attr_name
+        self.args = args or []
+
+    @property
+    def is_leaf(self):
+        return self.get_type() is not None
+
+    def get_type(self):
+        """
+        Return the ``AUTOCOMPLETE_TYPE`` for this node.
+        """
+        insp = Inspector(self.node)
+        atypes = self.autocomplete_types
+
+        if AUTOCOMPLETE_TYPE.NODE in atypes and not self.attr_name:
+            return AUTOCOMPLETE_TYPE.NODE
+
+        if AUTOCOMPLETE_TYPE.ACTION in atypes and not self.attr_name and insp.is_callable():
+            return AUTOCOMPLETE_TYPE.ACTION
+
+        if AUTOCOMPLETE_TYPE.ACTION in atypes and insp.has_action(self.attr_name):
+            return AUTOCOMPLETE_TYPE.ACTION
+
+        if AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE in atypes and insp.has_query(self.attr_name):
+            return AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE
+
+        if AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE in atypes and insp.has_property(self.attr_name):
+            return AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE
+
+    @property
+    def handler_type(self):
+        if self._root:
+            return BuiltinType()
+        else:
+            node_color = Inspector(self.node).get_group().color
+
+            def get_postfix():
+                type_ = self.get_type()
+                if type_ == AUTOCOMPLETE_TYPE.ACTION:
+                    return '*'
+
+                if type_ == AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE:
+                    return '?'
+
+                if type_ == AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE:
+                    return '@'
+
+                return ''
+
+            class Type(HandlerType):
+                color = node_color
+                postfix = get_postfix()
+            return Type()
 
     def get_subhandler(self, name):
-        if name in self.subhandlers:
-            return self.subhandlers[name](self.shell)
+        parent = self.node.parent
+        cls = self.__class__
+
+        # Current node
+        if name == '.':
+            return self
+
+        # Previous location
+        if name == '-' and self.shell.state.can_cdback:
+            return cls(self.shell, self.shell.state.previous_node)
+
+        # Root node
+        if parent and name == '/':
+            root = Inspector(parent).get_root()
+            return cls(self.shell, root)
+
+        # Parent node
+        if parent and name == '..':
+            return cls(self.shell, parent)
+
+        # TODO: ~ --> home.
+
+        # Isolation
+        elif name.startswith(':'):
+            ids = tuple(name[1:].split(':'))
+            try:
+                node = Inspector(self.node).get_isolation(ids, IsolationIdentifierType.HOSTS_SLUG)
+                return cls(self.shell, node)
+            except AttributeError: pass
+
+        # Childnodes
+        try:
+            node = Inspector(self.node).get_childnode(name)
+            return cls(self.shell, node)
+        except AttributeError: pass
+
+        # Actions
+        if AUTOCOMPLETE_TYPE.ACTION in self.autocomplete_types:
+            try:
+                action = Inspector(self.node).get_action(name)
+                return cls(self.shell, self.node, name)
+            except AttributeError: pass
+
+        if AUTOCOMPLETE_TYPE.ACTION_AND_ARGS in self.autocomplete_types and self.attr_name:
+            return cls(self.shell, self.node, self.attr_name, self.args + [name])
+
+        # Queries
+        if AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE in self.autocomplete_types:
+            try:
+                action = Inspector(self.node).get_query(name)
+                return cls(self.shell, self.node, action.name)
+            except AttributeError:
+                pass
+
+        # Properties
+        if AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE in self.autocomplete_types:
+            try:
+                action = Inspector(self.node).get_property(name)
+                return cls(self.shell, self.node, action.name)
+            except AttributeError:
+                pass
+
+    def complete_subhandlers(self, part):
+        parent = self.node.parent
+        include_private = part.startswith('_')
+        cls = self.__class__
+
+        # Current node
+        if '.'.startswith(part):
+            yield '.', self
+
+        # Previous location
+        if '-'.startswith(part) and self.shell.state.can_cdback:
+            yield '-', cls(self.shell, self.shell.state.previous_node)
+
+        # Root node
+        if parent and '/'.startswith(part):
+            root = Inspector(parent).get_root()
+            yield '/', cls(self.shell, root)
+
+        # Parent node
+        if parent and '..'.startswith(part):
+            yield ('..', cls(self.shell, parent))
+
+        # TODO: ~ -->> Home
+
+        # Isolation
+        for i, n in Inspector(self.node).iter_isolations(IsolationIdentifierType.HOSTS_SLUG):
+            if i:
+                # Prefix all isolations with colons.
+                name = ':%s' % ':'.join(i)
+                if name.startswith(part):
+                    yield name, cls(self.shell, n)
+
+        # Childnodes:
+        # Note: when an underscore has been typed, include private too.
+        for c in Inspector(self.node).get_childnodes(include_private=include_private):
+            name = Inspector(c).get_name()
+            if name.startswith(part):
+                yield name, cls(self.shell, c)
+
+        # Actions
+        if AUTOCOMPLETE_TYPE.ACTION in self.autocomplete_types:
+            for action in Inspector(self.node).get_actions(include_private=include_private):
+                if action.name.startswith(part):
+                    yield action.name, cls(self.shell, self.node, action.name)
+
+        # Queries
+        if AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE in self.autocomplete_types:
+            for action in Inspector(self.node).get_queries(include_private=include_private):
+                if action.name.startswith(part):
+                    yield action.name, cls(self.shell, self.node, action.name)
+
+        # Properties
+        if AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE in self.autocomplete_types:
+            for action in Inspector(self.node).get_properties(include_private=include_private):
+                if action.name.startswith(part):
+                    yield action.name, cls(self.shell, self.node, action.name)
+
+
+    def __call__(self):
+        raise NotImplementedError
+
+
+# Handlers
 
 
 class Version(ShellHandler):
@@ -149,206 +265,310 @@ class Version(ShellHandler):
         print termcolor.colored(deployer.__version__, 'red')
         print termcolor.colored('  Host:                      ', 'cyan'),
         print termcolor.colored(socket.gethostname(), 'red')
-        print termcolor.colored('  Root service class:        ', 'cyan'),
-        print termcolor.colored(self.shell.root_service.__module__, 'red'),
-        print termcolor.colored('  <%s>' % self.shell.root_service.__class__.__name__, 'red')
+        print termcolor.colored('  Root node class:        ', 'cyan'),
+        print termcolor.colored(self.shell.root_node.__module__, 'red'),
+        print termcolor.colored('  <%s>' % self.shell.root_node.__class__.__name__, 'red')
 
 
-@create_navigable_handler
-def Connect(self):
+class Connect(NodeACHandler):
     """
     Open interactive SSH connection with this host.
     """
-    from deployer.contrib.services import connect
-    from deployer.host_container import HostsContainer
-    c = connect.Connect(HostsContainer({ 'host': self.service.hosts._all }))
+    def __call__(self):
+        from deployer.contrib.nodes import connect
+        from deployer.host_container import HostsContainer
 
-    # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
-    Action(c.with_host, self.shell, False)()
+        class Connect(connect.Connect):
+            class Hosts:
+                host = self.node.hosts._all
 
+        env = Env(Connect(), self.shell.pty, self.shell.logger_interface)
 
-@create_navigable_handler
-def Find(self):
-    def _list_nested_services(service, prefix):
-        for name, action in service.get_actions():
-            yield '%s %s' % (prefix, termcolor.colored(name, service.get_group().color))
-
-        for name, subservice in service.get_subservices():
-            # Check the parent, to avoid loops.
-            if subservice.parent == service:
-                for i in _list_nested_services(subservice, '%s %s' % (prefix, termcolor.colored(name, subservice.get_group().color))):
-                    yield i
-
-    lesspipe(_list_nested_services(self.service, ''), self.shell.pty)
+        # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
+        try:
+            env.with_host()
+        except ActionException, e:
+            pass
+        except Exception, e:
+            self.shell.logger_interface.log_exception(e)
 
 
-@create_navigable_handler
-def Inspect(self):
+class Find(NodeACHandler):
+    def __call__(self):
+        def _list_nested_nodes(node, prefix):
+            for a in Inspector(node).get_actions():
+                yield '%s %s' % (prefix, termcolor.colored(a.name, Inspector(a.node).get_group().color))
+
+            for c in Inspector(node).get_childnodes():
+                # Check the parent, to avoid loops.
+                if c.parent == node:
+                    name = Inspector(c).get_name()
+                    for i in _list_nested_nodes(c, '%s %s' % (prefix, termcolor.colored(name, Inspector(c).get_group().color))):
+                        yield i
+
+        Console(self.shell.pty).lesspipe(_list_nested_nodes(self.node, ''))
+
+
+class Inspect(NodeACHandler):
     """
-    Inspection of the current service. Show host mappings and other information.
+    Inspection of the current node. Show host mappings and other information.
     """
-    console = Console(self.shell.pty)
+    autocomplete_types = [
+            AUTOCOMPLETE_TYPE.NODE,
+            AUTOCOMPLETE_TYPE.ACTION,
+            AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE,
+            AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE ]
 
-    def inspect():
-        # Print full name
-        yield termcolor.colored('  Service:    ', 'cyan') + \
-              termcolor.colored(self.service.__repr__(path_only=True), 'yellow')
+    def __call__(self):
+        type_ = self.get_type()
 
-        # Service class definition created on
-        yield termcolor.colored('  Created on: ', 'cyan') + \
-              termcolor.colored(self.service._creation_date, 'red')
+        if type_ == AUTOCOMPLETE_TYPE.NODE:
+            self._inspect_node()
 
+        if type_ == AUTOCOMPLETE_TYPE.ACTION:
+            self._inspect_action()
 
-        # Print mro
-        yield termcolor.colored('  Mro:', 'cyan')
-        i = 1
-        for m in self.service.__class__.__mro__:
-            if m.__module__ != 'deployer.service' and m != object:
-                yield termcolor.colored('              %i ' % i, 'cyan') + \
-                      termcolor.colored('%s.' % m.__module__, 'red') + \
-                      termcolor.colored('%s' % m.__name__, 'yellow')
-                i += 1
+        if type_ == AUTOCOMPLETE_TYPE.QUERY_ATTRIBUTE:
+            self._inspect_query_attribute()
 
-        # File names
-        yield termcolor.colored('  Files:', 'cyan')
-        i = 1
-        for m in self.service.__class__.__mro__:
-            if m.__module__ != 'deployer.service' and m != object:
-                yield termcolor.colored('              %i ' % i, 'cyan') + \
-                      termcolor.colored(getfile(m), 'red')
-                i += 1
+        if type_ == AUTOCOMPLETE_TYPE.PROPERTY_ATTRIBUTE:
+            self._inspect_property_attribute()
 
-        # Print host mappings
-        yield termcolor.colored('  Hosts:', 'cyan')
+    def _inspect_node(self):
+        console = Console(self.shell.pty)
 
-        for role in sorted(self.service.hosts._hosts.keys()):
-            items = self.service.hosts._hosts[role]
-            yield termcolor.colored('         "%s"' % role, 'yellow')
+        def inspect():
+            # Print full name
+            yield termcolor.colored('  Node:    ', 'cyan') + \
+                  termcolor.colored(Inspector(self.node).get_full_name(), 'yellow')
+
+            # Print mro
+            yield termcolor.colored('  Mro:', 'cyan')
             i = 1
-            for host in sorted(items, key=lambda h:h.slug):
-                yield termcolor.colored('            %3i ' % i, 'cyan') + \
-                      termcolor.colored('%-25s (%s)' % (host.slug, getattr(host, 'address', '')), 'red')
-                i += 1
+            for m in self.node.__class__.__mro__:
+                if m.__module__ != 'deployer.node' and m != object:
+                    yield termcolor.colored('              %i ' % i, 'cyan') + \
+                          termcolor.colored('%s.' % m.__module__, 'red') + \
+                          termcolor.colored('%s' % m.__name__, 'yellow')
+                    i += 1
 
-        # Print the first docstring (look to the parents)
-        for m in self.service.__class__.__mro__:
-            if m.__module__ != 'deployer.service' and m != object and m.__doc__:
-                yield termcolor.colored('  Docstring:\n', 'cyan') + \
-                      termcolor.colored(m.__doc__ or '<None>', 'red')
-                break
+            # File names
+            yield termcolor.colored('  Files:', 'cyan')
+            i = 1
+            for m in self.node.__class__.__mro__:
+                if m.__module__ != 'deployer.node' and m != object:
+                    yield termcolor.colored('              %i ' % i, 'cyan') + \
+                          termcolor.colored(getfile(m), 'red')
+                    i += 1
 
-        # Actions
-        yield termcolor.colored('  Actions:', 'cyan')
+            # Print host mappings
+            yield termcolor.colored('  Hosts:', 'cyan')
 
-        def item_iterator():
-            for name, a in self.service.get_actions():
-                yield termcolor.colored(name, 'red'), len(name)
+            for role in sorted(self.node.hosts._hosts.keys()):
+                items = self.node.hosts._hosts[role]
+                yield termcolor.colored('         "%s"' % role, 'yellow')
+                i = 1
+                for host in sorted(items, key=lambda h:h.slug):
+                    yield termcolor.colored('            %3i ' % i, 'cyan') + \
+                          termcolor.colored('%-25s (%s)' % (host.slug, getattr(host, 'address', '')), 'red')
+                    i += 1
 
-        for line in console.in_columns(item_iterator(), margin_left=13):
-            yield line
+            # Print the first docstring (look to the parents)
+            for m in self.node.__class__.__mro__:
+                if m.__module__ != 'deployer.node' and m != object and m.__doc__:
+                    yield termcolor.colored('  Docstring:\n', 'cyan') + \
+                          termcolor.colored(m.__doc__ or '<None>', 'red')
+                    break
 
-        # Services
-        yield termcolor.colored('  Sub services:', 'cyan')
+            # Actions
+            yield termcolor.colored('  Actions:', 'cyan')
 
-            # Group by service group
-        grouper = lambda i:i[1].get_group()
-        for group, services in groupby(sorted(self.service.get_subservices(), key=grouper), grouper):
-            yield termcolor.colored('         "%s"' % group.__name__, 'yellow')
-
-            # Create iterator for all the items in this group
             def item_iterator():
-                for name, s in services:
-                    if s.parent == self.service:
-                        text = termcolor.colored(name, type_of_service(s).color)
-                        length = len(name)
-                    else:
-                        text = termcolor.colored('%s -> %s' % (name, s.__repr__(path_only=True)), type_of_service(s).color)
-                        length = len('%s -> %s' % (name, s.__repr__(path_only=True)))
-                    yield text, length
+                for a in Inspector(self.node).get_actions():
+                    yield termcolor.colored(a.name, 'red'), len(a.name)
 
-            # Show in columns
             for line in console.in_columns(item_iterator(), margin_left=13):
                 yield line
 
-    console.lesspipe(inspect())
+            # Nodes
+            yield termcolor.colored('  Sub nodes:', 'cyan')
+
+                # Group by node group
+            grouper = lambda c:Inspector(c).get_group()
+            for group, nodes in groupby(sorted(Inspector(self.node).get_childnodes(), key=grouper), grouper):
+                yield termcolor.colored('         "%s"' % group.name, 'yellow')
+
+                # Create iterator for all the items in this group
+                def item_iterator():
+                    for n in nodes:
+                        name = Inspector(n).get_name()
+
+                        if n.parent == self.node:
+                            text = termcolor.colored(name, type_of_node(n).color)
+                            length = len(name)
+                        else:
+                            full_name = Inspector(n).get_full_name()
+                            text = termcolor.colored('%s -> %s' % (name, full_name), type_of_node(n).color)
+                            length = len('%s -> %s' % (name, full_name))
+                        yield text, length
+
+                # Show in columns
+                for line in console.in_columns(item_iterator(), margin_left=13):
+                    yield line
+
+        console.lesspipe(inspect())
+
+    def _inspect_action(self):
+        console = Console(self.shell.pty)
+        action = Inspector(self.node).get_action(self.attr_name)
+
+        def run():
+            yield termcolor.colored('  Action name:   ', 'cyan') + \
+                  termcolor.colored(self.attr_name, 'yellow')
+            yield termcolor.colored('  __repr__:      ', 'cyan') + \
+                  termcolor.colored(repr(action._func), 'yellow')
+            yield termcolor.colored('  Node:          ', 'cyan') + \
+                  termcolor.colored(repr(self.node), 'yellow')
+        console.lesspipe(run())
+
+    def _get_env(self):
+        """
+        Created a sandboxed environment for evaluation of attributes.
+        (attributes shouldn't have side effects on servers, so sandboxing is fine.)
+        Returns an ``Env`` object.
+        """
+        env = Env(self.node, self.shell.pty, self.shell.logger_interface, is_sandbox=True)
+        return Console(self.shell.pty).select_node_isolation(env)
+
+    def _inspect_query_attribute(self):
+        console = Console(self.shell.pty)
+        query = Inspector(self.node).get_query(self.attr_name).query
+
+        def run():
+            yield termcolor.colored('  Node:       ', 'cyan') + \
+                  termcolor.colored(Inspector(self.node).get_full_name(), 'yellow')
+            yield termcolor.colored('  Filename:   ', 'cyan') + \
+                  termcolor.colored(query._filename, 'yellow')
+            yield termcolor.colored('  Line:       ', 'cyan') + \
+                  termcolor.colored(query._line, 'yellow')
+            yield termcolor.colored('  Expression: ', 'cyan') + \
+                  termcolor.colored(repr(query.query), 'yellow')
+            yield ''
+
+            # Execute query in sandboxed environment.
+            yield 'Trace query:'
+            try:
+                insp = Inspector(self._get_env())
+                result = insp.trace_query(self.attr_name)
+            except Exception, e:
+                yield 'Failed to execute query: %r' % e
+                return
+
+            # Print query and all subqueries with their results.
+            for subquery in result.walk_through_subqueries():
+                yield termcolor.colored(repr(subquery[0]), 'cyan')
+                yield '    %s' % subquery[1]
+
+        console.lesspipe(run())
+
+    def _inspect_property_attribute(self):
+        console = Console(self.shell.pty)
+        action = Inspector(self.node).get_property(self.attr_name)
+
+        def run():
+            yield termcolor.colored('  Property name:   ', 'cyan') + \
+                  termcolor.colored(self.attr_name, 'yellow')
+            yield termcolor.colored('  __repr__:      ', 'cyan') + \
+                  termcolor.colored(repr(action._func), 'yellow')
+            yield termcolor.colored('  Node:          ', 'cyan') + \
+                  termcolor.colored(repr(self.node), 'yellow')
+
+            # Value
+            try:
+                value = getattr(self._get_env(), self.attr_name)
+
+                yield termcolor.colored('  Value:          ', 'cyan') + \
+                      termcolor.colored(repr(value), 'yellow')
+            except Exception, e:
+                yield termcolor.colored('  Value:          ', 'cyan') + \
+                      termcolor.colored('Failed to evaluate value...', 'yellow')
+        console.lesspipe(run())
 
 
-@create_navigable_handler
-def Cd(self):
-    self.shell.state.cd(self.service)
+class Cd(NodeACHandler):
+    def __call__(self):
+        self.shell.state.cd(self.node)
 
 
-@create_navigable_handler
-def Ls(self):
+class Ls(NodeACHandler):
     """
-    List subservices and actions in the current service.
+    List subnodes and actions in the current node.
     """
-    w = self.shell.stdout.write
-    console = Console(self.shell.pty)
+    def __call__(self):
+        w = self.shell.stdout.write
+        console = Console(self.shell.pty)
 
-    def run():
-        # Print services
-        if self.service.get_subservices():
-            yield termcolor.colored(' ** Services **', 'cyan')
-            def column_iterator():
-                for name, service in self.service.get_subservices():
-                    yield termcolor.colored(name, type_of_service(service).color), len(name)
-            for line in console.in_columns(column_iterator()):
-                yield line
+        def run():
+            # Print nodes
+            if Inspector(self.node).get_childnodes():
+                yield 'Child nodes:'
 
-        # Print actions
-        if self.service.get_actions():
-            yield termcolor.colored(' ** Actions **', 'cyan')
-            def column_iterator():
-                for name, action in self.service.get_actions():
-                    yield termcolor.colored(name, type_of_action(action).color), len(name)
-            for line in console.in_columns(column_iterator()):
-                yield line
+                def column_iterator():
+                    for c in Inspector(self.node).get_childnodes():
+                        name = Inspector(c).get_name()
+                        yield termcolor.colored(name, type_of_node(c).color), len(name)
+                for line in console.in_columns(column_iterator()):
+                    yield line
 
-    console.lesspipe(run())
+            # Print actions
+            if Inspector(self.node).get_actions():
+                yield 'Actions:'
 
-@create_navigable_handler
-def SourceCode(self):
+                def column_iterator():
+                    for a in Inspector(self.node).get_actions():
+                        yield termcolor.colored(a.name, type_of_action(a).color), len(a.name)
+                for line in console.in_columns(column_iterator()):
+                    yield line
+
+        console.lesspipe(run())
+
+
+class SourceCode(NodeACHandler):
     """
-    Print the source code of a service.
+    Print the source code of a node.
     """
-    import inspect
+    def __call__(self):
+        options = []
 
-    from pygments import highlight
-    from pygments.lexers import PythonLexer
-    from pygments.formatters import TerminalFormatter
-    from deployer.console import choice, NoInput
+        for m in self.node.__class__.__mro__:
+            if m.__module__ != 'deployer.node' and m != object:
+                options.append( ('%s.%s' % (
+                      termcolor.colored(m.__module__, 'red'),
+                      termcolor.colored(m.__name__, 'yellow')), m) )
 
-    options = []
+        if len(options) > 1:
+            try:
+                node_class = Console(self.shell.pty).choice('Choose node definition', options)
+            except NoInput:
+                return
+        else:
+            node_class = options[0][1]
 
-    for m in self.service.__class__.__mro__:
-        if m.__module__ != 'deployer.service' and m != object:
-            options.append( ('%s.%s' % (
-                  termcolor.colored(m.__module__, 'red'),
-                  termcolor.colored(m.__name__, 'yellow')), m) )
+        def run():
+            try:
+                # Retrieve source
+                source = inspect.getsource(node_class)
 
-    if len(options) > 1:
-        try:
-            service_class = choice('Choose service definition', options)
-        except NoInput:
-            return
-    else:
-        service_class = options[0][1]
+                # Highlight code
+                source = highlight(source, PythonLexer(), TerminalFormatter())
 
-    def run():
-        try:
-            # Retrieve source
-            source = inspect.getsource(service_class)
+                for l in source.split('\n'):
+                    yield l.rstrip('\n')
+            except IOError:
+                yield 'Could not retrieve source code.'
 
-            # Highlight code
-            source = highlight(source, PythonLexer(), TerminalFormatter())
+        Console(self.shell.pty).lesspipe(run())
 
-            for l in source.split('\n'):
-                yield l.rstrip('\n')
-        except IOError:
-            yield 'Could not retrieve source code.'
-
-    lesspipe(run(), self.shell.pty)
 
 class Exit(ShellHandler):
     """
@@ -363,7 +583,7 @@ class Exit(ShellHandler):
 
 class Return(ShellHandler):
     """
-    Return from a subshell (which was spawned by a previous service.)
+    Return from a subshell (which was spawned by a previous node.)
     """
     is_leaf = True
     handler_type = BuiltinType()
@@ -384,171 +604,59 @@ class Clear(ShellHandler):
         sys.stdout.flush()
 
 
-class Service(Handler):
+class Node(NodeACHandler):
     """
-    Service node.
+    Node node.
     """
-    def __init__(self, service, shell, sandbox):
-        self.service = service
-        self.sandbox = sandbox
-        self.shell = shell
-
-    @property
-    def is_leaf(self):
-        return self.service._default_action
-
-    @property
-    def handler_type(self):
-        if not self.service.parent:
-            # For the root service, return the built-in type
-            return BuiltinType()
-        else:
-            return type_of_service(self.service)
-
-    def complete_subhandlers(self, part):
-        include_private = part.startswith('_')
-
-        if self.service.parent and '..'.startswith(part):
-            yield '..', Service(self.service.parent, self.shell, self.sandbox)
-
-        if '/'.startswith(part):
-            root = find_root_service(self.service)
-            yield '/', Service(root, self.shell, self.sandbox)
-
-        for name, action in self.service.get_actions(include_private=include_private):
-            if name.startswith(part):
-                yield name, Action(action, self.shell, self.sandbox)
-
-        for name, subservice in self.service.get_subservices(include_private=include_private):
-            if name.startswith(part):
-                yield name, Service(subservice, self.shell, self.sandbox)
-
-        if self.is_leaf and '&'.startswith(part):
-            yield '&', Action(self.service._default_action, self.shell, self.sandbox, fork=True)
-
-    def get_subhandler(self, name):
-        if name == '..' and self.service.parent:
-            return Service(self.service.parent, self.shell, self.sandbox)
-
-        elif name == '/':
-            return Service(find_root_service(self.service), self.shell, self.sandbox)
-
-        elif self.service.has_subservice(name):
-            subservice = self.service.get_subservice(name)
-            return Service(subservice, self.shell, self.sandbox)
-
-        elif self.service.has_action(name):
-            return Action(self.service.get_action(name), self.shell, self.sandbox)
-
-        elif name == '&' and self.is_leaf:
-            return Action(self.service.get_action(self.service._default_action), self.shell, self.sandbox, fork=True)
+    sandbox = False
+    autocomplete_types = [
+            AUTOCOMPLETE_TYPE.ACTION,
+            AUTOCOMPLETE_TYPE.ACTION_AND_ARGS,
+            ]
 
     def __call__(self):
-        if self.service._default_action:
-            return Action(self.service.get_action(self.service._default_action), self.shell, self.sandbox).__call__()
-
-
-class Sandbox(Service):
-    handler_type = BuiltinType()
-
-    def __init__(self, service, shell):
-        Service.__init__(self, service, shell, True)
-
-
-class Action(Handler):
-    """
-    Service action node.
-    """
-    is_leaf = True
-
-    def __init__(self, action, shell, sandbox, *args, **kwargs):
-        self.action = action
-        self.shell = shell
-        self.sandbox = sandbox
-        self.args = args
-        self.fork = kwargs.get('fork', False)
-
-    @property
-    def handler_type(self):
-        if self.fork:
-            return BuiltinType()
-        else:
-            return type_of_action(self.action)
-
-    def __call__(self):
-        if self.fork:
-            def action(pty):
-                self._run_action(pty)
-
-            self.shell.pty.run_in_auxiliary_ptys(action)
-        else:
-            self._run_action(self.shell.pty)
-
-    def _run_action(self, pty):
         # Execute
-        sandbox = self.sandbox
         logger_interface = self.shell.logger_interface
 
-        # Command
-        command = '%s.%s()' % (self.action.service.__repr__(path_only=True), self.action.name)
-
-        # Report action call to logger interface
-        action_callback = logger_interface.log_cli_action(command, sandbox)
-
         try:
-            if sandbox:
-                result = self.action(*self.args, _trace_action=True).sandbox(pty, logger_interface)
+            # Create env
+            env = Env(self.node, self.shell.pty, logger_interface, is_sandbox=self.sandbox)
+
+            # Call action
+            if self.attr_name is not None:
+                result = getattr(env, self.attr_name)(*self.args)
+                suppress_result = Inspector(self.node).suppress_result_for_action(self.attr_name)
             else:
-                result = self.action(*self.args, _trace_action=True).run(pty, logger_interface)
+                result = env(*self.args)
+                suppress_result = False
 
-            action_callback.set_succeeded(result)
-
-            # When the result is a subservice, start a subshell.
+            # When the result is a subnode, start a subshell.
             def handle_result(result):
-                if isinstance(result, deployer.service.Env):
+                if isinstance(result, deployer.node.Env):
                     print ''
                     print 'Starting subshell ...'
-                    self.shell.state = ShellState(result._service, return_state=self.shell.state)
+                    self.shell.state = ShellState(result._node, return_state=self.shell.state)
 
                 # Otherwise, print result
-                elif result is not None and not self.action.supress_result:
+                elif result is not None and not suppress_result:
                     print result
 
             if isinstance(result, list):
                 for r in result:
-                    handle_result(r.result)
+                    handle_result(r)
             else:
                 handle_result(result)
 
         except ActionException, e:
-            action_callback.set_failed(e)
+            # Already sent to logger_interface in the Action itself.
+            pass
 
         except Exception, e:
-            # Print traceback and return to shell
-            print repr(e)
-            tb = traceback.format_exc()
-            action_callback.set_failed(e, traceback=tb)
+            logger_interface.log_exception(e)
 
 
-    def complete_subhandlers(self, part):
-        # Autocompletion for first action parameter
-        if not self.args:
-            for a in self.action.autocomplete(part):
-                yield a, Action(self.action, self.shell, self.sandbox, a)
-
-        # Autocompletion for the & parameter
-        if not self.fork and '&'.startswith(part):
-            yield '&', Action(self.action, self.shell, self.sandbox, *self.args, fork=True)
-
-    def get_subhandler(self, part):
-        # Get subnodes of this Action, this matches to actions with parameters.
-        if self.fork:
-            # Cannot write anything behind the & operator
-            return None
-        elif part == '&':
-            return Action(self.action, self.shell, self.sandbox, *self.args, fork=True)
-        else:
-            return Action(self.action, self.shell, self.sandbox, *(self.args + (part,)))
+class Sandbox(Node):
+    sandbox = True
 
 
 class RootHandler(ShellHandler):
@@ -558,6 +666,7 @@ class RootHandler(ShellHandler):
             'exit': Exit,
             'find': Find,
             'ls': Ls,
+            'sandbox': Sandbox,
             '--connect': Connect,
             '--inspect': Inspect,
             '--version': Version,
@@ -565,12 +674,8 @@ class RootHandler(ShellHandler):
     }
 
     @property
-    def current_service(self):
-        return Service(self.shell.state._service, self.shell, sandbox=False)
-
-    @property
-    def sandboxed_current_service(self):
-        return Sandbox(self.shell.state._service, self.shell)
+    def sandboxed_current_node(self):
+        return Sandbox(self.shell.state._node, self.shell)
 
     def complete_subhandlers(self, part):
         """
@@ -590,22 +695,14 @@ class RootHandler(ShellHandler):
             if name.startswith(part):
                 yield name, h(self.shell)
 
-        # Sandbox
-        if 'sandbox'.startswith(part):
-            yield 'sandbox', self.sandboxed_current_service
-
-        # Services autocomplete for 'Do' -> 'do' is optional.
-        dot = self.current_service
-        if '.'.startswith(part):
-            yield '.', dot
-
-        for name, h in dot.complete_subhandlers(part):
+        # Nodes.
+        for name, h in Node(self.shell).complete_subhandlers(part):
             yield name, h
 
     def get_subhandler(self, name):
-        # Current service
+        # Current node
         if name == '.':
-            return self.current_service
+            return Node(self.shell)
 
         # Default built-ins
         if name in self.subhandlers:
@@ -614,45 +711,51 @@ class RootHandler(ShellHandler):
         if self.shell.state.can_return and name == 'return':
             return Return(self.shell)
 
-        if name == 'sandbox':
-            return self.sandboxed_current_service
-
         # Extensions
         if name in self.shell.extensions:
             return self.shell.extensions[name](self.shell)
 
-        # Services autocomplete for 'Do' -> 'do' is optional.
-        dot = self.current_service
-        return dot.get_subhandler(name)
+        # Nodes.
+        return Node(self.shell).get_subhandler(name)
 
 
 class ShellState(object):
     """
-    When we are moving to a certain position in the service tree.
+    When we are moving to a certain position in the node tree.
     """
-    def __init__(self, subservice, return_state=None):
+    def __init__(self, subnode, return_state=None):
         self._return_state = return_state
-        self._service = subservice
-        self._prev_service = None
+        self._node = subnode
+        self._prev_node = None
 
     def clone(self):
-        s = ShellState(self._service, self._return_state)
-        s._prev_service = self._prev_service
+        s = ShellState(self._node, self._return_state)
+        s._prev_node = self._prev_node
         return s
+
+    def __repr__(self):
+        return 'ShellState(node=%r)' % self._node
 
     @property
     def prompt(self):
         # Returns a list of (text,color) tuples for the prompt.
         result = []
-        for s in self._service._path + [self._service]:
+        for node in Inspector(self._node).get_path(path_type=PathType.NODE_ONLY):
             if result:
                 result.append( ('.', None) )
-            result.append( (s._name or '', s.get_group().color) )
+
+            name = Inspector(node).get_name()
+            ii = Inspector(node).get_isolation_identifier()
+            color = Inspector(node).get_group().color
+
+            result.append( (name, color) )
+            if ii:
+                result.append( ('[%s]' % ii, color) )
         return result
 
-    def cd(self, target_service):
-        self._prev_service = self._service
-        self._service = target_service
+    def cd(self, target_node):
+        self._prev_node = self._node
+        self._node = target_node
 
     @property
     def can_return(self):
@@ -664,21 +767,24 @@ class ShellState(object):
 
     @property
     def can_cdback(self):
-        return bool(self._prev_service)
+        return bool(self._prev_node)
 
     @property
-    def previous_service(self):
-         return self._prev_service
+    def previous_node(self):
+         return self._prev_node
+
+    @property
+    def node(self):
+        return self._node
 
 
 class Shell(CLInterface):
     """
     Deployment shell.
     """
-    def __init__(self, root_service, pty, logger_interface, clone_shell=None, username=None):
-        self.root_service = root_service
+    def __init__(self, root_node, pty, logger_interface, clone_shell=None):
+        self.root_node = root_node
         self.pty = pty
-        self._username = username
         self.logger_interface = logger_interface
 
         if clone_shell:
@@ -693,10 +799,18 @@ class Shell(CLInterface):
     def cd(self, cd_path):
         for p in cd_path:
             try:
-                self.state.cd(self.state._service.get_subservice(p))
+                self.state.cd(Inspector(self.state._node).get_childnode(p))
             except AttributeError:
                 print 'Unknown path given.'
                 return
+
+    def run_action(self, action_name, *a, **kw):
+        """
+        Run a deployment command at the current shell state.
+        """
+        self.state._node
+        env = Env(self.state._node, self.pty, self.logger_interface, is_sandbox=False)
+        return getattr(env, action_name)(*a, **kw)
 
     @property
     def extensions(self):
@@ -704,7 +818,7 @@ class Shell(CLInterface):
         return { }
 
     def _reset_navigation(self):
-        self.state = ShellState(self.root_service)
+        self.state = ShellState(self.root_node)
 
     def exit(self):
         """
@@ -721,19 +835,4 @@ class Shell(CLInterface):
         """
         Return a list of [ (text, color) ] tuples representing the prompt.
         """
-        return ([
-                    # Username part
-                    (self._username if self._username else '', 'cyan'),
-                    (' @ ' if self._username else '', 'green'),
-
-                    # 'deployment'
-                    (self.root_service.__class__.__name__, 'cyan')
-                ]
-
-                # Path
-                + self.state.prompt +
-
-                # Prompt sign
-                [
-                    (' > ', 'cyan')
-                ])
+        return self.state.prompt + [ (' > ', 'cyan') ]

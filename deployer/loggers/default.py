@@ -1,6 +1,6 @@
 from deployer.exceptions import ExecCommandFailed, QueryException
-from deployer.loggers import Logger, RunCallback, CliActionCallback, FileCallback, ForkCallback, Actions
-from deployer.service import ActionException
+from deployer.loggers import Logger, RunCallback, FileCallback, ForkCallback, Actions
+from deployer.node import ActionException
 from pygments import highlight
 from pygments.formatters import TerminalFormatter as Formatter
 from pygments.lexers import PythonTracebackLexer
@@ -98,18 +98,12 @@ class DefaultLogger(Logger):
         return RunCallback(completed=lambda:
             self._print_end(run_entry.status_code == 0))
 
-    def log_cli_action(self, cli_entry):
-        def cli_entry_finished():
-            if not cli_entry.succeeded:
-                print_cli_exception(cli_entry, self.stdout)
-
-        return CliActionCallback(completed=cli_entry_finished)
-
     def log_file_opened(self, file_entry):
         self._print_start(file_entry.host, {
             Actions.Open: 'Opening file',
-            Actions.Put: 'Uploading file',
-            Actions.Get: 'Downloading file' }[ file_entry.entry_type], file_entry.use_sudo, file_entry.sandboxing)
+            #Actions.Put: 'Uploading file',
+            #Actions.Get: 'Downloading file'
+            }[ file_entry.entry_type], file_entry.use_sudo, file_entry.sandboxing)
 
         if file_entry.entry_type == Actions.Open:
             self.stdout.write('  Mode: %s\n' % file_entry.mode)
@@ -125,11 +119,14 @@ class DefaultLogger(Logger):
         return FileCallback(file_closed=lambda:
             self._print_end(file_entry.succeeded))
 
+    def log_exception(self, e):
+        print_exception(e, self._stdout)
+
 
 class IndentedDefaultLogger(DefaultLogger):
     """
     Another logger which prints only to the given stdout,
-    It will indent the output according to the service/action hierarchy.
+    It will indent the output according to the node/action hierarchy.
     """
     tree_color = 'red'
     hostname_color = 'yellow'
@@ -185,37 +182,13 @@ class IndentedDefaultLogger(DefaultLogger):
         return Logger()
 
 
-# TODO: the IndentedDefaultLogger does not yet work correctly with several
-#       threads. The order of writing the newline, and printing the result
-#       is often reversed.
-#
-#       One option is to keep line numbers, and move the cursor back in
-#       history when printing the result.
-
-
-
-#                slave_stdout.write('\0337') # ESC 7: Save cursor position
-#                slave_stdout.write('\033[%iA' % (self.line-line)) # Move cursor up
-#                slave_stdout.write('\033[1000C') # Move cursor to end of line
-#                slave_stdout.write('\033[8D') # Move cursor 8 chars back
-#
-#                if succeeded:
-#                    slave_stdout.write(colored('succeeded', 'green'))
-#                else:
-#                    slave_stdout.write(colored('failed', 'red'))
-#
-#                slave_stdout.write('\0338') # ESC 8: Restore cursor position
-
-
-def print_cli_exception(cli_entry, stdout):
+def print_exception(exception, stdout):
     """
-    When an action, called from the interactive shell fails, print the
-    exception.
+    Print a nice exception, and inner exceptions.
     """
-    e = cli_entry.exception
+    e = exception
 
     def print_exec_failed_exception(e):
-        # hosts.run/sudo failed? Print error information.
         print
         print termcolor.colored('FAILED !!', 'red', attrs=['bold'])
         print termcolor.colored('Command:     ', 'yellow'),
@@ -229,12 +202,16 @@ def print_cli_exception(cli_entry, stdout):
     def print_query_exception(e):
         print
         print termcolor.colored('FAILED TO EXECUTE QUERY', 'red', attrs=['bold'])
-        print termcolor.colored('Service:     ', 'yellow'),
-        print termcolor.colored(e.service.__repr__(path_only=True), 'red', attrs=['bold'])
+        print termcolor.colored('Node:        ', 'yellow'),
+        print termcolor.colored(repr(e.node), 'red', attrs=['bold'])
         print termcolor.colored('Attribute:   ', 'yellow'),
         print termcolor.colored(e.attr_name, 'red', attrs=['bold'])
         print termcolor.colored('Query:       ', 'yellow'),
-        print termcolor.colored(e.query, 'red', attrs=['bold'])
+        print termcolor.colored(repr(e.query), 'red', attrs=['bold'])
+        print termcolor.colored('Filename:     ', 'yellow'),
+        print termcolor.colored(e.query._filename, 'red', attrs=['bold'])
+        print termcolor.colored('Line:        ', 'yellow'),
+        print termcolor.colored(e.query._line, 'red', attrs=['bold'])
         print
 
         if e.inner_exception:
@@ -249,7 +226,6 @@ def print_cli_exception(cli_entry, stdout):
             print '-'*79
 
     def print_other_exception(e):
-        # Normal exception: print exception
         print
         print e
         print
@@ -264,29 +240,4 @@ def print_cli_exception(cli_entry, stdout):
         else:
             print_other_exception(e)
 
-    if cli_entry.traceback:
-        print '-'*79
-        print highlight(cli_entry.traceback, PythonTracebackLexer(), Formatter())
-        print '-'*79
-
     print_exception(e)
-
-  #      # Print traceback through deployer services
-  #      print 'TODO: following trace is not entirely correct. It may show more deeper '
-  #      print '      than where the error actually occured.'
-
-  #      t = e.trace
-  #      while t:
-  #          from deployer.loggers.trace import TraceGroup
-  #          from deployer.loggers import Actions
-  #          if isinstance(t, TraceGroup):
-  #              print '- ', t.func_name
-  #              t = t.items[0] if t.items else None
-  #          elif t.entry_type == Actions.Run:
-  #              print '- (command) ', t.command
-  #              t = None
-  #          elif t.entry_type in (Actions.Put, Actions.Get, Actions.Open):
-  #              print '- (file) ', t.remote_path
-  #              t = None
-
-

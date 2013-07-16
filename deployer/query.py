@@ -1,21 +1,23 @@
 import inspect
 
+# Domain specific language for querying in a deploy tree.
+
+__doc__ = \
 """
-The Query object is technically a Python class descriptor. It exposes an easy
-to read syntax for a service property to point to another Service's class
-property.
+Queries provide syntactic sugar for expressions inside nodes.
 
-e.g.
+::
 
-class MyService(Service):
-    something = True
+    class MyNode(Node):
+        do_something = True
 
-    class MySubService(Service):
-        some_property = Q.parent('MyService').something
-        some_service = Q.parent('MyService').SomeOtherService
+        class MyChildNode(Node):
+            do_something = Q.parent.do_something
 
-    class SomeOtherService(Service):
-        pass
+            def setup(self):
+                if self.do_something:
+                    ...
+                    pass
 """
 
 
@@ -24,136 +26,214 @@ __all__ = ('Q', )
 
 class Query(object):
     """
-    Service Query object.
+    Node Query object.
     """
     def __init__(self):
-        pass
+        c = inspect.currentframe()
 
-    @property
-    def _query(self):
+        # Track the file and line number where this expression was created.
+        self._filename = self._line = None
+        for f in inspect.getouterframes(inspect.currentframe()):
+            self._filename = f[1]
+            self._line = f[2]
+
+            if not 'deployer/query.py' in self._filename:
+                break
+
+    def _execute_query(self, instance):
         return NotImplementedError
 
     def __getattr__(self, attrname):
         """
         Attribute lookup.
         """
-        return attrgetter(self, attrname)
+        return AttrGetter(self, attrname)
 
     def __call__(self, *args, **kwargs):
         """
         Handle .method(param)
         """
-        return call(self, args, kwargs)
+        return Call(self, args, kwargs)
 
     def __getitem__(self, key):
         """
         Handle self[key]
         """
-        return itemgetter(self, key)
+        return ItemGetter(self, key)
 
     @property
     def parent(self):
         """
-        Go the to current parent of this service.
+        Go to the current parent of this node.
         """
-        return parent(self)
+        return Parent(self)
 
+    # Operator overloads
     def __mod__(self, other):
-        """
-        Module operator between two Q objects:
-
-        class service(Service):
-            my_property = Q('Some string with %s placeholder') % Q.parent.property_to_be_inserted
-        """
-        return operator(self, other, lambda a, b: a % b, '%')
+        return Operator(self, other, lambda a, b: a % b, '%')
 
     def __add__(self, other):
-        """
-        Plus operator between two Q objects.
+        return Operator(self, other, lambda a, b: a + b, '+')
 
-        class service(Service):
-            my_property = Q(20) % Q.parent.add_this_property
-        """
-        return operator(self, other, lambda a, b: a+b, '+')
+    def __sub__(self, other):
+        return Operator(self, other, lambda a, b: a - b, '-')
+
+    def __mul__(self, other):
+        return Operator(self, other, lambda a, b: a * b, '*')
+
+    def __div__(self, other):
+        return Operator(self, other, lambda a, b: a / b, '/')
+
+    # Reverse operator overloads
+    def __radd__(self, other):
+        return Operator(other, self, lambda a, b: a + b, '+')
+
+    def __rsub__(self, other):
+        return Operator(other, self, lambda a, b: a - b, '-')
+
+    def __rmul__(self, other):
+        return Operator(other, self, lambda a, b: a * b, '*')
+
+    def __rdiv__(self, other):
+        return Operator(other, self, lambda a, b: a / b, '/')
 
     def __repr__(self):
-        return '<Query: %s>' % self.__str__()
-
-    def __str__(self):
-        return 'Q'
+        return 'Query(...)'
 
     # You cannot override and, or and not:
+    # Instead, we override the bitwise operators
     # http://stackoverflow.com/questions/471546/any-way-to-override-the-and-operator-in-python
 
-    #def __and__(self, other):
-    #    return operator(self, other, lambda a, b: a and b)
+    def __and__(self, other):
+        return Operator(self, other, lambda a, b: a and b, '&')
 
-    #def __or__(self, other):
-    #    return operator(self, other, lambda a, b: a or b)
+    def __or__(self, other):
+        return Operator(self, other, lambda a, b: a or b, '|')
 
-    #def __not__(self):
-    #    return operator(self, None, lambda a, b: not a)
+    def __invert__(self):
+        return Invert(self)
 
-def _resolve(query_object, instance):
+
+class QueryResult(object):
     """
-    When the parameter is a query object, resolve the query.
-    But when it's a list or tuple, recursively do the same.
+    Wrap the output of a query along with all the subqueries
+    that were done during it's evaluation.
+    (Mainly for reflexion on queries, and its understanding for te end-user.)
     """
-    if isinstance(query_object, Query):
-        return query_object._query(instance)
+    def __init__(self, query, result, subqueries=None):
+        self.query = query
+        self.result = result
+        self.subqueries = subqueries or [] # List of subquery results
 
-    elif isinstance(query_object, tuple):
-        # Recursively resolving the tuple content is very useful for:
-        #     Q("%s/%s") % (Q.var1, Q.var2)
-        return tuple(_resolve(p, instance) for p in query_object)
+    def __repr__(self):
+        return 'QueryResult(query=%r, result=%r)' % (self.query, self.result)
 
-    elif isinstance(query_object, list):
-        return list(_resolve(p, instance) for p in query_object)
+    def walk_through_subqueries(self):
+        """
+        Yield all queries, and their result
+        """
+        for s in self.subqueries:
+            for r in s.walk_through_subqueries():
+                yield r
+        yield self.query, self.result
+
+
+def _resolve(o):
+    """
+    Make sure that this object becomes a Query object.
+    In case of a tuple/list, create a QueryTuple/List,
+    otherwise, return a Static
+    """
+    if isinstance(o, Query):
+        return o
+
+    elif isinstance(o, tuple):
+        return Tuple(o)
+
+    elif isinstance(o, list):
+        return List(o)
 
     else:
-        return query_object
+        return Static(o)
 
 
-class operator(Query):
+class Tuple(Query):
+    # Resolving tuples is very useful for:
+    #     Q("%s/%s") % (Q.var1, Q.var2)
+    cls = tuple
+
+    def __init__(self, items):
+        self.items = [ _resolve(i) for i in items ]
+
+    def _execute_query(self, instance):
+        parts = [ i._execute_query(instance) for i in self.items ]
+        return QueryResult(self,
+                self.cls(i.result for i in parts),
+                parts)
+
+class List(Tuple):
+    cls = list
+
+
+class Invert(Query):
+    """
+    Implementation of the invert operator
+    """
+    def __init__(self, subquery):
+        self.subquery = subquery
+
+    def _execute_query(self, instance):
+        part = self.subquery._execute_query(instance)
+        return QueryResult(self, not part.result, [ part ] )
+
+    def __repr__(self):
+        return u'~ %r' % self.subquery
+
+
+class Operator(Query):
     """
     Query which wraps two other query objects and an operator in between.
     """
     def __init__(self, part1, part2, operator, operator_str):
         Query.__init__(self)
-        self.part1 = part1
-        self.part2 = part2
+        self.part1 = _resolve(part1)
+        self.part2 = _resolve(part2)
         self.operator = operator
         self.operator_str = operator_str
 
-    @property
-    def _query(self):
-        def result(instance):
-            return self.operator(_resolve(self.part1, instance), _resolve(self.part2, instance))
-        return result
+    def _execute_query(self, instance):
+        part1 = self.part1._execute_query(instance)
+        part2 = self.part2._execute_query(instance)
 
-    def __str__(self):
-        return u'%s %s %s' % (str(self.part1), self.operator_str, str(self.part2))
+        return QueryResult(self,
+                self.operator(part1.result, part2.result),
+                [ part1, part2 ])
+
+    def __repr__(self):
+        return u'%r %s %r' % (self.part1, self.operator_str, self.part2)
 
 
-class itemgetter(Query):
+class ItemGetter(Query):
     """
     Query which takes an item of the result from another query.
     """
-    def __init__(self, query_before, key):
+    def __init__(self, subquery, key):
         Query.__init__(self)
-        self.query_before = query_before
-        self.key = key
+        self.subquery = subquery
+        self.key = _resolve(key)
 
-    @property
-    def _query(self):
+    def _execute_query(self, instance):
         # The index object can be a query itself. e.g. Q.var[Q.var2]
-        return lambda instance: self.query_before._query(instance)[_resolve(self.key, instance)]
+        part = self.subquery._execute_query(instance)
+        key = self.key._execute_query(instance)
+        return QueryResult(self,
+            part.result[key.result], [part, key])
 
-    def __str__(self):
-        return '%s[%s]' % (str(self.query_before), self.key)
+    def __repr__(self):
+        return '%r[%r]' % (self.subquery, self.key)
 
 
-class static(Query):
+class Static(Query):
     """
     Query which represents just a static value.
     """
@@ -161,127 +241,138 @@ class static(Query):
         Query.__init__(self)
         self.value = value
 
-    @property
-    def _query(self):
-        # Return idenity func
-        return lambda instance: self.value
+    def _execute_query(self, instance):
+        return QueryResult(self, self.value, [])
 
-    def __str__(self):
-        return '"%s"' % self.value
+    def __repr__(self):
+        # NOTE: we just return `value` instead of `Q(value)`.
+        # otherwise, most of the repr calls return too much garbage,
+        # most of the time, not what the user entered.
+        # e.g: Q.a['value'] is automatically transformed in Q.a[Q('value')]
+        return repr(self.value)
 
 
-class attrgetter(Query):
+class AttrGetter(Query):
     """
     Query which takes an attribute of the result from another query.
     """
-    def __init__(self, query_before, attrname):
+    def __init__(self, subquery, attrname):
         Query.__init__(self)
-        self.query_before = query_before
+        self.subquery = subquery
         self.attrname = attrname
 
-    @property
-    def _query(self):
-        def q(instance):
-            return getattr(self.query_before._query(instance), self.attrname)
-        return q
+    def _execute_query(self, instance):
+        part = self.subquery._execute_query(instance)
+        return QueryResult(self,
+            getattr(part.result, self.attrname), [ part ])
 
-    def __str__(self):
-        return '%s.%s' % (str(self.query_before), self.attrname)
+    def __repr__(self):
+        return '%r.%s' % (self.subquery, self.attrname)
 
 
-class call(Query):
+class Call(Query):
     """
-    Query which would call the result of another query.
+    Any callable in a query.
+    The parameters can be queris itself.
     """
-    def __init__(self, query_before, args, kwargs):
+    def __init__(self, subquery, args, kwargs):
         Query.__init__(self)
-        self.query_before = query_before
-        self.args = args
-        self.kwargs = kwargs
+        self.subquery = subquery
+        self.args = [ _resolve(a) for a in args ]
+        self.kwargs = { k:_resolve(v) for k,v in kwargs.items() }
 
-    @property
-    def _query(self):
-        return lambda instance: self.query_before._query(instance)(* self.args, ** self.kwargs)
+    def _execute_query(self, instance):
+        part = self.subquery._execute_query(instance)
+        args_results = [ a._execute_query(instance) for a in self.args ]
+        kwargs_results = { k:v._execute_query(instance) for k,v in self.kwargs }
 
-    def __str__(self):
-        return '%s(%s)' % (str(self.query_before),
-                        ','.join(map(str, self.args) + ['%s=%s' % (k,str(v)) for k,v in self.kwargs.items()] ))
+        return QueryResult(self,
+                        part.result(
+                                * [a.result for a in args_results],
+                                **{ k:v.result for k,v in kwargs_results.items() }),
+                        [ part ] + args_results + kwargs_results.values())
+
+    def __repr__(self):
+        return '%r(%s)' % (self.subquery,
+                    ', '.join(map(repr, self.args) + ['%s=%r' % (k,v) for k,v in self.kwargs.items()] ))
 
 
-class parent(Query):
+class Parent(Query):
     """
     Query which would go to the parent of the result of another query.
     `parent('parent_name')` would go up through all the parents looking for that name.
     """
-    def __init__(self, query_before):
+    def __init__(self, subquery):
         Query.__init__(self)
-        self.query_before = query_before
+        self.subquery = subquery
 
     def __call__(self, parent_name):
         """
         Handle .parent(parent_name)
         """
-        return find_parent_by_name(self.query_before, parent_name)
+        return FindParentByName(self.subquery, parent_name)
 
-    @property
-    def _query(self):
-        return lambda instance: self.query_before._query(instance).parent
+    def _execute_query(self, instance):
+        part = self.subquery._execute_query(instance)
+        return QueryResult(self, part.result.parent, [part])
 
-    def __str__(self):
-        return u'%s.parent' % str(self.query_before)
+    def __repr__(self):
+        return '%r.parent' % self.subquery
 
 
-class find_parent_by_name(Query):
+class FindParentByName(Query):
     """
-    Query which traverses the services tree, and searches for a parent having the given name.
+    Query which traverses the nodes in the tree, and searches for a parent having the given name.
 
     e.g.:
 
-    class service(Service):
+    class node(Node):
         some_property = Q('NameOfParent').property_of_that_parent
     """
-    def __init__(self, query_before, parent_name):
+    def __init__(self, subquery, parent_name):
         Query.__init__(self)
-        self.query_before = query_before
+        self.subquery = subquery
         self.parent_name = parent_name
 
-    @property
-    def _query(self):
-        def parentfinder(instance):
-            def p(i):
-                if self.parent_name in [ b.__name__ for b in inspect.getmro(i._service.__class__) ]:
-                    return i
-                else:
-                    if not i.parent:
-                        raise Exception('Class %s has no parent (while accessing %s from %s)' % (i, self.parent_name, instance))
+    def _execute_query(self, instance):
+        part = self.subquery._execute_query(instance)
 
-                    return p(i.parent)
+        def p(i):
+            if self.parent_name in [ b.__name__ for b in inspect.getmro(i._node.__class__) ]:
+                return i
+            else:
+                if not i.parent:
+                    raise Exception('Class %s has no parent (while accessing %s from %s)' %
+                                (i, self.parent_name, instance))
 
-            return p(self.query_before._query(instance))
+                return p(i.parent)
 
-        return parentfinder
+        return QueryResult(self, p(part.result), [part])
 
-    def __str__(self):
-        return '%s.parent("%s")' % (str(self.query_before), self.parent_name)
+    def __repr__(self):
+        return '%r.parent(%r)' % (self.subquery, self.parent_name)
 
-class identity(Query):
+
+class Identity(Query):
     """
     Helper for the Q object below.
     """
-    @property
-    def _query(self):
+    def _execute_query(self, instance):
         # Return idenity func
-        return lambda instance: instance
+        return QueryResult(self, instance, [])
 
 
-class q(identity):
+class q(Identity):
     """
-    Service Query object.
+    Node Query object.
     """
     def __call__(self, string):
         """
         Handle Q(some_value) as a static value.
         """
-        return static(string)
+        return Static(string)
+
+    def __repr__(self):
+        return 'Q'
 
 Q = q()

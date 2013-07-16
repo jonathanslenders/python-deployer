@@ -1,6 +1,6 @@
 import datetime
 
-__all__ = ('Actions', 'LoggerInterface', 'CliActionCallback', 'RunCallback', 'FileCallback', 'Logger', 'DummyLoggerInterface')
+__all__ = ('Actions', 'LoggerInterface', 'RunCallback', 'FileCallback', 'Logger', 'DummyLoggerInterface')
 
 
 #
@@ -11,8 +11,6 @@ __all__ = ('Actions', 'LoggerInterface', 'CliActionCallback', 'RunCallback', 'Fi
 class Actions(object):
     Run = 'run'
     Open = 'open'
-    Put = 'put'
-    Get = 'get'
     Fork = 'fork'
 
 
@@ -29,14 +27,12 @@ class LoggerInterface(object):
         Attach logger to logging interface.
         """
         self.loggers.append(logger)
-        logger.attach()
 
     def detach(self, logger):
         """
         Remove logger from logging interface.
         """
         self.loggers.remove(logger)
-        logger.detach()
 
     def attach_in_block(self, logger):
         class LoggerAttachment(object):
@@ -59,39 +55,6 @@ class LoggerInterface(object):
                     l.leave_group()
 
         return LogGroup()
-
-    def log_cli_action(self, command, sandboxing):
-        class CliAction(object):
-            def __init__(entry, command, sandboxing):
-                entry.time_started = datetime.datetime.now()
-                entry.time_ended = None
-                entry.command = command
-                entry.sandboxing = sandboxing
-
-                entry.result = None
-                entry.succeeded = None
-                entry.exception = None
-
-                entry._callbacks = [ l.log_cli_action(entry) for l in self.loggers ]
-
-            def set_failed(entry, action_exception, traceback=None):
-                entry.time_ended = datetime.datetime.now()
-                entry.exception = action_exception
-                entry.succeeded = False
-                entry.traceback = traceback
-
-                for c in entry._callbacks:
-                    c.completed()
-
-            def set_succeeded(entry, result):
-                entry.time_ended = datetime.datetime.now()
-                entry.result = result
-                entry.succeeded = True
-
-                for c in entry._callbacks:
-                    c.completed()
-
-        return CliAction(command, sandboxing)
 
     def log_fork(self, fork_name):
         class Fork(object):
@@ -173,12 +136,12 @@ class LoggerInterface(object):
         return Run(*a, **kwargs)
 
 
-    def log_file(self, host, action, **kwargs):
+    def log_file(self, host, **kwargs):
         """
         Log a get/put/open actions on remote files.
         """
         class File(object):
-            entry_type = action # e.g. Actions.Get
+            entry_type = Actions.Open
 
             def __init__(entry, host, mode=None, remote_path=None, local_path=None, use_sudo=False, sandboxing=False):
                 entry.host = host
@@ -202,6 +165,9 @@ class LoggerInterface(object):
 
         return File(host, **kwargs)
 
+    def log_exception(self, e):
+        for l in self.loggers:
+            l.log_exception(e)
 
 class DummyLoggerInterface(LoggerInterface):
     """
@@ -216,46 +182,14 @@ class DummyLoggerInterface(LoggerInterface):
 #
 
 class Logger(object):
-    # Keep track of how many times the logger has been attached.
-
-    @property
-    def attach_count(self):
-        return getattr(self, '_attach_count', 0)
-
-    @attach_count.setter
-    def attach_count(self, value):
-        self._attach_count = value
-
-    def attach(self):
-        if self.attach_count == 0:
-            self.attached_first()
-
-        self.attach_count += 1
-
-    def detach(self):
-        self.attach_count -= 1
-
-        if self.attach_count == 0:
-            self.detached_last()
-
     #
     # Following methods are to be overriden by specific loggers.
     #
-
-    def attached_first(self):
-        pass
-
-    def detached_last(self):
-        pass
-
     def enter_group(self, func_name, *args, **kwargs):
         pass
 
     def leave_group(self):
         pass
-
-    def log_cli_action(self, action_entry):
-        return CliActionCallback()
 
     def log_fork(self, fork_name):
         return ForkCallback()
@@ -266,19 +200,13 @@ class Logger(object):
     def log_file_opened(self, file_entry):
         return FileCallback()
 
+    def log_exception(self, e):
+        pass
+
 
 #
 # Callbacks
 #
-
-class CliActionCallback(object):
-    def __init__(self, completed=None):
-        if completed:
-            self.completed = completed
-
-    def completed(self):
-        pass
-
 
 class RunCallback(object):
     def __init__(self, completed=None, log_io=None):

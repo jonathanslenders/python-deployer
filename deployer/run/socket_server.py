@@ -3,19 +3,23 @@
 from deployer import std
 from deployer.cli import HandlerType
 from deployer.daemonize import daemonize
-from deployer.shell import Shell, ShellHandler
+from deployer.exceptions import ActionException
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger, IndentedDefaultLogger
-from deployer.pty import Pty
+from deployer.pseudo_terminal import Pty
+from deployer.shell import Shell, ShellHandler
 
 from twisted.internet import reactor, defer, abstract, fdesc
 from twisted.internet import threads
 from twisted.internet.protocol import Protocol, Factory
 from twisted.internet.error import CannotListenError
 
+from contextlib import nested
+
 import StringIO
 import datetime
 import getpass
+import logging
 import os
 import pickle
 import sys
@@ -140,10 +144,11 @@ class Connection(object):
     for either an interactive session, for logging,
     or for a second parallel deployment.
     """
-    def __init__(self, settings, transportHandle, doneCallback, interactive):
-        self.settings = settings
-        self.transportHandle = transportHandle
-        self.doneCallback = doneCallback
+    def __init__(self, protocol):
+        self.root_node = protocol.factory.root_node
+        self.extra_loggers = protocol.factory.extra_loggers
+        self.transportHandle = protocol._handle
+        self.doneCallback = protocol.transport.loseConnection
         self.connection_shell = None
 
         # Create PTY
@@ -158,7 +163,8 @@ class Connection(object):
         stdout = os.fdopen(self.slave, 'w', 0)
 
         # Create pty object, for passing to deployment enviroment.
-        self.pty = SocketPty(stdin, stdout, self.runInNewPtys, interactive=interactive)
+        self.pty = SocketPty(stdin, stdout, self.runInNewPtys,
+                    interactive=protocol.factory.interactive)
 
         # Start read loop
         self._startReading()
@@ -174,10 +180,13 @@ class Connection(object):
         self.reader = SelectableFile(self.shell_out, writeCallback)
         self.reader.startReading()
 
-    def close(self):
+    def close(self, exit_status=0):
         """
         Called when the the process in this connection is finished.
         """
+        # Send status code
+        self.transportHandle('set-exit-status', exit_status)
+
         # Stop IO reader
         self.reader.stopReading()
 
@@ -194,12 +203,12 @@ class Connection(object):
             # .. IOError: [Errno 9] Bad file descriptor
             pass
 
-    def startShell(self, clone_shell=None, cd_path=None):
+    def startShell(self, clone_shell=None, cd_path=None, action_name=None, parameters=None):
         """
         Start an interactive shell in this connection.
         """
         self.connection_shell = ConnectionShell(self, clone_shell=clone_shell, cd_path=cd_path)
-        self.connection_shell.startThread()
+        self.connection_shell.startThread(action_name=action_name, parameters=parameters)
 
     def openNewConnection(self, focus=False):
         """
@@ -367,7 +376,7 @@ class ConnectionShell(object):
         self.logger_interface = LoggerInterface()
 
         # Run shell
-        self.shell = SocketShell(connection.settings, connection.pty,
+        self.shell = SocketShell(connection.root_node, connection.pty,
                                 self.logger_interface, clone_shell=clone_shell)
         self.cd_path = cd_path
 
@@ -401,34 +410,39 @@ class ConnectionShell(object):
             # Opening a new shell failed.
             pass
 
-    def startThread(self):
-        threads.deferToThread(self.thread)
+    def startThread(self, *a, **kw):
+        threads.deferToThread(lambda: self.thread(*a, **kw))
 
-    def thread(self):
+    def thread(self, action_name=None, parameters=None):
+        parameters = parameters or []
+
         # Set stdin/out pair for this thread.
         sys.stdout.set_handler(self.connection.pty.stdout)
         sys.stdin.set_handler(self.connection.pty.stdin)
 
         self.shell.session = self # Assign session to shell
 
-        in_shell_logger = DefaultLogger(print_group=False)
-        extra_loggers = self.connection.settings.Meta.extra_loggers
+        # in_shell_logger: Displaying of events in shell
+        with self.logger_interface.attach_in_block(DefaultLogger(print_group=False)):
+            # Attach the extra loggers.
+            with nested(* [ self.logger_interface.attach_in_block(l) for l in self.connection.extra_loggers]):
+                # Start at correct location
+                if self.cd_path:
+                    self.shell.cd(self.cd_path)
 
-                # in_shell_logger: Displaying of events in shell
-        self.logger_interface.attach(in_shell_logger)
-        for l in extra_loggers:
-            self.logger_interface.attach(l)
+                # When an action_name is given, call this action immediately,
+                # otherwise, run the interactive cmdloop.
+                if action_name:
+                    try:
+                        self.shell.run_action(action_name, *parameters)
+                        exit_status = 0
+                    except ActionException:
+                        exit_status = 1
+                else:
+                    self.shell.cmdloop()
+                    exit_status = 0
 
-        # Start at correct location
-        if self.cd_path:
-            self.shell.cd(self.cd_path)
-        self.shell.cmdloop()
-
-        self.logger_interface.detach(in_shell_logger)
-        for l in extra_loggers:
-            self.logger_interface.detach(l)
-
-        # Remove references (shell and session had circular reference)
+        # Remove references (shell and session have circular reference)
         self.shell.session = None
         self.shell = None
 
@@ -437,7 +451,7 @@ class ConnectionShell(object):
         sys.stdin.del_handler()
 
         # Close connection
-        reactor.callFromThread(self.connection.close)
+        reactor.callFromThread(self.connection.close, exit_status)
 
 
 class PtyManager(object):
@@ -496,16 +510,23 @@ class CliClientProtocol(Protocol):
                 self.connection.pty.set_size(*data)
 
             elif action == '_get_info':
-                # Return information to client.
+                # Return information about the current server state
+                processes = [ {
+                            'node_name': c.connection_shell.shell.state._node.__class__.__name__,
+                            'node_module': c.connection_shell.shell.state._node.__module__,
+                            'running': c.connection_shell.shell.currently_running or '(Idle)'
+                    } for c in self.factory.connectionPool if c.connection_shell and c.connection_shell.shell ]
+
                 self._handle('_info', {
                             'created': self.created.isoformat(),
-                            # TODO: also return information about running ConnectionShell
-                            # objects.
+                            'root_node_name': self.connection.root_node.__class__.__name__,
+                            'root_node_module': self.connection.root_node.__module__,
+                            'processes': processes,
                     })
                 self.transport.loseConnection()
 
             elif action == 'open-new-window':
-                print 'opening new window...'
+                logging.info('Opening new window')
                 # When the client wants to open a new shell (Ctrl-N press for
                 # instance), check whether we are in an interactive session,
                 # and if so, copy this shell.
@@ -515,23 +536,24 @@ class CliClientProtocol(Protocol):
                     self._handle('open-new-window', { 'focus': True })
 
             elif action == '_start-interaction':
-                print 'creating session'
+                logging.info('Starting session')
 
                 cd_path = data.get('cd_path', None)
+                action_name = data.get('action_name', None)
+                parameters = data.get('parameters', None)
 
-                # The defer to thread method, which will be called back
-                # immeditiately, can hang if the thread pool has been
-                # saturated. Therefor we show this message instead.
-
-                #self._handle('_print', 'Waiting for thread to start...\r\n')
+                # NOTE: The defer to thread method, which will be called back
+                # immeditiately, can hang (wait) if the thread pool has been
+                # saturated.
 
                 # When a new Pty was needed by an existing shell. (For instance, for
                 # a parallel session. Report this connection; otherwise start a new
                 # ConnectionShell.
-                if PtyManager.need_pty_callback:
+                if PtyManager.need_pty_callback and not action_name:
                     PtyManager.need_pty_callback(self.connection)
                 else:
-                    self.connection.startShell(cd_path=cd_path)
+                    self.connection.startShell(cd_path=cd_path,
+                            action_name=action_name, parameters=parameters)
 
             # Keep the remainder for the next time.
             remainder = io.read()
@@ -550,7 +572,7 @@ class CliClientProtocol(Protocol):
         """
         Disconnected from client.
         """
-        print 'Connection lost'
+        logging.info('Client connection lost')
 
         # Remove current connection from the factory's connection pool.
         self.factory.connectionPool.remove(self.connection)
@@ -558,65 +580,78 @@ class CliClientProtocol(Protocol):
 
         # When no more connections are left, close the reactor.
         if len(self.factory.connectionPool) == 0 and self.factory.shutdownOnLastDisconnect:
-            print 'Stopping server.'
+            logging.info('Stopping server.')
             reactor.stop()
 
     def _handle(self, action, data):
         self.transport.write(pickle.dumps((action, data)) )
 
     def connectionMade(self):
-        self.connection = Connection(self.factory.settings, self._handle, self.transport.loseConnection,
-                        interactive=self.factory.interactive)
+        self.connection = Connection(self)
         self.factory.connectionPool.add(self.connection)
 
 
-def startSocketServer(settings, shutdownOnLastDisconnect, interactive):
+def startSocketServer(root_node, shutdownOnLastDisconnect, interactive, socket=None, extra_loggers=None):
     """
     Bind the first available unix socket.
-    Return the path.
+    Return the socket file.
     """
     # Create protocol factory.
     factory = Factory()
     factory.connectionPool = set() # List of currently, active connections
     factory.protocol = CliClientProtocol
     factory.shutdownOnLastDisconnect = shutdownOnLastDisconnect
-    factory.settings = settings
+    factory.root_node = root_node
     factory.interactive = interactive
+    factory.extra_loggers = extra_loggers or []
 
-    # Search for a socket to listen on.
-    i = 0
-    path = None
-    while True:
-        try:
-            path = '/tmp/deployer.sock.%s.%i' % (getpass.getuser(), i)
-            reactor.listenUNIX(path, factory)
-            break
-        except CannotListenError:
-            i += 1
+    # Listen on socket.
+    if socket:
+        reactor.listenUNIX(socket, factory)
+    else:
+        # Find a socket to listen on. (if no socket was given.)
+        i = 0
+        while True:
+            try:
+                socket = '/tmp/deployer.sock.%s.%i' % (getpass.getuser(), i)
+                reactor.listenUNIX(socket, factory)
+                break
+            except CannotListenError:
+                i += 1
 
-            # When 100 times failed, cancel server
-            if i == 100:
-                print '100 times failed to listen on posix socket. Please clean up old sockets.'
-                raise
+                # When 100 times failed, cancel server
+                if i == 100:
+                    logging.warning('100 times failed to listen on posix socket. Please clean up old sockets.')
+                    raise
 
-    return path
+    return socket
 
 
 # =================[ Startup]=================
 
-def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50, interactive=True):
+def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread_pool_size=50,
+                interactive=True, logfile=None, socket=None, extra_loggers=None):
     """
     Start web server
     If daemonized, this will start the server in the background,
     and return the socket path.
     """
-    # Create settings instance
-    settings = settings()
+    # Create node instance
+    root_node = root_node()
 
     # Start server
-    path = startSocketServer(settings, shutdownOnLastDisconnect=shutdown_on_last_disconnect, interactive=interactive)
+    socket2 = startSocketServer(root_node, shutdownOnLastDisconnect=shutdown_on_last_disconnect,
+                        interactive=interactive, socket=socket, extra_loggers=extra_loggers)
 
     def run_server():
+        # Set logging
+        if logfile:
+            logging.basicConfig(filename=logfile, level=logging.DEBUG)
+        elif not daemonized:
+            logging.basicConfig(filename='/dev/stdout', level=logging.DEBUG)
+
+        logging.info('Socket server started at %s' % socket2)
+
         # Thread sensitive interface for stdout/stdin
         std.setup()
 
@@ -634,11 +669,6 @@ def start(settings, daemonized=False, shutdown_on_last_disconnect=False, thread_
             sys.exit()
         else:
             # In parent.
-            return path
+            return socket2
     else:
         run_server()
-
-
-if __name__ == '__main__':
-    from deployer.contrib.default_config import example_settings
-    start(settings=example_settings)

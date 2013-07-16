@@ -13,9 +13,10 @@ import sys
 import termcolor
 import termios
 import time
+import logging
 
 from twisted.internet import fdesc
-from deployer.pty import select
+from deployer.pseudo_terminal import select
 from deployer.std import raw_mode
 from deployer.console import Console
 
@@ -106,6 +107,8 @@ class CLInterface(object):
         original_parts = parts
         h = self.root
         parts = parts[:]
+
+        logging.info('Handle command line action "%s"' % ' '.join(parts))
 
         while h and parts:# and not h.is_leaf:
             try:
@@ -579,7 +582,7 @@ class CLInterface(object):
                     else:
                         c = self.stdin.read(1)
 
-                    if c == '[': # (91)
+                    if c in ('[', 'O'): # (91, 68)
                         c = self.stdin.read(1)
 
                         # Cursor to left
@@ -635,17 +638,6 @@ class CLInterface(object):
                             self.home()
 
                         # End (xterm)
-                        elif c == 'F':
-                            self.end()
-
-                    elif c == 'O':
-                        c = self.stdin.read(1)
-
-                        # Home
-                        if c == 'H':
-                            self.home()
-
-                        # End
                         elif c == 'F':
                             self.end()
 
