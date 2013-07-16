@@ -19,8 +19,11 @@ Important key features are:
  - Fast parallel execution.
  - Reusability of all deployment code.
 
-Table of content
-----------------
+
+.. _table-of-contents:
+
+Table of contents
+-----------------
 
 .. toctree::
    :maxdepth: 3

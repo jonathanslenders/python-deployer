@@ -1,5 +1,7 @@
-The query object
-================
+.. _query-expressions:
+
+Query expressions
+=================
 
 Queries provide syntactic sugar for expressions inside nodes.
 For instance:
