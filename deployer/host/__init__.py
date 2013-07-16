@@ -985,4 +985,4 @@ class LocalHost(Host):
         return LocalhostFTP()
 
     def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
-        self._run(pty, command='/bin/bash', logger=logger, initial_input=initial_input)
+        self.run(pty, command='/bin/bash', logger=logger, initial_input=initial_input)
