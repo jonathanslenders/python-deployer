@@ -1,15 +1,9 @@
 
-
-# Features:
-#   - logging of all manual activity of all hosts on one central server.
-#   - easy configuration
-#   - allowing setup of multi-server deployments
-#   - should be extensible with a web interface.
-
-
 import StringIO
+import contextlib
 import copy
 import getpass
+import logging
 import os
 import paramiko
 import pexpect
@@ -25,12 +19,88 @@ import tty
 from deployer.console import Console
 from deployer.exceptions import ExecCommandFailed
 from deployer.loggers import DummyLoggerInterface, Actions
-from deployer.pty import DummyPty, select
+from deployer.pseudo_terminal import DummyPty, select
+from deployer.std import raw_mode
 from deployer.utils import esc1
 
 from twisted.internet import fdesc
 
-# ================ Hosts =====================================
+
+class HostContext(object):
+    """
+    A push/pop stack which keeps track of the context on which commands
+    at a host are executed.
+    """
+    def __init__(self):
+        self._command_prefixes = []
+        self._path = []
+        self._env = []
+
+    def __repr__(self):
+        return 'HostContext(prefixes=%r, path=%r, env=%r)' % (
+                        self._command_prefixes, self._path, self._env)
+
+    def clone(self):
+        # Create a copy from this context. (We need it for thread-safety.)
+        c = HostContext()
+        c._command_prefixes = self._command_prefixes[:]
+        c._path = self._path[:]
+        c._env = self._env[:]
+        return c
+
+    def prefix(self, command):
+        """
+        Prefix all commands with given command plus ``&&``.
+
+        ::
+
+            with host.prefix('workon environment'):
+                host.run('./manage.py migrate')
+        """
+        class Prefix(object):
+            def __enter__(context):
+                self._command_prefixes.append(command)
+
+            def __exit__(context, *args):
+                self._command_prefixes.pop()
+        return Prefix()
+
+    def cd(self, path):
+        """
+        Execute commands in this directory.
+        Nesting of cd-statements is allowed.
+
+        ::
+
+            with host.cd('~/directory'):
+                host.run('ls')
+        """
+        class CD(object):
+            def __enter__(context):
+                self._path.append(path)
+
+            def __exit__(context, *args):
+                self._path.pop()
+        return CD()
+
+
+    def env(self, variable, value, escape=True):
+        """
+        Set this environment variable
+        """
+        if value is None:
+            value = ''
+
+        if escape:
+            value = "'%s'" % esc1(value)
+
+        class ENV(object):
+            def __enter__(context):
+                self._env.append( (variable, value) )
+
+            def __exit__(context, *args):
+                self._env.pop()
+        return ENV()
 
 
 # Remember instances for the Host classes. Keep them in this global
@@ -64,19 +134,6 @@ class Host(object):
     magic_sudo_prompt = termcolor.colored('[:__enter-sudo-password__:]', 'grey') #, attrs=['concealed'])
 
     def __init__(self):
-        """
-        Create an instance of this Host class. This will initiate an SSH
-        connection.
-        """
-        # Context
-        self._command_prefixes = []
-        self._path = [] # cd to this path for every command
-        self._env = [] # Environment variables
-
-        # No sandbox
-        self._sandboxing = False
-
-        # Dummy logger
         self.dummy_logger = DummyLoggerInterface()
 
     @classmethod
@@ -91,22 +148,6 @@ class Host(object):
             _host_instances[cls] = cls()
             return _host_instances[cls]
 
-    def clone(self):
-        """
-        Return a new Host() instance, as a copy of this state.
-        (Every thread should its own state of every host.)
-        """
-        new_host = self.__class__()
-        self._copy_state_to(new_host)
-        return new_host
-
-    def _copy_state_to(self, other_host):
-        """
-        Copy state from this host to other host.
-        """
-        for var in ('_command_prefixes', '_path', '_env', '_sandboxing'):
-            setattr(other_host, var, copy.copy(getattr(self, var)))
-
     def _get_start_path(self):
         """
         Return the path in which commands at the server will be executed.
@@ -119,17 +160,57 @@ class Host(object):
         else:
             return '~'
 
-    @property
-    def cwd(self):
+    def get_cwd(self, context):
         """
         Current working directory.
         """
-        if self._path:
-            return os.path.join(*self._path)
+        if context._path:
+            return os.path.join(*context._path)
         else:
             return self.get_home_directory()
 
-    def _wrap_command(self, command):
+    def get_home_directory(self, username=None):
+        # TODO: maybe: return self.expand_path('~%s' % username if username else '~')
+        if username:
+            return self.run(DummyPty(), 'cd /; echo -n ~%s' % username, sandbox=False)
+        else:
+            return self.run(DummyPty(), 'cd /; echo -n ~', sandbox=False)
+
+    def exists(self, filename, use_sudo=True, **kw):
+        """
+        Returns ``True`` when a file named ``filename`` exists on this hosts.
+        """
+        # Note: the **kw is required for passing in a HostContext.
+        try:
+            self._run_silent("test -f '%s' || test -d '%s'" % (esc1(filename), esc1(filename)),
+                        use_sudo=use_sudo, **kw)
+            return True
+        except ExecCommandFailed:
+            return False
+
+    def get_ip_address(self, interface='eth0'):
+        """
+        Return internal IP address of this interface.
+        """
+        # We add "cd /", to be sure that at least no error get thrown because
+        # we're in a non existing directory right now.
+
+        return self._run_silent(
+                """cd /; /sbin/ifconfig "%s" | grep 'inet ad' | """
+                """ cut -d: -f2 | awk '{ print $1}' """ % interface).strip()
+
+    def ifconfig(self):
+        """
+        Return the network information for this host.
+
+        :returns: A :class:`deployer.utils.IfConfig` instance.
+        """
+        # We add "cd /", to be sure that at least no error get thrown because
+        # we're in a non existing directory right now.
+        from deployer.utils import parse_ifconfig_output
+        return parse_ifconfig_output(self._run_silent('cd /; /sbin/ifconfig'))
+
+    def _wrap_command(self, command, context, sandbox):
         """
         Prefix command with cd-statements and variable assignments
         """
@@ -137,14 +218,15 @@ class Host(object):
 
         # Ensure that the start-path exists (only if one was given. Not for the ~)
         if self.start_path:
-            result.append("(mkdir -p '%s' 2> /dev/null || true) && " % esc1(self.expand_path(self.start_path)))
+            result.append("(mkdir -p '%s' 2> /dev/null || true) && " %
+                            esc1(self.expand_path(self.start_path, context)))
 
         # Prefix with all cd-statements
-        for p in [self._get_start_path()] + self._path:
+        for p in [self._get_start_path()] + context._path:
             # TODO: We can't have double quotes around paths,
             #       or shell expansion of '*' does not work.
             #       Make this an option for with cd(path):...
-            if self._sandboxing:
+            if sandbox:
                 # In sandbox mode, it may be possible that this directory
                 # is not yet created, only 'cd' to it when the directory
                 # really exists.
@@ -153,7 +235,7 @@ class Host(object):
                 result.append('cd %s && ' % p)
 
         # Prefix with variable assignments
-        for var, value in self._env:
+        for var, value in context._env:
             #result.append('%s=%s ' % (var, value))
             result.append("export %s=%s && " % (var, value))
 
@@ -168,23 +250,33 @@ class Host(object):
         result.append(command)
         return ''.join(result)
 
-    def _run_silent_sudo(self, command):
-        pty = DummyPty()
-        return self._run(pty, command, use_sudo=True, interactive=False, logger=None)
-
-    def _run_silent(self, command):
-        pty = DummyPty()
-        return self._run(pty, command, interactive=False, logger=None)
-
-    def _run(self, pty, command='echo "no command given"', use_sudo=False, interactive=True,
-                        logger=None, user=None, ignore_exit_status=False, initial_input=None):
+    def run(self, pty, command='echo "no command given"', use_sudo=False, sandbox=False, interactive=True,
+                        logger=None, user=None, ignore_exit_status=False, initial_input=None, context=None):
         """
-        Execute this command.
-        When `interactive`, it will use stdin/stdout and use an interactive loop, otherwise, it will
-        return the output.
-        When the command fails and ignore_exit_status is false, it will raise ExecCommandFailed
+        Execute this shell command on the host.
+
+        :param pty: The pseudo terminal wrapper which handles the stdin/stdout.
+        :type pty: :class:`deployer.pseudo_terminal.Pty`
+        :param command: The shell command.
+        :type command: basestring
+        :param use_sudo: Run as superuser.
+        :type use_sudo: bool
+        :param sandbox: Validate syntax instead of really executing. (Wrap the command in ``bash -n``.)
+        :type sandbox: bool
+        :param interactive: Start an interactive event loop which allows
+                            interaction with the remote command. Otherwise, just return the output.
+        :type interactive: bool
+        :param logger: The logger interface.
+        :type logger: LoggerInterface
+        :param initial_input: When ``interactive``, send this input first to the host.
+        :type initial_input: basestring
+        :param context:
+        :type context: :class:`deployer.host.HostContext;
         """
+        assert isinstance(command, basestring)
+
         logger = logger or self.dummy_logger
+        context = context or HostContext()
 
         # Create new channel for this command
         chan = self._get_session()
@@ -206,15 +298,18 @@ class Host(object):
         else:
             pty.set_ssh_channel_size = lambda:None
 
-        command = " && ".join(self._command_prefixes + [command])
+        command = " && ".join(context._command_prefixes + [command])
 
         # Start logger
         with logger.log_run(self, command=command, use_sudo=use_sudo,
-                                sandboxing=self._sandboxing, interactive=interactive) as log_entry:
+                                sandboxing=sandbox, interactive=interactive) as log_entry:
             # Are we sandboxing? Wrap command in "bash -n"
-            if self._sandboxing:
+            if sandbox:
                 command = "bash -n -c '%s' " % esc1(command)
                 command = "%s;echo '%s'" % (command, esc1(command))
+
+            logging.info('Running "%s" on host "%s" sudo=%r, interactive=%r' %
+                            (command, self.slug, use_sudo, interactive))
 
             # Execute
             if use_sudo:
@@ -227,23 +322,31 @@ class Host(object):
                 # 2. This shows the home directory of the user postgres:
                 # sudo su postgres -c 'echo $HOME '
                 if interactive:
-                    chan.exec_command(self._wrap_command(
+                    wrapped_command = self._wrap_command((
                                 "sudo -p '%s' su '%s' -c '%s'" % (esc1(self.magic_sudo_prompt), esc1(user), esc1(command))
                                 #"sudo -u '%s' bash -c '%s'" % (user, esc1(command))
                                 if user else
-                                "sudo -p '%s' bash -c '%s' " % (esc1(self.magic_sudo_prompt), esc1(command))
-                                ))
+                                "sudo -p '%s' bash -c '%s' " % (esc1(self.magic_sudo_prompt), esc1(command))),
+                                context, sandbox
+                                )
+
+                    logging.debug('Running wrapped command "%s"' % wrapped_command)
+                    chan.exec_command(wrapped_command)
 
                 # Some commands, like certain /etc/init.d scripts cannot be
                 # run interactively. They won't work in a ssh pty.
                 else:
-                    chan.exec_command(self._wrap_command(
+                    wrapped_command = self._wrap_command((
                         "echo '%s' | sudo -p '(passwd)' -u '%s' -P %s " % (esc1(self.password), esc1(user), command)
                         if user else
-                        "echo '%s' | sudo -p '(passwd)' -S %s " % (esc1(self.password), command)
-                        ))
+                        "echo '%s' | sudo -p '(passwd)' -S %s " % (esc1(self.password), command)),
+                        context, sandbox
+                        )
+
+                    logging.debug('Running wrapped command "%s" interactive' % wrapped_command)
+                    chan.exec_command(wrapped_command)
             else:
-                chan.exec_command(self._wrap_command(command))
+                chan.exec_command(self._wrap_command(command, context, sandbox))
 
             if interactive:
                 # Pty receive/send loop
@@ -289,7 +392,7 @@ class Host(object):
                 raise ExecCommandFailed(command, self, use_sudo=use_sudo, status_code=status_code, result=result)
 
         # Return result
-        if self._sandboxing:
+        if sandbox:
             return '<Not sure in sandbox>'
         else:
             return result
@@ -307,145 +410,112 @@ class Host(object):
         result = []
         password_sent = False
 
-        # Save terminal attributes
-        oldtty = termios.tcgetattr(pty.stdin)
-
         # Make stdin non-blocking. (The select call will already
         # block for us, we want sys.stdin.read() to read as many
         # bytes as possible without blocking.)
         fdesc.setNonBlocking(pty.stdin)
 
-        try:
-            # Set terminal raw
-            if raw:
-                tty.setraw(pty.stdin.fileno())
-                tty.setcbreak(pty.stdin.fileno())
-            chan.settimeout(0.0)
+        # Set terminal in raw mode
+        if raw:
+            context = raw_mode(pty.stdin)
+        else:
+            context = contextlib.nested()
 
-            # When initial input has been given, send this first
-            if initial_input:
-                time.sleep(0.2) # Wait a very short while for the channel to be initialized, before sending.
-                chan.send(initial_input)
+        with context:
+            try:
+                chan.settimeout(0.0)
 
-            # Read/write loop
-            while True:
-                # Don't wait for any input when an exit status code has been
-                # set already.
-                if chan.status_event.isSet():
-                    break;
+                # When initial input has been given, send this first
+                if initial_input:
+                    time.sleep(0.2) # Wait a very short while for the channel to be initialized, before sending.
+                    chan.send(initial_input)
 
-                r, w, e = select([pty.stdin, chan], [], [])
+                # Read/write loop
+                while True:
+                    # Don't wait for any input when an exit status code has been
+                    # set already.
+                    if chan.status_event.isSet():
+                        break;
 
-                # Receive stream
-                if chan in r:
-                    try:
-                        x = chan.recv(1024)
+                    r, w, e = select([pty.stdin, chan], [], [])
+
+                    # Receive stream
+                    if chan in r:
+                        try:
+                            x = chan.recv(1024)
+
+                            # Received length 0 -> end of stream
+                            if len(x) == 0:
+                                break
+
+                            # Log received characters
+                            log_entry.log_io(x)
+
+                            # Write received characters to stdout and flush
+                            while True:
+                                try:
+                                    pty.stdout.write(x)
+                                    break
+                                except IOError, e:
+                                    # Sometimes, when we have a lot of output, we get here:
+                                    # IOError: [Errno 11] Resource temporarily unavailable
+                                    # Just waiting a little, and retrying seems to work.
+                                    # See also: deployer.run.socket_client for a similar issue.
+                                    time.sleep(0.2)
+
+                            pty.stdout.flush()
+
+                            # Also remember received output.
+                            # We want to return what's written to stdout.
+                            result.append(x)
+
+                            # Do we need to send the sudo password? (It's when the
+                            # magic prompt has been detected in the stream) Note
+                            # that we only monitor the last part of 'result', it's
+                            # a bit fuzzy, but works.
+                            if not password_sent and self.magic_sudo_prompt in ''.join(result[-32:]):
+                                chan.send(self.password)
+                                chan.send('\n')
+                                password_sent = True
+                        except socket.timeout:
+                            pass
+
+                    # Send stream (one by one character)
+                    if pty.stdin in r:
+                        try:
+                            x = pty.stdin.read(1024)
+                        except IOError, e:
+                            # What to do with IOError exceptions?
+                            # (we see what happens in the next select-call.)
+                            continue
 
                         # Received length 0 -> end of stream
                         if len(x) == 0:
-                            break
+                            #break
+                            continue # TODO: not sure about this. We need this
+                                     #       for some unit tests, where the
+                                     #       input ends, before the output is
+                                     #       finished. But I think we need this
+                                     #       anyway.  As long as there is data
+                                     #       to read on the SSH channel, we can
+                                     #       go on. But better remove stdin
+                                     #       from the select() call, just to
+                                     #       avoid a while-true loop.
 
-                        # Log received characters
-                        log_entry.log_io(x)
+                        # Write to channel
+                        chan.send(x)
 
-                        # Write received characters to stdout and flush
-                        while True:
-                            try:
-                                pty.stdout.write(x)
-                                break
-                            except IOError, e:
-                                # Sometimes, when we have a lot of output, we get here:
-                                # IOError: [Errno 11] Resource temporarily unavailable
-                                # Just waiting a little, and retrying seems to work.
-                                # See also: deployer.run.socket_client for a similar issue.
-                                time.sleep(0.2)
+                        # Not sure about this. Sometimes, when pasting large data
+                        # in the command line, the many concecutive read or write
+                        # commands will make Paramiko hang somehow...  (This was
+                        # the case, when still using a blocking pty.stdin.read(1)
+                        # instead of a non-blocking readmany.
+                        time.sleep(0.01)
+            finally:
+                # Set blocking again
+                fdesc.setBlocking(pty.stdin)
 
-                        pty.stdout.flush()
-
-                        # Also remember received output.
-                        # We want to return what's written to stdout.
-                        result.append(x)
-
-                        # Do we need to send the sudo password? (It's when the
-                        # magic prompt has been detected in the stream) Note
-                        # that we only monitor the last part of 'result', it's
-                        # a bit fuzzy, but works.
-                        if not password_sent and self.magic_sudo_prompt in ''.join(result[-32:]):
-                            chan.send(self.password)
-                            chan.send('\n')
-                            password_sent = True
-                    except socket.timeout:
-                        pass
-
-                # Send stream (one by one character)
-                if pty.stdin in r:
-                    try:
-                        x = pty.stdin.read(1024)
-                    except IOError, e:
-                        # What to do with IOError exceptions?
-                        # (we see what happens in the next select-call.)
-                        continue
-
-                    # Received length 0 -> end of stream
-                    if len(x) == 0:
-                        break
-
-                    # Write to channel
-                    chan.send(x)
-
-                    # Not sure about this. Sometimes, when pasting large data
-                    # in the command line, the many concecutive read or write
-                    # commands will make Paramiko hang somehow...  (This was
-                    # the case, when still using a blocking pty.stdin.read(1)
-                    # instead of a non-blocking readmany.
-                    time.sleep(0.01)
-        finally:
-            # Restore terminal
-            termios.tcsetattr(pty.stdin, termios.TCSADRAIN, oldtty)
-
-            # Set blocking again
-            fdesc.setBlocking(pty.stdin)
-
-        return ''.join(result)
-
-
-    # =====[ Actions which are also available in non-sandbox mode ]====
-
-    def get_ip_address(self, interface='eth0'):
-        """
-        Return internal IP address of this interface.
-        """
-        # Add "cd /", to be sure that at least no error get thrown because
-        # we're in a non existing directory right now.
-        with self.cd('/'):
-            with self.sandbox(False):
-                # Some hosts give 'inet addr:', other 'enet adr:' back.
-                #
-                # TODO: probably use the 'ip address show dev eth0' instead.
-                return self._run_silent("""/sbin/ifconfig "%s" | grep 'inet ad' | """
-                        """ cut -d: -f2 | awk '{ print $1}' """ % interface).strip()
-
-    def get_home_directory(self, username=None):
-        # TODO:....
-        # return self.expand_path('~%s' % username if username else '~')
-
-        with self.cd('/'):
-            with self.sandbox(False):
-                if username:
-                    return self._run_silent('echo -n ~%s' % username)
-                else:
-                    return self._run_silent('echo -n ~')
-
-    @property
-    def hostname(self):
-        with self.cd('/'):
-            with self.sandbox(False):
-                return self._run_silent('hostname').strip()
-
-    @property
-    def is_64_bit(self):
-        with self.sandbox(False):
-            return 'x86_64' in self._run_silent('uname -m')
+            return ''.join(result)
 
     # =====[ SFTP operations ]====
 
@@ -453,126 +523,77 @@ class Host(object):
         # Only tilde expansion
         return os.path.expanduser(path)
 
-    def expand_path(self, path):
+    def expand_path(self, path, context=None):
         raise NotImplementedError
 
-    def _tempfile(self):
-        """
-        Return temporary filename
-        """
-        return self.expand_path('~/deployer-tempfile-%s-%s' % (time.time(), random.randint(0, 1000000)))
+    def _tempfile(self, context):
+        """ Return temporary filename """
+        return self.expand_path('~/deployer-tempfile-%s-%s' % (time.time(), random.randint(0, 1000000)), context)
 
     @property
     def sftp(self):
         raise NotImplementedError
 
-    def get(self, remote_path, local_path, use_sudo=False, logger=None):
+    def get_file(self, remote_path, local_path, use_sudo=False, logger=None, sandbox=False, context=None):
         """
         Download this remote_file.
         """
-        logger = logger or self.dummy_logger
+        with self.open(remote_path, 'rb', use_sudo=use_sudo, logger=logger, sandbox=sandbox, context=context) as f:
+            # Expand paths
+            local_path = self._expand_local_path(local_path)
 
-        # Expand paths
-        local_path = self._expand_local_path(local_path)
-        remote_path = self.expand_path(remote_path)
+            with open(local_path, 'wb') as f2:
+                f2.write(f.read())
 
-        # Log entries
-        with logger.log_file(self, Actions.Get, mode='rb', remote_path=remote_path,
-                            local_path=local_path, use_sudo=use_sudo, sandboxing=self._sandboxing) as log_entry:
-            try:
-                if use_sudo:
-                    if not self._sandboxing:
-                        # Copy file to available location
-                        temppath = self._tempfile()
-                        self._run_silent_sudo("mv '%s' '%s'" % (esc1(remote_path), esc1(temppath)))
-                        self._run_silent_sudo("chown '%s' '%s'" % (esc1(self.username), esc1(temppath)))
-                        self._run_silent_sudo("chmod u+r '%s'" % esc1(temppath))
-
-                        # Download file
-                        self.get(temppath, local_path)
-
-                        # Remove temp file
-                        self._run_silent_sudo('rm "%s"' % temppath)
-                else:
-                    open(local_path, 'wb').write(self.sftp.open(remote_path, 'rb').read())
-            except Exception as e:
-                log_entry.complete(False)
-                raise e
-            else:
-                log_entry.complete(True)
-
-    def put(self, local_path, remote_path, use_sudo=False, logger=None):
+    def put_file(self, local_path, remote_path, use_sudo=False, logger=None, sandbox=False, context=None):
         """
         Upload this local_file to the remote location.
         """
-        logger = logger or self.dummy_logger
+        with self.open(remote_path, 'wb', use_sudo=use_sudo, logger=logger, sandbox=sandbox, context=context) as f:
+            # Expand paths
+            local_path = self._expand_local_path(local_path)
 
-        # Expand paths
-        local_path = self._expand_local_path(local_path)
-        remote_path = self.expand_path(remote_path)
+            with open(local_path, 'rb') as f2:
+                f.write(f2.read())
 
-        # Log entry
-        with logger.log_file(self, Actions.Put, mode='wb', remote_path=remote_path,
-                            local_path=local_path, use_sudo=use_sudo, sandboxing=self._sandboxing) as log_entry:
-            try:
-                if not self._sandboxing:
-                    if use_sudo:
-                        # Upload in tempfile
-                        temppath = self._tempfile()
-                        self.put(local_path, temppath)
-
-                        # Move tempfile to real destination
-                        self._run_silent_sudo("mv '%s' '%s'" % (esc1(temppath), esc1(remote_path)))
-
-                        # chmod?
-                        # TODO
-                    else:
-                        self.sftp.open(remote_path, 'wb').write(open(local_path, 'rb').read())
-            except Exception as e:
-                log_entry.complete(False)
-                raise e
-            else:
-                log_entry.complete(True)
-
-    def open(self, remote_path, mode="rb", use_sudo=False, logger=None):
+    def open(self, remote_path, mode="rb", use_sudo=False, logger=None, sandbox=False, context=None):
         """
         Open file handler to remote file. Can be used both as:
 
-        1)
+        ::
 
-        >> with host.open('/path/to/somefile', wb') as f:
-        >>     f.write('some content')
+            with host.open('/path/to/somefile', wb') as f:
+                f.write('some content')
 
-        2)
+        or:
 
-        >> host.open('/path/to/somefile', wb').write('some content')
+        ::
+
+            host.open('/path/to/somefile', wb').write('some content')
         """
         logger = logger or self.dummy_logger
+        context = context or HostContext()
 
         # Expand path
-        remote_path = self.expand_path(remote_path)
+        remote_path = self.expand_path(remote_path, context)
 
         class RemoteFile(object):
             def __init__(rf):
                 rf._is_open = False
 
-                # Remember sandboxing state in here. (To make sure it's still
-                # the same on __exit__)
-                rf._sandboxing = self._sandboxing
-
                 # Log entry
-                self._log_entry = logger.log_file(self, Actions.Open, mode=mode, remote_path=remote_path,
-                                                use_sudo=use_sudo, sandboxing=rf._sandboxing)
+                self._log_entry = logger.log_file(self, mode=mode, remote_path=remote_path,
+                                                use_sudo=use_sudo, sandboxing=sandbox)
                 self._log_entry.__enter__()
 
-                if rf._sandboxing:
+                if sandbox:
                     # Use dummy file in sandbox mode.
                     rf._file = open('/dev/null', mode)
                 else:
                     if use_sudo:
-                        rf._temppath = self._tempfile()
+                        rf._temppath = self._tempfile(context)
 
-                        if self.exists(remote_path):
+                        if self.exists(remote_path, context=context):
                             # Copy existing file to available location
                             self._run_silent_sudo("cp '%s' '%s' " % (esc1(remote_path), esc1(rf._temppath)))
                             self._run_silent_sudo("chown '%s' '%s' " % (esc1(self.username), esc1(rf._temppath)))
@@ -583,7 +604,7 @@ class Host(object):
                             # using current username)
                             self._run_silent("touch '%s' " % esc1(rf._temppath))
                         else:
-                            raise Exception('Remote file: "%s" does not exist' % remote_path)
+                            raise IOError('Remote file: "%s" does not exist' % remote_path)
 
                         # Open stream to this temp file
                         rf._file = self.sftp.open(rf._temppath, mode)
@@ -608,13 +629,13 @@ class Host(object):
                 if rf._is_open:
                     return rf._file.read()
                 else:
-                    raise Exception('Cannot read from closed remote file')
+                    raise IOError('Cannot read from closed remote file')
 
             def readline(rf):
                 if rf._is_open:
                     return rf._file.readline()
                 else:
-                    raise Exception('Cannot read from closed remote file')
+                    raise IOError('Cannot read from closed remote file')
 
             def write(rf, data):
                 if rf._is_open:
@@ -628,17 +649,17 @@ class Host(object):
                     else:
                         rf._file.write(data)
                 else:
-                    raise Exception('Cannot write to closed remote file')
+                    raise IOError('Cannot write to closed remote file')
 
             def close(rf):
                 if rf._is_open:
                     try:
                         rf._file.close()
 
-                        if not rf._sandboxing:
+                        if not sandbox:
                             if use_sudo:
                                 # Restore permissions (when this file already existed.)
-                                if self.exists(remote_path):
+                                if self.exists(remote_path, context=context):
                                     self._run_silent_sudo("chown --reference='%s' '%s' " % (esc1(remote_path), esc1(rf._temppath)))
                                     self._run_silent_sudo("chmod --reference='%s' '%s' " % (esc1(remote_path), esc1(rf._temppath)))
 
@@ -658,110 +679,25 @@ class Host(object):
 
         return RemoteFile()
 
-    # =====[ Boolean tests ]====
-
-    def exists(self, filename):
-        """
-        Returns True when this file exists.
-        """
-        try:
-            filename = self.expand_path(filename)
-            self._run_silent_sudo("test -f '%s' || test -d '%s'" % (esc1(filename), esc1(filename)))
-            return True
-        except ExecCommandFailed:
-            return False
-
-    def has_command(self, command):
-        """
-        Test whether this command can be found in the bash shell, by executing a 'which'
-        """
-        try:
-            self._run_silent("which '%s'" % esc1(command))
-            return True
-        except ExecCommandFailed:
-            return False
-
-    # ====[ Context mangement (Path and environment variables) ]====
-
-    def prefix(self, command):
-        """
-        Prefix all commands with given command plus ``&&``.
-
-        with host.prefix('workon mvne'):
-            host.run('./manage.py migrate')
-
-        Based on Fabric prefix
-        """
-        class Prefix(object):
-            def __enter__(context):
-                self._command_prefixes.append(command)
-
-            def __exit__(context, *args):
-                self._command_prefixes.pop()
-        return Prefix()
-
-    def cd(self, path):
-        """
-        # Execute commands in this directory.
-        # Nesting of cd-statements is allowed.
-
-        with host.cd('~/directory'):
-            host.run('ls')
-        """
-        class CD(object):
-            def __enter__(context):
-                self._path.append(path)
-
-            def __exit__(context, *args):
-                self._path.pop()
-        return CD()
-
-
-    def env(self, variable, value, escape=True):
-        """
-        Set this environment variable
-        """
-        if escape:
-            value = "'%s'" % esc1(value)
-
-        class ENV(object):
-            def __enter__(context):
-                self._env.append( (variable, value) )
-
-            def __exit__(context, *args):
-                self._env.pop()
-        return ENV()
-
-    def sandbox(self, enable=True):
-        """
-        Context for enable sandboxing on this host.
-        No commands will be executed, but syntax will be checked. (through bash -n -c '...')
-        """
-        class Sandbox(object):
-            def __enter__(context):
-                context._was_sandbox = self._sandboxing
-                self._sandboxing = enable
-
-            def __exit__(context, *args):
-                self._sandboxing = context._was_sandbox
-        return Sandbox()
 
     # Some simple wrappers for the commands
 
-    def run(self, pty, command, *args, **kwargs):
-        """
-        Run this command.
-        """
-        assert isinstance(command, basestring)
-        return self._run(pty, command, *args, **kwargs)
-
-
-    def sudo(self, pty, command, *args, **kwargs):
+    def sudo(self, *args, **kwargs):
         """
         Run this command using sudo.
         """
         kwargs['use_sudo'] = True
-        return self.run(pty, command, *args, **kwargs)
+        return self.run(*args, **kwargs)
+
+    def _run_silent(self, command, **kw):
+        pty = DummyPty()
+        kw['interactive'] = False
+        kw['logger'] = None
+        return self.run(pty, command, **kw)
+
+    def _run_silent_sudo(self, command, **kw):
+        kw['use_sudo'] = True
+        return self._run_silent(command, **kw)
 
 
 class SSHBackend(object):
@@ -791,42 +727,38 @@ class SSHBackend(object):
         """
         # Lock: be sure not to create this connection from several threads at
         # the same time.
-        self._lock.acquire()
+        with self._lock:
+            if not (self._ssh_cache and self._ssh_cache._transport and self._ssh_cache._transport.is_active()):
+                h = self._get_host_instance()
 
-        if not (self._ssh_cache and self._ssh_cache._transport and self._ssh_cache._transport.is_active()):
-            h = self._get_host_instance()
+                # Show connecting message (in current stdout)
+                sys.stdout.write('*** Connecting to %s (%s)...\n' % (h.address, h.slug))
+                sys.stdout.flush()
 
-            # Show connecting message (in current stdout)
-            sys.stdout.write('*** Connecting to %s (%s)...\n' % (h.address, h.slug))
-            sys.stdout.flush()
+                # Connect
+                self._ssh_cache = paramiko.SSHClient()
 
-            # Connect
-            self._ssh_cache = paramiko.SSHClient()
+                if not h.reject_unknown_hosts:
+                    self._ssh_cache.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-            if not h.reject_unknown_hosts:
-                self._ssh_cache.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                try:
+                    # Paramiko's authentication method can be either a public key, public key file, or password.
+                    if h.rsa_key:
+                        # RSA key
+                        rsa_key_file_obj = StringIO.StringIO(h.rsa_key)
+                        kw = { "pkey": paramiko.RSAKey.from_private_key(rsa_key_file_obj, h.rsa_key_password) }
+                    elif h.key_filename:
+                        kw = { "key_filename": h.key_filename }
+                    else:
+                        kw = { "password": h.password }
 
-            try:
-                # Paramiko's authentication method can be either a public key, public key file, or password.
-                if h.rsa_key:
-                    # RSA key
-                    rsa_key_file_obj = StringIO.StringIO(h.rsa_key)
-                    kw = { "pkey": paramiko.RSAKey.from_private_key(rsa_key_file_obj, h.rsa_key_password) }
-                elif h.key_filename:
-                    kw = { "key_filename": h.key_filename }
-                else:
-                    kw = { "password": h.password }
+                    self._ssh_cache.connect(h.address, port=h.port, username=h.username, timeout=h.timeout, **kw)
 
-                self._ssh_cache.connect(h.address, port=h.port, username=h.username, timeout=h.timeout, **kw)
+                except (paramiko.SSHException, Exception) as e:
+                    self._ssh_cache = None
+                    raise Exception('Could not connect to host %s (%s)\n%s' % (h.slug, h.address, unicode(e)))
 
-            except (paramiko.SSHException, Exception) as e:
-                self._ssh_cache = None
-                raise Exception('Could not connect to host %s (%s)\n%s' % (h.slug, h.address, unicode(e)))
-
-        # Release lock
-        self._lock.release()
-
-        return self._ssh_cache
+            return self._ssh_cache
 
 
 class SSHHost(Host):
@@ -844,19 +776,9 @@ class SSHHost(Host):
     timeout = 10 # Seconds
     keepalive_interval  = 30
 
-    def __init__(self, backend=None):
+    def __init__(self):
         Host.__init__(self)
-        self._backend = backend or SSHBackend(lambda: self)
-
-    def clone(self):
-        """
-        Return a new Host() instance, as a copy of this state.
-        (Every thread has its own state of every host.)
-        """
-        # Create a new instance of this class, but reuse the same SSH Backend.
-        new_host = self.__class__(backend=self._backend)
-        self._copy_state_to(new_host)
-        return new_host
+        self._backend = SSHBackend(lambda: self)
 
     def _get_session(self):
         transport = self._backend.ssh.get_transport()
@@ -870,7 +792,7 @@ class SSHHost(Host):
         transport.set_keepalive(self.keepalive_interval)
         return paramiko.SFTPClient.from_transport(transport)
 
-    def expand_path(self, path):
+    def expand_path(self, path, context):
         def expand_tilde(p):
             if p.startswith('~/') or p == '~':
                 home = self.sftp.normalize('.')
@@ -880,11 +802,11 @@ class SSHHost(Host):
 
         # Expand remote path, using the start path and cwd
         if self.start_path:
-            return os.path.join(expand_tilde(self.start_path), expand_tilde(self.cwd), expand_tilde(path))
+            return os.path.join(expand_tilde(self.start_path), expand_tilde(self.get_cwd(context)), expand_tilde(path))
         else:
-            return os.path.join(expand_tilde(self.cwd), expand_tilde(path))
+            return os.path.join(expand_tilde(self.get_cwd(context)), expand_tilde(path))
 
-    def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
+    def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None, sandbox=False):
         """
         Start /bin/bash and redirect all SSH I/O from stdin and to stdout.
         """
@@ -901,7 +823,7 @@ class SSHHost(Host):
         pty.set_ssh_channel_size = set_size
 
         # Start logger
-        with logger.log_run(self, command=command, shell=True, sandboxing=self._sandboxing) as log_entry:
+        with logger.log_run(self, command=command, shell=True, sandboxing=sandbox) as log_entry:
             # When a command has been passed, use 'exec' to replace the current
             # shell process by this command
             if command:
@@ -934,22 +856,16 @@ class LocalHost(Host):
     slug = 'localhost'
     address = 'localhost'
 
-    def __init__(self, backend=None):
+    def __init__(self):
         Host.__init__(self)
-        self._backend = backend or LocalHostBackend()
+        self._backend = LocalHostBackend()
 
-    def _run(self, pty, *a, **kw):
+    def run(self, pty, *a, **kw):
         if kw.get('use_sudo', False):
             self._ensure_password_is_known(pty)
-        return Host._run(self, pty, *a, **kw)
+        return Host.run(self, pty, *a, **kw)
 
-    def clone(self):
-        # Clone state of this host into a new Host instance.
-        new_host = self.__class__(backend=self._backend)
-        self._copy_state_to(new_host)
-        return new_host
-
-    def expand_path(self, path):
+    def expand_path(self, path, context):
         return os.path.expanduser(path) # TODO: expansion like with SSHHost!!!!
 
     def _ensure_password_is_known(self, pty):
@@ -961,7 +877,7 @@ class LocalHost(Host):
 
             # Check password
             try:
-                Host._run_silent_sudo(self, '/bin/true')
+                Host._run_silent_sudo(self, 'ls > /dev/null')
             except ExecCommandFailed:
                 print 'Incorrect password'
                 self._backend.password = None
@@ -1069,4 +985,4 @@ class LocalHost(Host):
         return LocalhostFTP()
 
     def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
-        self._run(pty, command='/bin/bash', logger=logger, initial_input=initial_input)
+        self.run(pty, command='/bin/bash', logger=logger, initial_input=initial_input)

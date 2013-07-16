@@ -145,26 +145,6 @@ class TracePrinter(object):
                     k(u',\n status_code: ') + p(item.status_code) +
                     k(u'\n}'))
 
-        elif item.entry_type == Actions.Get:
-            return (
-                    c('get') +
-                    k(u'{\n host: ') + p(item.host.slug) +
-                    k(u',\n sudo: ') + p(item.use_sudo) +
-                    k(u',\n local: ') + p(item.local_path) +
-                    k(u',\n remote: ') + p(item.remote_path) +
-                    k(u',\n succeeded: ') + p(item.succeeded) +
-                    k(u'\n}'))
-
-        elif item.entry_type == Actions.Put:
-            return (
-                    c('put') +
-                    k(u'{\n host: ') + p(item.host.slug) +
-                    k(u',\n sudo: ') + p(item.use_sudo) +
-                    k(u',\n local: ') + p(item.local_path) +
-                    k(u',\n remote: ') + p(item.remote_path) +
-                    k(u',\n succeeded: ') + p(item.succeeded) +
-                    k(u'\n}'))
-
         elif item.entry_type == Actions.Open:
             return (
                     c('open') +

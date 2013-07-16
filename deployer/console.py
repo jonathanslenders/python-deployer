@@ -4,11 +4,40 @@ from termcolor import colored
 import sys
 import random
 
+__doc__ = \
+"""
+The ``console`` object is an interface for user interaction from within a
+``Node``. Among the input methods are choice lists, plain text input and password
+input.
+
+It has output methods that take the terminal size into account, like pagination
+and multi-column display. It takes care of the pseudo terminal underneat.
+
+Example:
+
+::
+
+    class MyNode(Node):
+        def do_something(self):
+            if self.console.confirm('Should we really do this?', default=True):
+                # Do it...
+                pass
+
+.. note:: When the script runs in a shell that was started with the
+    ``--non-interactive`` option, the default options will always be chosen
+    automatically.
+
+"""
+
+
 class NoInput(Exception):
     pass
 
 
 class Console(object):
+    """
+    Interface for user interaction from within a ``Node``.
+    """
     def __init__(self, pty):
         self._pty = pty
 
@@ -18,8 +47,12 @@ class Console(object):
 
     def input(self, label, is_password=False, answers=None, default=None):
         """
-        Ask for input. (like raw_input, but nice colored.)
-        'answers' can be either None or a list of the accepted answers.
+        Ask for plain text input. (Similar to raw_input.)
+
+        :param is_password: Show stars instead of the actual user input.
+        :type is_password: bool
+        :param answers: A list of the accepted answers or None.
+        :param default: Default answer.
         """
         def print_question():
             answers_str = (' [%s]' % (','.join(answers)) if answers else '')
@@ -84,7 +117,10 @@ class Console(object):
 
     def choice(self, question, options, allow_random=False, default=None):
         """
-        `options`: (name, value) list
+        :param options: List of (name, value) tuples.
+        :type options: list
+        :param allow_random: If ``True``, the default option becomes 'choose random'.
+        :type allow_random: bool
         """
         if len(options) == 0:
             raise NoInput('No options given.')
@@ -126,7 +162,8 @@ class Console(object):
 
     def confirm(self, question, default=None):
         """
-        Print this yes/no question, and return True when the user answers 'yes'.
+        Print this yes/no question, and return ``True`` when the user answers
+        'Yes'.
         """
         answer = 'invalid'
 
@@ -140,72 +177,85 @@ class Console(object):
         return answer in ('yes', 'y')
 
     #
-    # Service selector
+    # Node selector
     #
 
-    def select_service(self, root_service, prompt='Select service', filter=None):
+    def select_node(self, root_node, prompt='Select a node', filter=None):
         """
-        Show autocompletion for service selection.
+        Show autocompletion for node selection.
         """
         from deployer.cli import ExitCLILoop, Handler, HandlerType, CLInterface
 
-        class ServiceHandler(Handler):
-            def __init__(self, service):
-                self.service = service
+        class NodeHandler(Handler):
+            def __init__(self, node):
+                self.node = node
 
             @property
             def is_leaf(self):
-                return not filter or filter(self.service)
+                return not filter or filter(self.node)
 
             @property
             def handler_type(self):
-                class ServiceType(HandlerType):
-                    color = self.service.get_group().color
-                return ServiceType()
+                class NodeType(HandlerType):
+                    color = self.node.get_group().color
+                return NodeType()
 
             def complete_subhandlers(self, part):
-                for name, subservice in self.service.get_subservices():
+                for name, subnode in self.node.get_subnodes():
                     if name.startswith(part):
-                        yield name, ServiceHandler(subservice)
+                        yield name, NodeHandler(subnode)
 
             def get_subhandler(self, name):
-                if self.service.has_subservice(name):
-                    subservice = self.service.get_subservice(name)
-                    return ServiceHandler(subservice)
+                if self.node.has_subnode(name):
+                    subnode = self.node.get_subnode(name)
+                    return NodeHandler(subnode)
 
             def __call__(self, context):
-                raise ExitCLILoop(self.service)
+                raise ExitCLILoop(self.node)
 
-        root_handler = ServiceHandler(root_service)
+        root_handler = NodeHandler(root_node)
 
         class Shell(CLInterface):
             @property
             def prompt(self):
                 return colored('\n%s > ' % prompt, 'cyan')
 
-            not_found_message = 'Service not found...'
-            not_a_leaf_message = 'Not a valid service...'
+            not_found_message = 'Node not found...'
+            not_a_leaf_message = 'Not a valid node...'
 
-        service_result = Shell(self._pty, root_handler).cmdloop()
+        node_result = Shell(self._pty, root_handler).cmdloop()
 
-        if not service_result:
+        if not node_result:
             raise NoInput
 
-        return select_service_isolation(service_result)
+        return select_node_isolation(node_result)
 
-    def select_service_isolation(self, service):
+    def select_node_isolation(self, node):
         """
         Ask for a host, from a list of hosts.
         """
-        if service._is_isolated:
-            return service
-        else:
-            options = [ (i.name, i.service) for i in service.get_isolations() ]
+        from deployer.inspection import Inspector
+        from deployer.node import IsolationIdentifierType
+
+        # List isolations first. (This is a list of index/node tuples.)
+        options = [
+                (' '.join(index), node) for index, node in
+                Inspector(node).iter_isolations(identifier_type=IsolationIdentifierType.HOSTS_SLUG)
+                ]
+
+        if len(options) > 1:
             return self.choice('Choose a host', options, allow_random=True)
+        else:
+            return options[0][1]
 
     def lesspipe(self, line_iterator):
         """
-        Paginator for output.
+        Paginator for output. This will print one page at a time. When the user
+        presses a key, the next page is printed. ``Ctrl-c`` or ``q`` will quit
+        the paginator.
+
+        :param line_iterator: A generator function that yields lines (without
+                              trailing newline)
         """
         height = self._pty.get_size()[0] - 1
 
@@ -242,8 +292,8 @@ class Console(object):
 
     def in_columns(self, item_iterator, margin_left=0):
         """
-        `item_iterator' should be an iterable, which yields either
-        basestring, or (colored_item, length)
+        :param item_iterator: An iterable, which yields either ``basestring``
+                              instances, or (colored_item, length) tuples.
         """
         # Helper functions for extracting items from the iterator
         def get_length(item):

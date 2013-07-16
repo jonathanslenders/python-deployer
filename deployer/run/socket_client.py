@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """
 Start a deployment shell client.
 """
@@ -7,10 +5,11 @@ Start a deployment shell client.
 from StringIO import StringIO
 from twisted.internet import fdesc
 
+from deployer.utils import esc1
+
 import array
 import errno
 import fcntl
-import getopt
 import getpass
 import glob
 import inspect
@@ -47,6 +46,7 @@ class DeploymentClient(object):
     def __init__(self, socket_path):
         self.socket_path = socket_path
         self._buffer = []
+        self.exit_status = 0
 
         # Connect to unix socket
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -75,8 +75,7 @@ class DeploymentClient(object):
         """
         # Note: we use inspect, instead of __file__, because __file can
         # return pyc files.
-        path = inspect.getfile(inspect.currentframe())
-        return "python %s -c %s" % (path, self.socket_path)
+        return "python -c 'from deployer.run.socket_client import start; import sys; start(sys.argv[1])' '%s' " % esc1(self.socket_path)
 
     def _open_new_window(self, focus=False):
         """
@@ -85,6 +84,9 @@ class DeploymentClient(object):
         try:
             tmux_env = os.environ.get('TMUX', '')
             xterm_env = os.environ.get('XTERM', '')
+            display_env = os.environ.get('DISPLAY', '')
+            colorterm_env = os.environ.get('COLORTERM', '')
+
             if tmux_env:
                 # Construct tmux split command
                 swap = (' && (tmux last-pane || true)' if not focus else '')
@@ -95,15 +97,16 @@ class DeploymentClient(object):
                     # pane, that we use the same virtualenv for this command.
                 path_env = os.environ.get('PATH', '')
 
-                subprocess.call(r'TMUX=%s tmux split-window "PATH=\"%s\" %s" %s %s' % (tmux_env, path_env, self.new_window_command, swap, tiled),
+                subprocess.call(r'TMUX=%s tmux split-window "PATH=\"%s\" %s" %s %s' %
+                        (tmux_env, path_env, self.new_window_command, swap, tiled),
                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            elif xterm_env:
-                # When in a gnome-terminal:
-                if os.environ.get('COLORTERM', '') == 'gnome-terminal':
-                    subprocess.call('gnome-terminal -e "%s" &' % self.new_window_command, shell=True)
-                # Fallback to xterm
-                else:
-                    subprocess.call('xterm -e %s &' % self.new_window_command, shell=True)
+             
+            # When in a gnome-terminal:
+            elif display_env and colorterm_env == 'gnome-terminal':
+                subprocess.call('gnome-terminal -e "%s" &' % self.new_window_command, shell=True)
+	    # Fallback to xterm
+            elif display_env and xterm_env:
+                subprocess.call('xterm -e %s &' % self.new_window_command, shell=True)
             else:
                 # Failed, print err.
                 sys.stdout.write(
@@ -143,8 +146,19 @@ class DeploymentClient(object):
 
             elif action == '_info':
                 print termcolor.colored(self.socket_path, 'cyan')
-                print '     created: %s' % data['created']
-                #print '|%s|' % data # TODO: print more nicely formatted.
+                print '     Created:             %s' % data['created']
+                print '     Root node name:      %s' % data['root_node_name']
+                print '     Root node module:    %s' % data['root_node_module']
+                print '     Processes: (%i)' % len(data['processes'])
+
+                for i, process in enumerate(data['processes']):
+                    print '     %i' % i
+                    print '     - Node name    %s' % process['node_name']
+                    print '     - Node module  %s' % process['node_module']
+                    print '     - Running      %s' % process['running']
+
+            elif action == 'set-exit-status':
+                self.exit_status = data
 
             # Keep the remainder for the next time
             remainder = io.read()
@@ -161,7 +175,7 @@ class DeploymentClient(object):
         self.socket.sendall(pickle.dumps(('_get_info', '')))
         self._read_loop()
 
-    def run(self, cd_path=None):
+    def run(self, cd_path=None, action_name=None, parameters=None):
         """
         Run main event loop.
         """
@@ -175,13 +189,20 @@ class DeploymentClient(object):
 
         self.socket.sendall(pickle.dumps(('_start-interaction', {
                 'cd_path': cd_path,
+                'action_name': action_name,
+                'parameters': parameters,
             })))
 
         self._read_loop()
-        sys.stdout.write('\n')
 
         # Reset terminal state
         termios.tcsetattr(sys.stdin, termios.TCSAFLUSH, tcattr)
+
+        # Put the cursor again at the left margin.
+        sys.stdout.write('\r\n')
+
+        # Set exit status
+        sys.exit(self.exit_status)
 
     def _read_loop(self):
         while True:
@@ -217,6 +238,9 @@ class DeploymentClient(object):
 
 
 def list_sessions():
+    """
+    List all the servers that are running.
+    """
     for path in glob.glob('/tmp/deployer.sock.%s.*' % getpass.getuser()):
         try:
             DeploymentClient(path).ask_info()
@@ -224,81 +248,10 @@ def list_sessions():
             pass
 
 
-def start(settings_module):
+def start(socket_name, cd_path=None, action_name=None, parameters=None):
     """
-    Client startup point.
+    Start a socket client.
     """
-    cd_path = None
-    socket_name = ''
-    interactive = True
-    single_threaded = False
-
-    def print_usage():
-        print 'Usage:'
-        print '    ./client.py [-h|--help] [ -c|--connect "socket number" ] [ -p|--path "path" ] [ -l | --list-sessions ]'
-        print '                [--interactive|--non-interactive ] [ -s|--single-threaded ] [ -m|--multithreaded ]'
-
-    # Parse command line arguments.
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hp:c:lsm', ['help', 'path=', 'connect=', 'list-sessions',
-                            'interactive', 'non-interactive', 'single-threaded', 'multithreaded'])
-    except getopt.GetoptError, err:
-        print str(err)
-        print_usage()
-        sys.exit(2)
-
-    for o, a in opts:
-        if o in ('-h', '--help'):
-            print_usage()
-            sys.exit()
-
-        elif o in ('-l', '--list-sessions',):
-            list_sessions()
-            sys.exit()
-
-        elif o in ('-c', '--connect'):
-            socket_name = a
-
-        elif o in ('-p', '--path'):
-            cd_path = a.split('.')
-
-        elif o in ('--non-interactive', ):
-            interactive = False
-
-        elif o in ('--interactive', ):
-            interactive = True
-
-        elif o in ('-s', '--single-threaded'):
-            single_threaded = True
-
-        elif o in ('-m', '--multithreaded'):
-            single_threaded = False
-
-        else:
-            print 'Unknown option: %s' % o
-            sys.exit(2)
-
-    if single_threaded:
-        # == Single threaded ==
-        from deployer.run.standalone_shell import start as start_standalone
-        start_standalone(settings_module, interactive=interactive, cd_path=cd_path)
-    else:
-        # == Multithreaded ==
-
-        # If no socket has been given. Start a daemonized server in the
-        # background, and use that socket instead.
-        if not socket_name:
-            from deployer.run.socket_server import start
-            socket_name = start(settings_module, daemonized=True, shutdown_on_last_disconnect=True, interactive=interactive)
-
-        # The socket path can be an absolute path, or an integer.
-        if not socket_name.startswith('/'):
-            socket_name = '/tmp/deployer.sock.%s.%s' % (getpass.getuser(), socket_name)
-
-        make_stdin_unbuffered()
-        DeploymentClient(socket_name).run(cd_path=cd_path)
-
-
-if __name__ == '__main__':
-    from deployer.contrib.default_config import example_settings
-    start(settings_module=example_settings)
+    make_stdin_unbuffered()
+    DeploymentClient(socket_name).run(cd_path=cd_path,
+                    action_name=action_name, parameters=parameters)

@@ -23,14 +23,22 @@ class ExecCommandFailed(DeployerException):
 
 class QueryException(DeployerException):
     """
-    Resolving of a Q object in a deployer Service failed.
+    Resolving of a Q object in a deployer Node failed.
     """
-    def __init__(self, service, attr_name, query, inner_exception):
-        self.service = service
-        self.service_name = str(service.__class__)
+    def __init__(self, node, attr_name, query, inner_exception):
+        self.node = node
+        self.node_name = str(node.__class__)
         self.attr_name = attr_name
-        self.query = query.__str__()
+        self.query = query
         self.inner_exception = inner_exception
 
-        DeployerException.__init__(self, 'Running query %s:=%s on "%s" failed' %
-                            (self.attr_name, self.query, self.service_name))
+        DeployerException.__init__(self, 'Running query %s:=%r on "%s" failed' %
+                            (self.attr_name, self.query, self.node_name))
+
+class ActionException(DeployerException):
+    """
+    When an action fails.
+    """
+    def __init__(self, inner_exception, traceback):
+        self.inner_exception = inner_exception
+        self.traceback = traceback

@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 
 from deployer.cli import NoSubHandler
-from deployer.loggers import Logger, CliActionCallback
+from deployer.loggers import Logger
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger, IndentedDefaultLogger
 from deployer.loggers.trace import TracePrinter
-from deployer.pty import Pty
-from deployer.shell import Shell, ShellHandler, GroupHandler, BuiltinType
+from deployer.exceptions import ActionException
+from deployer.pseudo_terminal import Pty
+from deployer.shell import Shell, ShellHandler, BuiltinType
+
+from contextlib import nested
 
 import codecs
+import logging
 import os
 import random
 import signal
@@ -21,123 +25,29 @@ import time
 __all__ = ('start',)
 
 
-# Data structures for history
-
-class HistoryLogger(Logger):
-    """
-    Small logger for capturing the history.
-    """
-    def __init__(self):
-        # Keep history of events
-        self.history = []
-
-    def log_cli_action(self, action_entry):
-        self.history.append(action_entry)
-        return CliActionCallback() # Dummy callback
-
-
-# Shell handlers for session history.
-
-class HistoryList(ShellHandler):
-    """
-    Show overview of all the history.
-    """
-    is_leaf = True
-    handler_type = BuiltinType()
-
-    def __call__(self):
-        # Show all entries
-        for i, entry in enumerate(self.shell.history):
-            print self._color_history_entry(i+1, entry)
-
-    def _color_history_entry(self, index, entry):
-        if entry.sandboxing:
-            command = '(sandboxed) ' + entry.command
-        else:
-            command = entry.command
-
-        return (termcolor.colored('%8i ' % index, 'red', attrs=['bold']) +
-                termcolor.colored(entry.time_started.strftime('%H:%M:%S'), 'yellow') +
-                (termcolor.colored(' success ', 'green', attrs=['bold', 'dark']) if entry.succeeded else
-                        termcolor.colored(' failed ', 'red', attrs=['bold'])) +
-                termcolor.colored(command, 'green'))
-
-
-class HistoryShowEntry(ShellHandler):
-    """
-    Show the tree of executed commands for this history entry.
-    """
-    handler_type = BuiltinType()
-    is_leaf = True
-
-    def __init__(self, entry):
-        self.entry = entry
-
-    def __call__(self):
-        for r in self.entry.result:
-            print TracePrinter(r.trace).print_color()
-
-
-class HistoryShow(ShellHandler):
-    child = HistoryShowEntry
-    handler_type = BuiltinType()
-
-    def complete_subhandlers(self, part):
-        for i,e in enumerate(self.shell.history):
-            if str(i+1).startswith(part):
-                yield str(i+1), self.child(e)
-
-    def get_subhandler(self, name):
-        try:
-            return self.child(self.shell.history[int(name)-1])
-        except ValueError: # When 'name' is not an integer
-            raise NoSubHandler
-
-
-class HistoryChildEntry(HistoryShowEntry):
-    def __call__(self):
-        for r in self.entry.result:
-            for io in r.trace.all_io:
-                sys.stdout.write(io)
-                sys.stdout.flush()
-                time.sleep(1)
-
-
-class HistoryReplay(HistoryShow):
-    """
-    Replay the output of this command.
-    """
-    child = HistoryChildEntry
-
-
-class History(GroupHandler):
-    subhandlers = {
-            'list': HistoryList,
-            'show': HistoryShow,
-            'replay': HistoryReplay,
-    }
-    handler_type = BuiltinType()
-
-
 class StandaloneShell(Shell):
     """
-    The shell that we provide via telnet/http exposes some additional
-    commands for session and user management and logging.
+    You can inherit this shell, add your extension, and pass that class
+    to the start method below.
     """
-    def __init__(self, settings, pty, logger_interface, history):
-        Shell.__init__(self, settings, pty, logger_interface)
-        self.history = history
-
     @property
     def extensions(self):
-        return { 'history': History, }
+        return { }
 
 
-def start(settings, interactive=True, cd_path=None):
+def start(root_node, interactive=True, cd_path=None, logfile=None,
+                action_name=None, parameters=None, shell=StandaloneShell,
+                extra_loggers=None):
     """
     Start the deployment shell in standalone modus. (No parrallel execution,
     no server/client. Just one interface, and everything sequential.)
     """
+    parameters = parameters or []
+
+    # Enable logging
+    if logfile:
+        logging.basicConfig(filename=logfile, level=logging.DEBUG)
+
     # Make sure that stdin and stdout are unbuffered
     # The alternative is to start Python with the -u option
     sys.stdin = os.fdopen(sys.stdin.fileno(), 'r', 0)
@@ -150,35 +60,27 @@ def start(settings, interactive=True, cd_path=None):
         pty.trigger_resize()
     signal.signal(signal.SIGWINCH, sigwinch_handler)
 
-    # Initialize settings
-    settings = settings()
+    # Initialize root node
+    root_node = root_node()
 
     # Loggers
-    history_logger = HistoryLogger()
     in_shell_logger = DefaultLogger(print_group=False)
-    extra_loggers = settings.Meta.extra_loggers
 
     logger_interface = LoggerInterface()
-    logger_interface.attach(in_shell_logger)
-    logger_interface.attach(history_logger)
+    extra_loggers = extra_loggers or []
 
-    for l in extra_loggers:
-        logger_interface.attach(l)
+    with logger_interface.attach_in_block(in_shell_logger):
+        with nested(* [logger_interface.attach_in_block(l) for l in extra_loggers]):
+            # Create shell
+            print 'Running single threaded shell...'
+            shell = shell(root_node, pty, logger_interface)
+            if cd_path is not None:
+                shell.cd(cd_path)
 
-    # Start shell command loop
-    print 'Running single threaded shell...'
-    shell = StandaloneShell(settings, pty, logger_interface, history_logger.history)
-    if cd_path is not None:
-        shell.cd(cd_path)
-    shell.cmdloop()
-
-    for l in extra_loggers:
-        logger_interface.detach(l)
-
-    logger_interface.detach(in_shell_logger)
-    logger_interface.detach(history_logger)
-
-
-if __name__ == '__main__':
-    from deployer.contrib.default_config import example_settings
-    start(settings=example_settings)
+            if action_name:
+                try:
+                    return shell.run_action(action_name, *parameters)
+                except ActionException, e:
+                    sys.exit(1)
+            else:
+                shell.cmdloop()
