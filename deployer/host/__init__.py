@@ -860,10 +860,10 @@ class LocalHost(Host):
         Host.__init__(self)
         self._backend = LocalHostBackend()
 
-    def _run(self, pty, *a, **kw):
+    def run(self, pty, *a, **kw):
         if kw.get('use_sudo', False):
             self._ensure_password_is_known(pty)
-        return Host._run(self, pty, *a, **kw)
+        return Host.run(self, pty, *a, **kw)
 
     def expand_path(self, path, context):
         return os.path.expanduser(path) # TODO: expansion like with SSHHost!!!!
