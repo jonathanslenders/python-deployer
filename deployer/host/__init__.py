@@ -430,6 +430,8 @@ class Host(object):
                     time.sleep(0.2) # Wait a very short while for the channel to be initialized, before sending.
                     chan.send(initial_input)
 
+                reading_from_stdin = True
+
                 # Read/write loop
                 while True:
                     # Don't wait for any input when an exit status code has been
@@ -437,7 +439,10 @@ class Host(object):
                     if chan.status_event.isSet():
                         break;
 
-                    r, w, e = select([pty.stdin, chan], [], [])
+                    if reading_from_stdin:
+                        r, w, e = select([pty.stdin, chan], [], [])
+                    else:
+                        r, w, e = select([chan], [], [])
 
                     # Receive stream
                     if chan in r:
@@ -484,23 +489,31 @@ class Host(object):
                     if pty.stdin in r:
                         try:
                             x = pty.stdin.read(1024)
+
+                            # We receive \n from stdin, but \r is required to
+                            # send. (Until now, the only place where the
+                            # difference became clear is in redis-cli, which
+                            # only accepts \r as confirmation.)
+                            x = x.replace('\n', '\r')
                         except IOError, e:
                             # What to do with IOError exceptions?
                             # (we see what happens in the next select-call.)
                             continue
 
-                        # Received length 0 -> end of stream
+                        # Received length 0
+                        # There's no more at stdin to read.
                         if len(x) == 0:
-                            #break
-                            continue # TODO: not sure about this. We need this
-                                     #       for some unit tests, where the
-                                     #       input ends, before the output is
-                                     #       finished. But I think we need this
-                                     #       anyway.  As long as there is data
-                                     #       to read on the SSH channel, we can
-                                     #       go on. But better remove stdin
-                                     #       from the select() call, just to
-                                     #       avoid a while-true loop.
+                            # However, we should go on processing the input
+                            # from the remote end, until the process finishes
+                            # there (because it was done or processed Ctrl-C or
+                            # Ctrl-D/EOF.)
+                            #
+                            # The end of the input stream happens when we are
+                            # using StringIO at the client side, and we're not
+                            # attached to a real pseudo terminal. (For
+                            # unit-testing, or background commands.)
+                            reading_from_stdin = False
+                            continue
 
                         # Write to channel
                         chan.send(x)
