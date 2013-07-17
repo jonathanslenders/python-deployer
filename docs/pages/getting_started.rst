@@ -144,11 +144,11 @@ nodes are now wrapped in a parent node, that groups both.
 Where to go now?
 ----------------
 
-What you learned here was a basic example of how to use the deployment
-framework. However, there are much more advanced concepts possible.
-A quick listing of items to learn are the following.
+What you learned here is a basic example of how to use the deployment
+framework. However, there are much more advanced concepts possible.  A quick
+listing of items to learn are the following. (In logical order of learning.)
 
- - Role mappings
+ - :ref:`Role mappings <roles>`
  - Inheritance (and double underscore expansion)
  - :ref:`Query expressions <query-expressions>`
  - :ref:`Introspection <inspection>`
