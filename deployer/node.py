@@ -187,11 +187,31 @@ class PropertyDescriptor(object):
 
 class Env(object):
     """
-    Wraps a Node into a context where actions can be executed.
+    Wraps a :class:`deployer.node.Node` into an executable context.
+
+    ::
+
+        n = Node()
+        e = Env(n)
+        e.do_action()
 
     Instead of ``self``, the first parameter of a ``Node``-action will be this
-    instance. It acts like a proxy to the ``Node``, but in the meantime it
-    takes care of logging, sandboxing, the terminal and context.
+    ``Env`` instance. It acts like a proxy to the ``Node``, but in the meantime
+    it takes care of logging, sandboxing, the terminal and context.
+
+    .. note:: Node actions can never be executed directly on the node instance,
+              without wrapping it in an Env object first. But if you use the
+              :ref:`interactive shell <interactive-shell>`, the shell will do this
+              for you.
+
+    :param node: The node that this ``Env`` should wrap.
+    :type node: :class:`deployer.node.Node`
+    :param pty: The terminal object that wraps the input and output streams.
+    :type pty: :class:`deployer.pseudo_terminal.Pty`
+    :param logger: (optional) The logger interface.
+    :type logger: :class:`deployer.logger.LoggerInterface`
+    :param is_sandbox: Run all commands in here in sandbox mode.
+    :type is_sandbox: bool
     """
     def __init__(self, node, pty=None, logger=None, is_sandbox=False):
         assert isinstance(node, Node)
@@ -595,6 +615,10 @@ def get_node_path(node):
 class Node(object):
     """
     This is the base class for any deployment node.
+
+    For the attributes, also have a look at the proxy class
+    :class:`deployer.node.Env`. The ``parent`` parameter is used internally to
+    pass the parent ``Node`` instance into here.
     """
     __metaclass__ = NodeBase
     __slots__ = ('hosts', 'parent')
@@ -604,7 +628,17 @@ class Node(object):
     _node_name = None # NodeBase will set this to the attribute name as soon as we nest this node inside another one.
 
     node_group = None # TODO: move to _node_group??
+
     Hosts = None
+    """
+    Hosts can be ``None`` or a definition of the hosts that should be used for this node.
+    e.g.::
+
+        class MyNode(Node):
+            class Hosts:
+                role1 = [ LocalHost ]
+                role2 = [ SSHHost1, SSHHost2]
+    """
 
     def __repr__(self):
         return '<Node %s>' % get_node_path(self)

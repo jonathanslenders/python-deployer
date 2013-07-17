@@ -1,3 +1,5 @@
+.. _interactive-shell:
+
 The interactive shell
 =====================
 

@@ -29,6 +29,7 @@ Table of contents
    :maxdepth: 3
 
    pages/getting_started
+   pages/roles
    pages/console
    pages/exceptions
    pages/interactive_shell
