@@ -111,13 +111,13 @@ def pty_based_auth(auth_backend, pty):
             sys.stdout.write(colored('  Authentication failed, try again\r\n', 'red'))
 
         try:
-            console = Console(self.pty)
+            console = Console(pty)
             username = console.input('Username', False)
             password = console.input('Password', True)
         except NoInput:
             raise NotAuthenticated
 
-        if backend.authenticate(username, password):
+        if auth_backend.authenticate(username, password):
             sys.stdout.write(colored(' ' * 40 + 'Authentication successful\r\n\r\n', 'green'))
             return username
         else:
