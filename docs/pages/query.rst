@@ -23,7 +23,14 @@ For instance:
 
 
 Technically, such a Query object uses the descriptor protocol.  This way, it
-acts like any python ``property``, and is completely transparent.
+acts like any python ``property``, and is completely transparent. The
+equivalent of ``Q.parent.do_something`` is:
+
+::
+
+    @property
+    def do_something(self):
+        return self.parent.do_something
 
 
 More examples
