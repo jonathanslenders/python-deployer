@@ -385,9 +385,12 @@ class q(Identity):
     """
     def __call__(self, string):
         """
-        Handle Q(some_value) as a static value.
+        Allow static values, but also lists etc. to resolve further.
+
+        Q('str') -> 'str'
+        Q((Q('abc-%s') % Q.foo)) -> 'abc-bar'
         """
-        return Static(string)
+        return _resolve(string)
 
     def __repr__(self):
         return 'Q'

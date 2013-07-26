@@ -104,6 +104,12 @@ class ExpressionTest(unittest.TestCase):
         self.assertEqual(get_query_result(q, None), True)
 
     def test_resolve_types(self):
+        q = Q(Q('a'))
+        self.assertEqual(get_query_result(q, None), 'a')
+
+        q = Q([Q('%s') % 'a'])
+        self.assertEqual(get_query_result(q, None), ['a'])
+
         q = Q('%s: %s') % ('a', 'b')
         self.assertEqual(get_query_result(q, None), 'a: b')
 
