@@ -153,6 +153,9 @@ def _resolve(o):
     elif isinstance(o, list):
         return List(o)
 
+    elif isinstance(o, dict):
+        return Dict(o)
+
     else:
         return Static(o)
 
@@ -173,6 +176,20 @@ class Tuple(Query):
 
 class List(Tuple):
     cls = list
+
+class Dict(Query):
+    # Both the keys and the values will be resolved
+    #     Q("%(magic)s") % {Q.key: Q.value} is possible
+    cls = dict
+
+    def __init__(self, items):
+        self.items = { _resolve(k): _resolve(v) for k, v in items.iteritems() }
+
+    def _execute_query(self, instance):
+        parts = { k._execute_query(instance): v._execute_query(instance) for k, v in self.items.iteritems() }
+        return QueryResult(self,
+                self.cls([(k.result, v.result) for k, v in parts.iteritems()]),
+                parts)
 
 
 class Invert(Query):
@@ -368,9 +385,12 @@ class q(Identity):
     """
     def __call__(self, string):
         """
-        Handle Q(some_value) as a static value.
+        Allow static values, but also lists etc. to resolve further.
+
+        Q('str') -> 'str'
+        Q((Q('abc-%s') % Q.foo)) -> 'abc-bar'
         """
-        return Static(string)
+        return _resolve(string)
 
     def __repr__(self):
         return 'Q'

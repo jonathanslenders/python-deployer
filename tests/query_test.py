@@ -103,6 +103,30 @@ class ExpressionTest(unittest.TestCase):
         q = Q(False) | ~ Q(False)
         self.assertEqual(get_query_result(q, None), True)
 
+    def test_resolve_types(self):
+        q = Q(Q('a'))
+        self.assertEqual(get_query_result(q, None), 'a')
+
+        q = Q([Q('%s') % 'a'])
+        self.assertEqual(get_query_result(q, None), ['a'])
+
+        q = Q('%s: %s') % ('a', 'b')
+        self.assertEqual(get_query_result(q, None), 'a: b')
+
+        q = Q('%s: %s') % (Q('a'), Q('b'))
+        self.assertEqual(get_query_result(q, None), 'a: b')
+
+        q = Q(['a', 'b']) + ['c', 'd']
+        self.assertEqual(get_query_result(q, None), ['a', 'b', 'c', 'd'])
+
+        q = Q(['a', 'b']) + [Q('c'), Q('d')]
+        self.assertEqual(get_query_result(q, None), ['a', 'b', 'c', 'd'])
+
+        q = Q('%(A)s: %(B)s') % {'A': 'a', 'B': 'b'}
+        self.assertEqual(get_query_result(q, None), 'a: b')
+
+        q = Q('%(A)s: %(B)s') % {Q('A'): Q('a'), Q('B'): Q('b')}
+        self.assertEqual(get_query_result(q, None), 'a: b')
 
 class ReprTest(unittest.TestCase):
     def test_reprs(self):
