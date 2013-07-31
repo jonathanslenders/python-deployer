@@ -265,7 +265,7 @@ class Version(ShellHandler):
         print termcolor.colored(deployer.__version__, 'red')
         print termcolor.colored('  Host:                      ', 'cyan'),
         print termcolor.colored(socket.gethostname(), 'red')
-        print termcolor.colored('  Root node class:        ', 'cyan'),
+        print termcolor.colored('  Root node class:           ', 'cyan'),
         print termcolor.colored(self.shell.root_node.__module__, 'red'),
         print termcolor.colored('  <%s>' % self.shell.root_node.__class__.__name__, 'red')
 
