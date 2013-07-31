@@ -4,7 +4,7 @@ from deployer.exceptions import ActionException, ExecCommandFailed
 from deployer.host_container import HostsContainer
 from deployer.inspection import Inspector
 from deployer.loggers import LoggerInterface
-from deployer.node import Node, SimpleNode, Env
+from deployer.node import Node, SimpleNode, Env, alias
 from deployer.node import map_roles, dont_isolate_yet, required_property, alias, IsolationIdentifierType
 from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.query import Q
@@ -959,6 +959,22 @@ class NodeTest(unittest.TestCase):
         self.assertRaises(Exception, lambda:SimpleNode.Array.JustOne)
         self.assertRaises(Exception, lambda:SimpleNode.JustOne.JustOne)
         self.assertRaises(Exception, lambda:SimpleNode.JustOne.Array)
+
+    def test_action_alias(self):
+        """
+        By using the @alias decorator around an action, the action should be
+        available through multiple names.
+        """
+        class Root(Node):
+            @alias('b.c.d')
+            @alias('b')
+            def a(self):
+                return 'result'
+        env = Env(Root())
+        self.assertEqual(env.a(), 'result')
+        self.assertEqual(env.b(), 'result')
+        self.assertEqual(getattr(env, 'b.c.d')(), 'result')
+
 
 if __name__ == '__main__':
     unittest.main()

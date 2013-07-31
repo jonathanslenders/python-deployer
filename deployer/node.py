@@ -472,7 +472,7 @@ class NodeBase(type):
                     # Create aliases
                     if hasattr(attr, 'action_alias'):
                         for a in attr.action_alias:
-                            attrs[a] = wrapped_attribute
+                            attrs[a] = cls._wrap_attribute(a, attr, name, node_type)
 
         # Set creation order
         attrs['_node_creation_counter'] = cls.creation_counter
