@@ -18,5 +18,7 @@
     using this, it's possible to safely and quickly evaluate all Query objects.
     And Look for reverse relationsships. e.g.  List all the queries that point
     to a certain node. "--list-references" command.
+26. Fix select_node parameters and test it. (filter should be an inspection
+    filter instance.)
 
 https://code.google.com/p/fusepy/source/browse/trunk/sftp.py
