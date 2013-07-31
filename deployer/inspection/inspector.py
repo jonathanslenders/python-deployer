@@ -2,6 +2,14 @@ from deployer.node import SimpleNode, Node, Env, EnvAction, IsolationIdentifierT
 from deployer.inspection import filters
 from functools import wraps
 
+__doc__ = \
+"""
+Inspector
+---------
+
+Reflexion/introspection on a `deployer.node.Node`
+"""
+
 __all__ = (
         'PathType',
         'Inspector',
