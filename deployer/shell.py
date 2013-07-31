@@ -532,6 +532,22 @@ class Ls(NodeACHandler):
 
         console.lesspipe(run())
 
+class Pwd(NodeACHandler):
+    """
+    Print current node path.
+    ``pwd``, like "Print working Directory" in the Bash shell.
+    """
+    def __call__(self):
+        result = [ ]
+
+        for node, name in Inspector(self.node).get_path(PathType.NODE_AND_NAME):
+            color = Inspector(node).get_group().color
+            result.append(termcolor.colored(name, color))
+
+        sys.stdout.write(termcolor.colored('/', 'cyan'))
+        sys.stdout.write(termcolor.colored('.', 'cyan').join(result) + '\n')
+        sys.stdout.flush()
+
 
 class SourceCode(NodeACHandler):
     """
@@ -667,6 +683,7 @@ class RootHandler(ShellHandler):
             'find': Find,
             'ls': Ls,
             'sandbox': Sandbox,
+            'pwd': Pwd,
             '--connect': Connect,
             '--inspect': Inspect,
             '--version': Version,
