@@ -2,6 +2,11 @@ from deployer.node import SimpleNode, Node, Env, EnvAction, IsolationIdentifierT
 from deployer.inspection import filters
 from functools import wraps
 
+__all__ = (
+        'PathType',
+        'Inspector',
+)
+
 
 class PathType:
     """
@@ -23,14 +28,6 @@ class PathType:
     """
     A list of nodes.
     """
-
-
-class AttributeType:
-    PROPERTY = 'PROPERTY'
-    QUERY = 'QUERY'
-    ACTION = 'ACTION'
-    CHILD_NODE = 'CHILD_NODE'
-    CONSTANT = 'CONSTANT'
 
 
 class Inspector(object):

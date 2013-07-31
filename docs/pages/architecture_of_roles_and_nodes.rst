@@ -1,10 +1,10 @@
-.. _roles:
+.. _architecture-of-roles-and-nodes:
 
-Roles
-=====
+Architecture of roles and nodes
+===============================
 
-Use case
---------
+Use cases
+---------
 
 Before we go in depth, let's first look at a typical set-up of a web server.
 The following picture displays serveral connected components. It contains a web
@@ -124,13 +124,19 @@ In this example, we can identify 4 roles:
 - Master database
 - slave database
 
-Using these roles in a deployment nodes
----------------------------------------
 
-Now we are going to write a script that contains all these connected parts.
-Basically, it's one container node, and childnodes for all the components that
-we have. As an example, we also add the ``Git`` component that we use for
-transferring our code and media to the servers.
+Creating nodes.
+---------------
+
+Now we are going to create `deployer.node.Node` classes. A Node is probably the
+most important class in this framework, because basically all deployment code
+is structured in node. Every circle in the above diagrams can be considered a
+node.
+
+So we are going to write a script that contains all these connected parts or
+nodes.  Basically, it's one container node, and childnodes for all the
+components that we have. As an example, we also add the ``Git`` component that
+we use for transferring our code and media to the servers.
 
 ::
 
@@ -153,28 +159,31 @@ transferring our code and media to the servers.
             pass
 
 The idea is that if we create instances of ``WebSystem`` here, we are only
-going to tell the root node which roles map to which hosts. we'd like to do
-this:
+going to tell the root node which roles map to which hosts. We use inheritance
+to override the ``WebSystem`` node and add ``Hosts`` to the derived classes.
+Wrapping it in ``RootNode`` is not really necassary, but cool to group these if
+we'd put an interactive shell around it.
 
 ::
 
-    class StagingSystem(WebSystem):
-        class Hosts:
-            load_balancer= [ StagingHost0 ]
-            web = [ StagingHost0  ]
-            master_db = [ StagingDB ]
-            slave_db = [ ] # If empty, this line can be left away.
-            queue = [ StagingHost0 ]
-            cache = [ StagingHost0 ]
+    class RootNode(Node):
+        class StagingSystem(WebSystem):
+            class Hosts:
+                load_balancer= [ StagingHost0 ]
+                web = [ StagingHost0  ]
+                master_db = [ StagingDB ]
+                slave_db = [ ] # If empty, this line can be left away.
+                queue = [ StagingHost0 ]
+                cache = [ StagingHost0 ]
 
-    class ProductionSystem(WebSystem):
-        class Hosts:
-            load_balancer= [ LB0, LB1 ]
-            web = [ WebServer1, WebServer2, WebServer3 ]
-            master_db = [ MasterDB ]
-            slave_db = [ SlaveDB ]
-            queue = [ QueueHost ]
-            cache = [ CacheHost ]
+        class ProductionSystem(WebSystem):
+            class Hosts:
+                load_balancer= [ LB0, LB1 ]
+                web = [ WebServer1, WebServer2, WebServer3 ]
+                master_db = [ MasterDB ]
+                slave_db = [ SlaveDB ]
+                queue = [ QueueHost ]
+                cache = [ CacheHost ]
 
 Now it's up to the framework to the figure out which hosts belong to which
 childnodes. With a little help of the ``role_mapping`` decorator, that's

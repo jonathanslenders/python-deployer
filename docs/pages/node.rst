@@ -1,7 +1,12 @@
 The node object
 ===============
 
-TODO: examples and documentation.
+The `deployer.node.Node` class is probably the most important class of this
+framework. See `architecture of roles and nodes
+<architecture-of-roles-and-nodes>` for a high level overview of what a Node
+exactly is.
+
+A simple example of a node:
 
 ::
 
@@ -31,6 +36,8 @@ Running the code
     env.hello()
 
 
+.. _node-inheritance:
+
 Inheritance
 -----------
 
@@ -40,7 +47,49 @@ class and overwrite properties or class members.
 Expansion of double underscores
 *******************************
 
-TODO: ...
+The double underscore expansion is a kind of syntactic sugar to make overriding
+more readable.
+
+Suppose we already had a node like this:
+
+::
+
+    class WebApp(Node):
+        class Nginx(Node):
+            class Server(Node):
+                domain = 'www.example.com'
+
+Now, we'd like to inherit from ``WebApp``, but change the
+``Nginx.Server.domain`` property there to 'mydomain.com'. Normally, in Python,
+you do this:
+
+::
+
+    class MyWebApp(WebApp):
+        class Nginx(WebApp.Nginx):
+            class Server(WebApp.Nginx.Server):
+                domain = 'mydomain.com'
+
+This is not too bad, but if you have a lot of nested classes, it can become
+pretty ugly. Therefor, the `deployer.node.Node` class has some magic which
+allows us to do this instead:
+
+::
+
+    class MyWebApp(WebApp):
+        Nginx__Server__domain = 'mydomain.com'
+
+If you'd like, you can also use the same syntax to add function to the inner
+classes:
+
+::
+
+    class MyWebApp(WebApp):
+        def Nginx__Server__get_full_domain(self):
+            # Note that 'self' points to the 'Server' class at this point,
+            # not to 'Webapp'!
+            return 'http://%s' % self.domain
+
 
 The difference between Node and SimpleNode
 ------------------------------------------

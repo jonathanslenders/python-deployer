@@ -29,16 +29,16 @@ Table of contents
    :maxdepth: 3
 
    pages/getting_started
-   pages/roles
-   pages/console
-   pages/exceptions
-   pages/interactive_shell
-   pages/groups
-   pages/host_container
-   pages/inspection
+   pages/architecture_of_roles_and_nodes
    pages/node
-   pages/pseudo_terminal
-   pages/query
+   pages/groups
+   pages/console
+   pages/host_container
+   pages/interactive_shell
+   pages/inspection
    pages/utils
+   pages/query
+   pages/exceptions
+   pages/pseudo_terminal
 
    pages/about

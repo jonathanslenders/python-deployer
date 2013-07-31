@@ -148,8 +148,7 @@ What you learned here is a basic example of how to use the deployment
 framework. However, there are much more advanced concepts possible.  A quick
 listing of items to learn are the following. (In logical order of learning.)
 
- - :ref:`Role mappings <roles>`
- - Inheritance (and double underscore expansion)
+ - :ref:`Architecture of role and nodes <architecture-of-roles-and-nodes>`
+ - :ref:`Inheritance (and double underscore expansion) <node-inheritance>`
  - :ref:`Query expressions <query-expressions>`
  - :ref:`Introspection <inspection>`
-

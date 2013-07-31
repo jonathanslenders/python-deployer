@@ -1,4 +1,10 @@
 
+__all__ = (
+        'esc1',
+        'esc2',
+        'indent',
+)
+
 def esc2(string):
     """
     Escape double quotes
