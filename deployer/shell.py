@@ -196,6 +196,10 @@ class NodeACHandler(ShellHandler):
         include_private = part.startswith('_')
         cls = self.__class__
 
+        # No autocompletion anymore after an action has been typed.
+        if self.attr_name:
+            return
+
         # Current node
         if '.'.startswith(part):
             yield '.', self
