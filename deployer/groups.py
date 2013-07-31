@@ -35,8 +35,13 @@ class Group(object):
             dct['name'] = name
             return type.__new__(cls, name, bases, dct)
 
-    # Color for this service/action in the shell.
     color = None
+    """
+    Colour for this service/action in the shell. Right now, only the colours
+    from the ``termcolor`` library are supported:
+
+    grey, red, green, yellow, blue, magenta, cyan, white
+    """
 
 
 def set_group(group):
