@@ -438,6 +438,10 @@ class ConnectionShell(object):
                         exit_status = 0
                     except ActionException:
                         exit_status = 1
+                    except Exception:
+                        import traceback
+                        traceback.print_exc()
+                        exit_status = 1
                 else:
                     self.shell.cmdloop()
                     exit_status = 0

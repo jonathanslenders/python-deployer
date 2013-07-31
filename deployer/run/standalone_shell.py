@@ -82,5 +82,10 @@ def start(root_node, interactive=True, cd_path=None, logfile=None,
                     return shell.run_action(action_name, *parameters)
                 except ActionException, e:
                     sys.exit(1)
+                except:
+                    import traceback
+                    traceback.print_exc()
+                    sys.exit(1)
+
             else:
                 shell.cmdloop()
