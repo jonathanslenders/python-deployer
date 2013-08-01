@@ -14,10 +14,17 @@ it. Every component appears exactly once.
 .. graphviz::
 
    digraph web_components {
+       "Load balancer" [style=filled, fillcolor=darkorchid1];
+       "Web server" [style=filled, fillcolor=darkolivegreen1];
+       "Cache" [style=filled, fillcolor=gold1];
+       "Queue" [style=filled, fillcolor=pink1];
+       "Master database" [style=filled, fillcolor=steelblue1];
+       "Slave database" [style=filled, fillcolor=cadetblue1];
+
        "Load balancer" -> "Web server";
        "Web server" -> "Master database";
        "Web server" -> "Slave database";
-       "Web server" -> "Caching";
+       "Web server" -> "Cache";
        "Web server" -> "Queue";
        "Master database" -> "Slave database";
    }
@@ -28,6 +35,16 @@ extra load balancer in front of our system. We end up with many more arrows.
 .. graphviz::
 
    digraph web_components {
+       "Load balancer 1" [style=filled, fillcolor=darkorchid1];
+       "Load balancer 2" [style=filled, fillcolor=darkorchid1];
+       "Web server 1" [style=filled, fillcolor=darkolivegreen1];
+       "Web server 2" [style=filled, fillcolor=darkolivegreen1];
+       "Web server 3" [style=filled, fillcolor=darkolivegreen1];
+       "Cache" [style=filled, fillcolor=gold1];
+       "Queue" [style=filled, fillcolor=pink1];
+       "Master database" [style=filled, fillcolor=steelblue1];
+       "Slave database" [style=filled, fillcolor=cadetblue1];
+
        "Load balancer 1" -> "Web server 1";
        "Load balancer 1" -> "Web server 2";
        "Load balancer 1" -> "Web server 3";
@@ -59,12 +76,24 @@ Let's see:
     digraph G {
       compound=true;
       subgraph cluster_local {
+           "ws 0" [style=filled, fillcolor=darkolivegreen1];
+           "c 0" [style=filled, fillcolor=gold1];
+           "q 0" [style=filled, fillcolor=pink1];
+           "db 0" [style=filled, fillcolor=steelblue1];
+
            label="Local";
            "ws 0" -> "db 0";
            "ws 0" -> "c 0";
            "ws 0" -> "q 0";
       }
       subgraph cluster1 {
+           "lb 1" [style=filled, fillcolor=darkorchid1];
+           "ws 1" [style=filled, fillcolor=darkolivegreen1];
+           "c 1" [style=filled, fillcolor=gold1];
+           "q 1" [style=filled, fillcolor=pink1];
+           "master db 1" [style=filled, fillcolor=steelblue1];
+           "slave db 1" [style=filled, fillcolor=steelblue1];
+
            label="Testing";
            "lb 1" -> "ws 1";
            "ws 1" -> "master db 1";
@@ -80,6 +109,13 @@ Let's see:
     digraph G2 {
       compound=true;
       subgraph cluster2 {
+           "lb 2" [style=filled, fillcolor=darkorchid1];
+           "ws 2" [style=filled, fillcolor=darkolivegreen1];
+           "c 2" [style=filled, fillcolor=gold1];
+           "q 2" [style=filled, fillcolor=pink1];
+           "master db 2" [style=filled, fillcolor=steelblue1];
+           "slave db 2" [style=filled, fillcolor=steelblue1];
+
            label="Staging";
            "lb 2" -> "ws 2";
            "ws 2" -> "master db 2";
@@ -89,12 +125,22 @@ Let's see:
            "master db 2" -> "slave db 2";
       }
       subgraph cluster3 {
+           "lb 3" [style=filled, fillcolor=darkorchid1];
+           "lb 4" [style=filled, fillcolor=darkorchid1];
+           "ws 3" [style=filled, fillcolor=darkolivegreen1];
+           "ws 4" [style=filled, fillcolor=darkolivegreen1];
+           "ws 5" [style=filled, fillcolor=darkolivegreen1];
+           "c 3" [style=filled, fillcolor=gold1];
+           "q 3" [style=filled, fillcolor=pink1];
+           "master db 3" [style=filled, fillcolor=steelblue1];
+           "slave db 3" [style=filled, fillcolor=steelblue1];
+
            label="Production";
            "lb 3" -> "ws 3";
            "lb 3" -> "ws 4";
            "lb 3" -> "ws 5";
            "lb 4" -> "ws 3";
-           "lb 4" -> "ws 3";
+           "lb 4" -> "ws 4";
            "lb 4" -> "ws 5";
            "ws 3" -> "master db 3";
            "ws 3" -> "slave db 3";
