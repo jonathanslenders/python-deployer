@@ -389,7 +389,7 @@ class NodeBase(type):
         new_attrs = { }
         override = { } # { attr_to_override: { k->v } }
 
-        # Split attributes in real attributes and "nested overrides".
+        # Separate real attributes from "nested overrides".
         for k, v in attrs.items():
             if '__' in k and not k.startswith('__'): # Allow name mangling.
                 # Split at __ (only split at the first __, type(...) below

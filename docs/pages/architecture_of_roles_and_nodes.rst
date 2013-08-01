@@ -181,8 +181,9 @@ node.
 
 So we are going to write a script that contains all these connected parts or
 nodes.  Basically, it's one container node, and childnodes for all the
-components that we have. As an example, we also add the ``Git`` component that
-we use for transferring our code and media to the servers.
+components that we have. As an example, we also add the ``Git`` component where
+we'll put in the commands for checking the web server code out from our version
+control system.
 
 ::
 
@@ -204,11 +205,11 @@ we use for transferring our code and media to the servers.
         class Git(Node):
             pass
 
-The idea is that if we create instances of ``WebSystem`` here, we are only
-going to tell the root node which roles map to which hosts. We use inheritance
-to override the ``WebSystem`` node and add ``Hosts`` to the derived classes.
-Wrapping it in ``RootNode`` is not really necassary, but cool to group these if
-we'd put an interactive shell around it.
+The idea is that if we create multiple instances of ``WebSystem`` here, we only
+have to tell the root node which roles map to which hosts. We can use
+inheritance to override the ``WebSystem`` node and add ``Hosts`` to the derived
+classes.  Wrapping it in ``RootNode`` is not really necassary, but cool to
+group these if we'd put an interactive shell around it.
 
 ::
 
@@ -230,6 +231,11 @@ we'd put an interactive shell around it.
                 slave_db = [ SlaveDB ]
                 queue = [ QueueHost ]
                 cache = [ CacheHost ]
+
+Note that on the staging system, the same physical host is assigned to all the
+roles. That's fine: the web server can also act as load balancer, as well as a
+cache or queue server. On the production side, we separate them on different
+machines.
 
 Now it's up to the framework to the figure out which hosts belong to which
 childnodes. With a little help of the ``role_mapping`` decorator, that's
