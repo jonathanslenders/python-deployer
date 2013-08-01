@@ -112,22 +112,8 @@ class ChildNodeDescriptor(object):
         if parent_instance:
             new_name = '%s.%s' % (owner.__name__, self.attr_name)
 
-            # When we have a SimpleNode inside a SimpleNode or a NormalNode
-            # inside a NormalNode, and the parent instance is isolated,
-            # this one should be isolated as well.
-            # Or when we have a NormalNode parent and a SimpleNode.JustOne.
-            auto_isolate = [
-                    # Parent-child
-                    (NodeTypes.SIMPLE, NodeTypes.SIMPLE),
-                    (NodeTypes.NORMAL, NodeTypes.NORMAL),
-                    (NodeTypes.NORMAL, NodeTypes.SIMPLE_ONE),
-
-                    (NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE),
-                    (NodeTypes.SIMPLE_ONE, NodeTypes.SIMPLE),
-            ]
-
-            isolated = (parent_instance._node_is_isolated and
-                            (parent_instance._node_type, self._node_class._node_type) in auto_isolate)
+            # When The parent is isolated, return an isolated childnode, except if we have an Array.
+            isolated = (parent_instance._node_is_isolated and self._node_class._node_type != NodeTypes.SIMPLE_ARRAY)
 
             # We inherit the class in order to override the name and isolated
             # attributes. However, the creation counter should stay the same,
@@ -733,6 +719,12 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
             _node_isolation_identifier = identifier
             Hosts = type('Hosts', (object,), hosts2)
 
+        # If everything goes well, parent can only be an isolated instance.
+        # (It's coming from ChildNodeDescriptor through getattr which isolates
+        # well, or through a recursive iter_isolations call which should only
+        # return isolated instances.)
+        assert not parent or parent._node_is_isolated
+
         return SimpleNodeItem(parent=parent)
 
     def get_identifiers(node, parent_identifier):
@@ -755,6 +747,10 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
             for index, n in iter_isolations(node.parent, identifier_type):
                 yield (index, getattr(n, node._node_name))
         else:
+            # A normal node without parent should always be isolated.
+            # This is handled by Node.__new__
+            assert node._node_is_isolated
+
             yield ((), node)
 
     elif node._node_type == NodeTypes.SIMPLE_ARRAY:
