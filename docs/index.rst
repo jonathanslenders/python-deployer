@@ -36,14 +36,17 @@ Table of contents
 
    pages/getting_started
    pages/architecture_of_roles_and_nodes
+   pages/interactive_shell
+   pages/internals
+
    pages/node
    pages/groups
    pages/console
-   pages/host_container
-   pages/interactive_shell
    pages/inspection
-   pages/utils
    pages/query
+   pages/host
+   pages/host_container
+   pages/utils
    pages/exceptions
    pages/pseudo_terminal
 

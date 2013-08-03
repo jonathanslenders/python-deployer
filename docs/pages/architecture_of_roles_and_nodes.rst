@@ -3,6 +3,9 @@
 Architecture of roles and nodes
 ===============================
 
+In this chapter, we go a little more in depth on what a
+:class:`Node <deployer.node.Node>` really is.
+
 Use cases
 ---------
 
@@ -174,10 +177,10 @@ In this example, we can identify 4 roles:
 Creating nodes.
 ---------------
 
-Now we are going to create `deployer.node.Node` classes. A Node is probably the
-most important class in this framework, because basically all deployment code
-is structured in node. Every circle in the above diagrams can be considered a
-node.
+Now we are going to create :class:`Node <deployer.node.Node>` classes. A Node
+is probably the most important class in this framework, because basically all
+deployment code is structured in node. Every circle in the above diagrams can
+be considered a node.
 
 So we are going to write a script that contains all these connected parts or
 nodes.  Basically, it's one container node, and childnodes for all the
@@ -218,14 +221,14 @@ group these if we'd put an interactive shell around it.
             class Hosts:
                 load_balancer= [ StagingHost0 ]
                 web = [ StagingHost0  ]
-                master_db = [ StagingDB ]
+                master_db = [ StagingHost0 ]
                 slave_db = [ ] # If empty, this line can be left away.
                 queue = [ StagingHost0 ]
                 cache = [ StagingHost0 ]
 
         class ProductionSystem(WebSystem):
             class Hosts:
-                load_balancer= [ LB0, LB1 ]
+                load_balancer = [ LB0, LB1 ]
                 web = [ WebServer1, WebServer2, WebServer3 ]
                 master_db = [ MasterDB ]
                 slave_db = [ SlaveDB ]
@@ -238,7 +241,7 @@ cache or queue server. On the production side, we separate them on different
 machines.
 
 Now it's up to the framework to the figure out which hosts belong to which
-childnodes. With a little help of the ``role_mapping`` decorator, that's
+childnodes. With a little help of the ``map_roles`` decorator, that's
 possible. We adjust the original ``WebSystem`` node as follows:
 
 ::
@@ -279,4 +282,105 @@ If we now type ``self.hosts.run('shell command')`` in for instance the
 case of our ``ProductionSystem`` above, that's on ``MasterDB`` and ``SlaveDB``.
 In the case of ``Git.checkout`` above, the run-command will execute on all
 hosts that were mapped to the role ``host``.
+
+
+More complete example
+----------------------
+
+Below, we present a more complete example with real actions like ``start`` and
+``stop``. The queue, the cache and the database, they have some methods in
+common, -- in fact they are all upstart services --, so therefor we created a
+base class ``UpstartService`` that handles the common parts.
+
+::
+
+    #!/usr/bin/env python
+    from deployer.node import Node, map_roles, required_property
+    from deployer.utils import esc1
+
+    from our_nodes import StagingHost0, LB0, LB1, WebServer1, WebServer2, \
+            WebServer3, MasterDB, SlaveDB, QueueHost, CacheHost
+
+    class UpstartService(Node):
+        """
+        Abstraction for any upstart service with start/stop/status methods.
+        """
+        name = required_property()
+
+        def start(self):
+            self.hosts.sudo('service %s start' % esc1(self.name))
+
+        def stop(self):
+            self.hosts.sudo('service %s stop' % esc1(self.name))
+
+        def status(self):
+            self.hosts.sudo('service %s status' % esc1(self.name))
+
+    class WebSystem(Node):
+        """
+        The base definition of our web system.
+
+        roles: cache, queue, master_db, slave_db, web.
+        """
+        @map_roles(host='cache')
+        class Cache(UpstartService):
+            name = 'redis'
+
+        @map_roles(host='queue')
+        class Queue(UpstartService):
+            name = 'rabbitmq'
+
+        @map_roles(host='queue')
+        class LoadBalancer(Node):
+            # ...
+            pass
+
+        @map_roles(master='master_db', slave='slave_db')
+        class Database(UpstartService):
+            name = 'postgresql'
+
+        @map_roles(host=['www', 'load_balancer', 'queue'])
+        class Git(Node):
+            def checkout(self, commit):
+                self.hosts.run('git checkout %s' % esc1(commit))
+
+            def show(self):
+                self.hosts.run('git show')
+
+    class RootNode(Node):
+        """
+        The root node of our configuration, containing two 'instances' of
+        `WebSystem`,
+        """
+        class StagingSystem(WebSystem):
+            class Hosts:
+                load_balancer = [ StagingHost0 ]
+                web = [ StagingHost0  ]
+                master_db = [ StagingHost0 ]
+                slave_db = [ ] # If empty, this line can be left away.
+                queue = [ StagingHost0 ]
+                cache = [ StagingHost0 ]
+
+        class ProductionSystem(WebSystem):
+            class Hosts:
+                load_balancer = [ LB0, LB1 ]
+                web = [ WebServer1, WebServer2, WebServer3 ]
+                master_db = [ MasterDB ]
+                slave_db = [ SlaveDB ]
+                queue = [ QueueHost ]
+                cache = [ CacheHost ]
+
+    if __name__ == '__main__':
+        start(RootNode)
+
+
+So, in this example, if ``Staginghost0``, ``LB0`` and the others were real
+:class:`deployer.host.Host` definitions, we could start
+:ref:`an interactive shell <interactive-shell>`. Then we could for instance
+navigate to the database of the production system, by typing
+"``cd ProductionSystem Database``" and then "``start``" to execute the command.
+
+
+
+
 

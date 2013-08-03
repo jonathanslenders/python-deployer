@@ -25,12 +25,34 @@ from deployer.utils import esc1
 
 from twisted.internet import fdesc
 
+__all__ = (
+    'Host',
+    'SSHHost',
+    'LocalHost',
+    'HostContext',
+)
+
+__doc__ = \
+"""
+This module contains the immediate wrappers around the remote hosts and their
+terminals. It's possible to run commands on a host directly by using these
+classes. As an end-user of this library however, you will call the methods of
+:class:`SSHHost` and :class:`LocalHost` through
+:class:`deployer.host_container.HostsContainer`, the host proxy of a
+:class:`deployer.node.Node`.
+"""
+
 
 class HostContext(object):
     """
     A push/pop stack which keeps track of the context on which commands
     at a host are executed.
+
+    (This is mainly used internally by the library.)
     """
+        # TODO: Guarantee thread safety!! When doing parallel deployments, and
+        #       several threads act on the same host, things will probably go
+        #       wrong...
     def __init__(self):
         self._command_prefixes = []
         self._path = []
@@ -120,9 +142,21 @@ class Host(object):
     #    def slug(self):
     #        return self.__name__
 
-    slug = ''
+    slug = '' # TODO: maybe deprecate 'slug' and use __class__.__name__ instead.
+    """
+    The slug should be a unique identifier for the host.
+    """
+
     username = ''
+    """
+    Username for connecting to the Host
+    """
+
     password = '' # For sudo
+    """
+    Password for connecting to the host.
+    """
+
     start_path = None # None or string
 
     # Terminal to report to use for interactive sessions
@@ -776,18 +810,46 @@ class SSHBackend(object):
 
 class SSHHost(Host):
     """
-    SSH Host
+    SSH Host.
+
+    For the authentication, it's required to provide either a ``password``, a
+    ``key_filename`` or ``rsa_key``. e.g.
+
+    ::
+
+        class WebServer(SSHHost):
+            slug = 'webserver'
+            password = '...'
+            address = 'example.com'
+            username = 'jonathan'
+
     """
     # Base host configuration
     reject_unknown_hosts = False
+
     key_filename = None
+    """ RSA key filename (optional) """
+
     rsa_key = None
+    """ RSA key. (optional) """
+
     rsa_key_password = None
+    """ RSA key password. (optional) """
+
     address = 'example.com'
+    """ SSH Address """
+
     username = 'someone'
+    """ SSH Username """
+
     port = 22
-    timeout = 10 # Seconds
+    """ SSH Port """
+
+    timeout = 10
+    """ Connection timeout in seconds.  """
+
     keepalive_interval  = 30
+    """ SSH keep alive in seconds  """
 
     def __init__(self):
         Host.__init__(self)
@@ -866,6 +928,10 @@ class LocalHostBackend(object):
 
 
 class LocalHost(Host):
+    """
+    ``LocalHost`` can be used instead of :class:`SSHHost` for local execution.
+    It uses ``pexpect`` underneat.
+    """
     slug = 'localhost'
     address = 'localhost'
 
@@ -984,10 +1050,8 @@ class LocalHost(Host):
 
     @property
     def sftp(self):
-        """
-        (For Localhost)
-        Compatibility with Paramiko's SFTPClient.from_transport
-        """
+        # (For Localhost)
+        # Compatibility with Paramiko's SFTPClient.from_transport
         import __builtin__
         class LocalhostFTP(object):
             open = __builtin__.open
@@ -998,4 +1062,7 @@ class LocalHost(Host):
         return LocalhostFTP()
 
     def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
+        """
+        Start an interactive bash shell.
+        """
         self.run(pty, command='/bin/bash', logger=logger, initial_input=initial_input)

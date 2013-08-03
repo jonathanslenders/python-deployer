@@ -100,8 +100,8 @@ instead of using ``LocalHost``. Make sure to change the credentials to your own.
         class Hosts:
             host = MyRemoteHost
 
-Done
-****
+Complete example
+****************
 
 As a final example, we show how we created two instances of ``SayHello``. One
 mapped to your local machine, and one mapped to a remote SSH Host. These two
