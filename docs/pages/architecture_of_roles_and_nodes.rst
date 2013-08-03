@@ -174,8 +174,8 @@ In this example, we can identify 4 roles:
 - slave database
 
 
-Creating nodes.
----------------
+Creating nodes
+--------------
 
 Now we are going to create :class:`Node <deployer.node.Node>` classes. A Node
 is probably the most important class in this framework, because basically all

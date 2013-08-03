@@ -1,18 +1,15 @@
 .. _getting-started:
 
-Getting started
-===============
+Hello world
+===========
 
 In this short tutorial, we'll demonstrate how to create a simple interactive
 shell around one simple deployment command that just prints 'Hello World'. We
 suppose you have already an understanding of the Python language and Python
 packages.
 
-Hello world
------------
-
 Install requirements
-********************
+--------------------
 
 Install the following package.
 
@@ -25,7 +22,7 @@ This will probably also install dependencies like ``paramiko``, ``twisted`` and
 
 
 Creating nodes
-**************
+--------------
 
 Now we will create a :class:`deployer.node.Node` to contains the 'Hello world' action.
 Such a ``Node`` class is the start for any deployment component. Paste the
@@ -43,7 +40,7 @@ When `SayHello.hello` is called in the example above, it will run the echo
 command on all the hosts that are known to this Node.
 
 Linking the node to actual hosts
-********************************
+--------------------------------
 
 Now we need to define on which hosts this node should run. Let's use Python
 class inheritance for this. Append the following to your Python file:
@@ -58,7 +55,7 @@ class inheritance for this. Append the following to your Python file:
 
 
 Starting an interactive shell
-*****************************
+-----------------------------
 
 One way of execting this code, is by wrapping it in an interactive shell.
 This is the last thing to do: add the following to the bottom of your Python
@@ -79,7 +76,7 @@ from where you can run the ``hello`` command.
 
 
 Remote SSH Hosts
-****************
+----------------
 
 So, in the example we have shown how to run 'Hello world' on your local
 machine. That's fine, but probably we want to execute this on a remote machine
@@ -101,7 +98,7 @@ instead of using ``LocalHost``. Make sure to change the credentials to your own.
             host = MyRemoteHost
 
 Complete example
-****************
+----------------
 
 As a final example, we show how we created two instances of ``SayHello``. One
 mapped to your local machine, and one mapped to a remote SSH Host. These two

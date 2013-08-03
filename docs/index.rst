@@ -24,7 +24,10 @@ It's more powerful than `Fabric`_, and different from `Saltstack`_
 .. _Fabric: http://docs.fabfile.org/
 .. _Saltstack: http://saltstack.com
 
-Start by :ref:`reading the tutorial <getting-started>`
+ - :ref:`Read the tutorial <getting-started>`
+ - Find the source code at `github`_.
+
+.. _github: https://github.com/jonathanslenders/python-deployer
 
 .. _table-of-contents:
 
