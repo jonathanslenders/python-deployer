@@ -17,8 +17,14 @@ Important key features are:
 
  - Interactive execution of remote commands.
  - Fast parallel execution.
- - Reusability of all deployment code.
+ - Reusability of your code.
 
+It's more powerful than `Fabric`_, and different from `Saltstack`_
+
+.. _Fabric: http://docs.fabfile.org/
+.. _Saltstack: http://saltstack.com
+
+Start by :ref:`reading the tutorial <getting-started>`
 
 .. _table-of-contents:
 
