@@ -20,7 +20,7 @@ __all__ = (
     'Node',
     'SimpleNode',
     'required_property'
-    'role_mapping',
+    'map_roles',
 
     # Decorators.
     'suppress_action_result',
