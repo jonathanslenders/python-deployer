@@ -96,10 +96,36 @@ The difference between Node and SimpleNode
 
 TODO: ...
 
+
 .Array and .JustOne
 *******************
 
-TODO: ...
+TODO: complete ...
+
+TODO: ``SimpleNode`` will probably be renamed to ``PNode`` (or ParallelNode)
+
+``.Array`` and ``.JustOne`` are required for nesting a ``SimpleNode`` inside a
+normal ``Node``. The idea is that when host roles are mapped from the parent
+``Node``, to the child -- which is a ``SimpleNode`` --, that this childnode
+behaves as an array. Each 'cell' in the array is isolated, so it's possible to
+execute a command on just one 'cell' (or host) of the array or all 'cells' (or
+hosts.) You can use it as follows:
+
+::
+
+    class NormalNode(Node):
+        class OurSimpleNode(SimpleNode.Array):
+            class SimpleNode(SimpleNode):
+                pass
+
+
+Basically, you can nest 'normal' nodes inside each other, and
+``SimpleNodes`` classes inside each other. However, when nesting such a
+``SimpleNode`` inside a normal node, the ``.Array`` suffix is required to
+indicate the creation of an array. ``.JustOne`` can always be used instead of
+an array, if you assert that only one host will be in there.
+
+TODO: more examples...
 
 
 Using contrib.nodes

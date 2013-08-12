@@ -18,7 +18,7 @@ Install the following package.
     pip install deployer
 
 This will probably also install dependencies like ``paramiko``, ``twisted`` and
-``pexpect``.
+``pexpect``, but don't worry too much about that.
 
 
 Creating nodes
@@ -103,7 +103,6 @@ Complete example
 As a final example, we show how we created two instances of ``SayHello``. One
 mapped to your local machine, and one mapped to a remote SSH Host. These two
 nodes are now wrapped in a parent node, that groups both.
-
 
 ::
 
