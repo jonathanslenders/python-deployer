@@ -253,7 +253,7 @@ class HostsContainer(object):
         Returns ``True`` when this file exists on the hosts.
         """
         def on_host(container):
-            return container._host.get_instance().exists(filename, use_sudo=use_sudo)
+            return container._host.get_instance().exists(filename, use_sudo=use_sudo, context=container._host_context)
 
         return map(on_host, self)
 
@@ -294,6 +294,10 @@ class HostContainer(HostsContainer):
         return self._all[0]
 
     @property
+    def _host_context(self):
+        return self._host_contexts[self._host]
+
+    @property
     def slug(self):
         return self._host.slug
 
@@ -302,6 +306,7 @@ class HostContainer(HostsContainer):
         if len(self) == 1:
             kwargs['logger'] = self._logger
             kwargs['sandbox'] = self._sandbox
+            kwargs['context'] = self._host_context
 
             return self._host.get_instance().get_file(*args, **kwargs)
         else:
@@ -312,6 +317,7 @@ class HostContainer(HostsContainer):
         if len(self) == 1:
             kwargs['logger'] = self._logger
             kwargs['sandbox'] = self._sandbox
+            kwargs['context'] = self._host_context
 
             return self._host.get_instance().put_file(*args, **kwargs)
         else:
@@ -322,6 +328,7 @@ class HostContainer(HostsContainer):
         if len(self) == 1:
             kwargs['logger'] = self._logger
             kwargs['sandbox'] = self._sandbox
+            kwargs['context'] = self._host_context
 
             return self._host.get_instance().open(*args, **kwargs)
         else:
