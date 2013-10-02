@@ -297,6 +297,53 @@ class Connect(NodeACHandler):
             self.shell.logger_interface.log_exception(e)
 
 
+class Run(NodeACHandler):
+    """
+    Run a shell command on all hosts in the current node.
+    """
+    def get_command(self):
+        try:
+            return Console(self.shell.pty).input('Enter command')
+        except NoInput:
+            return
+
+    def __call__(self):
+        from deployer.node import Node
+
+        # Print info
+        host_count = len(self.node.hosts)
+
+        if host_count == 0:
+            print 'No hosts found at this node. Nothing to execute.'
+            return
+
+        print 'Command will be executed on %i hosts:' % host_count
+        for h in self.node.hosts:
+            print '   - %s (%s)' % (h.slug, h.address)
+
+        command = self.get_command()
+        if not command:
+            return
+
+        # Run
+        class RunNode(Node):
+            class Hosts:
+                host = self.node.hosts._all
+
+            def run(self):
+                self.hosts.run(command)
+
+        env = Env(RunNode(), self.shell.pty, self.shell.logger_interface)
+
+        # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
+        try:
+            env.run()
+        except ActionException, e:
+            pass
+        except Exception, e:
+            self.shell.logger_interface.log_exception(e)
+
+
 class Find(NodeACHandler):
     def __call__(self):
         def _list_nested_nodes(node, prefix):
@@ -690,6 +737,7 @@ class RootHandler(ShellHandler):
             'pwd': Pwd,
             '--connect': Connect,
             '--inspect': Inspect,
+            '--run': Run,
             '--version': Version,
             '--source-code': SourceCode,
     }
