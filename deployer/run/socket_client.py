@@ -6,13 +6,13 @@ from StringIO import StringIO
 from twisted.internet import fdesc
 
 from deployer.utils import esc1
+from setproctitle import setproctitle
 
 import array
 import errno
 import fcntl
 import getpass
 import glob
-import inspect
 import os
 import pickle
 import select
@@ -48,6 +48,9 @@ class DeploymentClient(object):
         self._buffer = []
         self.exit_status = 0
 
+        # Currently running command
+        self.update_process_title()
+
         # Connect to unix socket
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._connect_socket()
@@ -68,13 +71,17 @@ class DeploymentClient(object):
     def _send_size(self):
         self.socket.sendall(pickle.dumps(('_resize', get_size())))
 
+    def update_process_title(self):
+        """
+        Set process name
+        """
+        setproctitle('deploy connect --socket "%s"' % self.socket_path)
+
     @property
     def new_window_command(self):
         """
         When a new window is opened, run this command.
         """
-        # Note: we use inspect, instead of __file__, because __file can
-        # return pyc files.
         return "python -c 'from deployer.run.socket_client import start; import sys; start(sys.argv[1])' '%s' " % esc1(self.socket_path)
 
     def _open_new_window(self, focus=False):
@@ -100,7 +107,7 @@ class DeploymentClient(object):
                 subprocess.call(r'TMUX=%s tmux split-window "PATH=\"%s\" %s" %s %s' %
                         (tmux_env, path_env, self.new_window_command, swap, tiled),
                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-             
+
             # When in a gnome-terminal:
             elif display_env and colorterm_env == 'gnome-terminal':
                 subprocess.call('gnome-terminal -e "%s" &' % self.new_window_command, shell=True)
@@ -253,5 +260,6 @@ def start(socket_name, cd_path=None, action_name=None, parameters=None):
     Start a socket client.
     """
     make_stdin_unbuffered()
+
     DeploymentClient(socket_name).run(cd_path=cd_path,
                     action_name=action_name, parameters=parameters)

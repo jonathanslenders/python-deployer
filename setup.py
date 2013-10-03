@@ -43,6 +43,7 @@ setup(
         'Pygments>=1.5',
         'termcolor>=1.1.0',
         'docopt==0.6.1',
+        'setproctitle==1.1.7',
         ],
     classifiers=[
         'Development Status :: 5 - Production/Stable',

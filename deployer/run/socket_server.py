@@ -15,6 +15,7 @@ from twisted.internet.protocol import Protocol, Factory
 from twisted.internet.error import CannotListenError
 
 from contextlib import nested
+from setproctitle import setproctitle
 
 import StringIO
 import datetime
@@ -662,6 +663,9 @@ def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread
         # Set thread pool size (max parrallel interactive processes.)
         if thread_pool_size:
             reactor.suggestThreadPoolSize(thread_pool_size)
+
+        # Set process name
+        setproctitle('deploy:%s listen --socket "%s"' % (root_node.__class__.__name__, socket2))
 
         # Run Twisted reactor
         reactor.run()
