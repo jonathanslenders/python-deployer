@@ -16,6 +16,7 @@ from twisted.internet.error import CannotListenError
 
 from contextlib import nested
 from setproctitle import setproctitle
+from tempfile import NamedTemporaryFile
 
 import StringIO
 import datetime
@@ -648,12 +649,23 @@ def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread
     socket2 = startSocketServer(root_node, shutdownOnLastDisconnect=shutdown_on_last_disconnect,
                         interactive=interactive, socket=socket, extra_loggers=extra_loggers)
 
+    def set_title(stream_name):
+        suffix = (' --log "%s"' % stream_name if stream_name else '')
+        setproctitle('deploy:%s listen --socket "%s"%s' %
+                        (root_node.__class__.__name__, socket2, suffix))
+
     def run_server():
         # Set logging
+        stream = None
         if logfile:
             logging.basicConfig(filename=logfile, level=logging.DEBUG)
         elif not daemonized:
             logging.basicConfig(filename='/dev/stdout', level=logging.DEBUG)
+        else:
+            # If no logging file was given, and we're daemonized, create a temp
+            # logfile for monitoring.
+            stream = NamedTemporaryFile(delete=True, suffix=socket2.replace('/', '-'))
+            logging.basicConfig(stream=stream, level=logging.DEBUG)
 
         logging.info('Socket server started at %s' % socket2)
 
@@ -665,10 +677,14 @@ def start(root_node, daemonized=False, shutdown_on_last_disconnect=False, thread
             reactor.suggestThreadPoolSize(thread_pool_size)
 
         # Set process name
-        setproctitle('deploy:%s listen --socket "%s"' % (root_node.__class__.__name__, socket2))
+        set_title(stream.name if stream else logfile)
 
         # Run Twisted reactor
         reactor.run()
+
+        # Remove logging file (this will automatically delete the NamedTemporaryFile)
+        if stream:
+            stream.close()
 
     if daemonized:
         if daemonize():
