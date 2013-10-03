@@ -7,26 +7,20 @@ from twisted.internet.threads import deferToThread
 from deployer import std
 from deployer.cli import HandlerType
 from deployer.console import NoInput, Console
-from deployer.loggers import Actions
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger
 from deployer.pseudo_terminal import Pty
 from deployer.shell import Shell, ShellHandler
 
 from contextlib import nested
-from operator import attrgetter
 from termcolor import colored
+from setproctitle import setproctitle
 
-import datetime
 import logging
 import os
-import random
-import select
 import signal
-import string
 import struct
 import sys
-import threading
 
 
 __doc__ = """
@@ -135,7 +129,7 @@ class Session(object):
     """
     def __init__(self, protocol, writeCallback=None, doneCallback=None):
         self.protocol = protocol
-        self.root_service = protocol.transport.factory.root_service
+        self.root_node = protocol.transport.factory.root_node
         self.auth_backend = protocol.transport.factory.auth_backend
         self.extra_loggers = protocol.transport.factory.extra_loggers
 
@@ -177,7 +171,7 @@ class Session(object):
                 in_shell_logger = DefaultLogger(self.pty.stdout, print_group=False)
 
                 # Run shell
-                shell = WebShell(self.root_service, self.pty, logger_interface, username=self.username)
+                shell = WebShell(self.root_node, self.pty, logger_interface, username=self.username)
 
                 shell.session = self # Assign session to shell
                 self.shell = shell
@@ -306,7 +300,7 @@ class TelnetDeployer(StatefulTelnetProtocol):
 
 # =================[ Startup]=================
 
-def start(root_service, auth_backend=None, port=8023, logfile=None, extra_loggers=None):
+def start(root_node, auth_backend=None, port=8023, logfile=None, extra_loggers=None):
     """
     Start telnet server
     """
@@ -323,7 +317,7 @@ def start(root_service, auth_backend=None, port=8023, logfile=None, extra_logger
     factory = ServerFactory()
     factory.connectionPool = set() # List of currently, active connections
     factory.protocol = lambda: TelnetTransport(TelnetDeployer)
-    factory.root_service = root_service()
+    factory.root_node = root_node()
     factory.auth_backend = auth_backend
     factory.extra_loggers = extra_loggers or []
 
@@ -340,5 +334,9 @@ def start(root_service, auth_backend=None, port=8023, logfile=None, extra_logger
     # Run the reactor!
     logging.info('Listening for incoming telnet connections on localhost:%s...' % port)
 
+    # Set process name
+    setproctitle('deploy:%s telnet-server --port %i' % (root_node.__class__.__name__, port))
+
+    # Run server
     reactor.listenTCP(port, factory)
     reactor.run()

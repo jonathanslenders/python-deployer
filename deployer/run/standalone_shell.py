@@ -1,25 +1,18 @@
 #!/usr/bin/env python
 
-from deployer.cli import NoSubHandler
-from deployer.loggers import Logger
 from deployer.loggers import LoggerInterface
-from deployer.loggers.default import DefaultLogger, IndentedDefaultLogger
-from deployer.loggers.trace import TracePrinter
+from deployer.loggers.default import DefaultLogger
 from deployer.exceptions import ActionException
 from deployer.pseudo_terminal import Pty
-from deployer.shell import Shell, ShellHandler, BuiltinType
+from deployer.shell import Shell
 
 from contextlib import nested
+from setproctitle import setproctitle
 
-import codecs
 import logging
 import os
-import random
 import signal
-import string
 import sys
-import termcolor
-import time
 
 
 __all__ = ('start',)
@@ -62,6 +55,9 @@ def start(root_node, interactive=True, cd_path=None, logfile=None,
 
     # Initialize root node
     root_node = root_node()
+
+    # Set process title
+    setproctitle('deploy:%s run -s' % root_node.__class__.__name__)
 
     # Loggers
     in_shell_logger = DefaultLogger(print_group=False)
