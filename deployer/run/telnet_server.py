@@ -335,7 +335,9 @@ def start(root_node, auth_backend=None, port=8023, logfile=None, extra_loggers=N
     logging.info('Listening for incoming telnet connections on localhost:%s...' % port)
 
     # Set process name
-    setproctitle('deploy:%s telnet-server --port %i' % (root_node.__class__.__name__, port))
+    suffix = (' --log "%s"' % logfile if logfile else '')
+    setproctitle('deploy:%s telnet-server --port %i%s' %
+            (root_node.__class__.__name__, port, suffix))
 
     # Run server
     reactor.listenTCP(port, factory)
