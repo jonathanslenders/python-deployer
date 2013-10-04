@@ -1,5 +1,3 @@
-import datetime
-
 __all__ = ('Actions', 'LoggerInterface', 'RunCallback', 'FileCallback', 'Logger', 'DummyLoggerInterface')
 
 

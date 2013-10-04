@@ -9,14 +9,14 @@ from itertools import groupby
 
 from pygments import highlight
 from pygments.formatters import TerminalFormatter
-from pygments.lexers import PythonLexer, PythonTracebackLexer
+from pygments.lexers import PythonLexer
 
 import deployer
 import inspect
 import socket
 import sys
 import termcolor
-import traceback
+
 
 __all__ = ('Shell', )
 
@@ -280,7 +280,6 @@ class Connect(NodeACHandler):
     """
     def __call__(self):
         from deployer.contrib.nodes import connect
-        from deployer.host_container import HostsContainer
 
         class Connect(connect.Connect):
             class Hosts:

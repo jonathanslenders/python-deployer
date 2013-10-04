@@ -7,9 +7,7 @@ Author: Jonathan Slenders
 """
 
 
-import codecs
 import os
-import sys
 import termcolor
 import termios
 import time

@@ -3,16 +3,15 @@ from deployer.exceptions import ExecCommandFailed, ActionException
 from deployer.groups import Group
 from deployer.host_container import HostsContainer, HostContainer
 from deployer.loggers import DummyLoggerInterface
-from deployer.pseudo_terminal import DummyPty, Pty
+from deployer.pseudo_terminal import DummyPty
 from deployer.query import Query
 from deployer.utils import isclass
 
-from functools import wraps
 from inspect import isfunction
 
-import inspect
 import logging
 import traceback
+
 
 __all__ = (
     'Env',
@@ -28,6 +27,7 @@ __all__ = (
     'isolate_only_one',
     'alias',
 )
+
 
 class required_property(property):
     """

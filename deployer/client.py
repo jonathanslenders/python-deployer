@@ -9,7 +9,6 @@ from deployer.run.standalone_shell import start as start_standalone
 from deployer.run.telnet_server import start as start_telnet_server
 
 import docopt
-import getopt
 import getpass
 import sys
 

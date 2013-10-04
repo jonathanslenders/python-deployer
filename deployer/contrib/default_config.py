@@ -1,16 +1,14 @@
-from deployer.contrib.loggers.on_host import OnHostLogger
 from deployer.contrib.nodes.connect import Connect
-from deployer.contrib.unittest.nodes import UnitTest
-from deployer.host import SSHHost, LocalHost
+from deployer.host import LocalHost
 from deployer.node import Node, map_roles
-
-from inspect import isclass
 
 
 class localhost(LocalHost):
     slug = 'localhost'
 
 '''
+from deployer.host import SSHHost
+
 class my_remote_host(SSHHost):
     slug = 'my-remote-host'
     address = '192.168.0.100'

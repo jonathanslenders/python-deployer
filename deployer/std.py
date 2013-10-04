@@ -3,6 +3,7 @@ import threading
 import termios
 import tty
 
+
 class TeeStd(object):
     """
     Like the unix 'tee' command.

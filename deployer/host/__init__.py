@@ -1,7 +1,6 @@
 
 import StringIO
 import contextlib
-import copy
 import getpass
 import logging
 import os
@@ -11,19 +10,18 @@ import random
 import socket
 import sys
 import termcolor
-import termios
 import threading
 import time
-import tty
 
 from deployer.console import Console
 from deployer.exceptions import ExecCommandFailed
-from deployer.loggers import DummyLoggerInterface, Actions
+from deployer.loggers import DummyLoggerInterface
 from deployer.pseudo_terminal import DummyPty, select
 from deployer.std import raw_mode
 from deployer.utils import esc1
 
 from twisted.internet import fdesc
+
 
 __all__ = (
     'Host',
