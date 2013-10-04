@@ -15,7 +15,6 @@ import traceback
 
 __all__ = (
     'Env',
-    'Inspector',
     'Node',
     'SimpleNode',
     'required_property'
@@ -40,7 +39,8 @@ class required_property(property):
         self.owner = ''
 
         def fget(obj):
-            raise NotImplementedError('Required property %s of %s is not defined: %s' % (self.name, self.owner, self.description))
+            raise NotImplementedError('Required property %s of %s is not defined: %s' %
+                            (self.name, self.owner, self.description))
 
         property.__init__(self, fget)
 
@@ -486,8 +486,6 @@ class NodeBase(type):
         # Wrap Nodes into a ChildNodeDescriptor
         elif isclass(attribute) and issubclass(attribute, Node):
             # Check the node nesting rules.
-            has_mapping = bool(attribute.Hosts)
-
             if not NodeNestingRules.check(node_type, attribute._node_type):
                 raise Exception('Invalid nesting of %s in %s (%r in %r).' % (
                             attribute._node_type, node_type, attribute, node_name))
@@ -691,6 +689,9 @@ class Node(object):
 
 
 class IsolationIdentifierType:
+    """
+    Manners of identifing a node in an array of nodes.
+    """
     INT_TUPLES = 'INT_TUPLES'
     HOST_TUPLES = 'HOST_TUPLES'
     HOSTS_SLUG = 'HOSTS_SLUG'
