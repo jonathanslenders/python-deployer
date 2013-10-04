@@ -21,4 +21,6 @@
 26. Fix select_node parameters and test it. (filter should be an inspection
     filter instance.)
 
+27. Disallow overriding of 'host', 'hosts' and others in Service.
+
 https://code.google.com/p/fusepy/source/browse/trunk/sftp.py
