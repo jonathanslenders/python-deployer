@@ -43,6 +43,10 @@ class Console(object):
 
     @property
     def is_interactive(self):
+        """
+        When ``False`` don't ask for input and choose the default options when
+        possible.
+        """
         return self._pty.interactive
 
     def input(self, label, is_password=False, answers=None, default=None):
