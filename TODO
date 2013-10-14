@@ -23,4 +23,9 @@
 
 27. Disallow overriding of 'host', 'hosts' and others in Service.
 
+
+28. Better document IsolationIdentifierType
+29. Show item_mapping of current node in --inspect
+30. Create command to enable/disable interactive property of the Console
+
 https://code.google.com/p/fusepy/source/browse/trunk/sftp.py
