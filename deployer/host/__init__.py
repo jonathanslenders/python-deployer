@@ -787,17 +787,47 @@ class SSHBackend(object):
                     self._ssh_cache.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
                 try:
+                    kw = {}
+
+                    if h.config_filename:
+                        try:
+                            config_file = file(os.path.expanduser(h.config_filename))
+                        except IOError:
+                            pass
+                        else:
+                            ssh_config = paramiko.config.SSHConfig()
+                            ssh_config.parse(config_file)
+                            host_config = ssh_config.lookup(h.address)
+
+                            # Map ssh_config to paramiko config
+                            config_map = {
+                                    'identityfile': 'key_filename',
+                                    'user': 'username',
+                                    'port': 'port',
+                                    'connecttimeout': 'timeout',
+                                    }
+                            for ck, pk in config_map.iteritems():
+                                if ck in host_config:
+                                    kw[pk] = host_config[ck]
+
+                    if h.port:
+                        kw['port'] = h.port
+                    if h.username:
+                        kw['username'] = h.username
+                    if h.timeout:
+                        kw['timeout'] = h.timeout
+
                     # Paramiko's authentication method can be either a public key, public key file, or password.
                     if h.rsa_key:
                         # RSA key
                         rsa_key_file_obj = StringIO.StringIO(h.rsa_key)
-                        kw = { "pkey": paramiko.RSAKey.from_private_key(rsa_key_file_obj, h.rsa_key_password) }
+                        kw["pkey"] = paramiko.RSAKey.from_private_key(rsa_key_file_obj, h.rsa_key_password)
                     elif h.key_filename:
-                        kw = { "key_filename": h.key_filename }
-                    else:
-                        kw = { "password": h.password }
+                        kw["key_filename"] = h.key_filename
+                    elif h.password:
+                        kw["password"] = h.password
 
-                    self._ssh_cache.connect(h.address, port=h.port, username=h.username, timeout=h.timeout, **kw)
+                    self._ssh_cache.connect(h.address, **kw)
 
                 except (paramiko.SSHException, Exception) as e:
                     self._ssh_cache = None
@@ -825,6 +855,9 @@ class SSHHost(Host):
     # Base host configuration
     reject_unknown_hosts = False
 
+    config_filename = '~/.ssh/config'
+    """ SSH config file (optional) """
+
     key_filename = None
     """ RSA key filename (optional) """
 
@@ -837,7 +870,7 @@ class SSHHost(Host):
     address = 'example.com'
     """ SSH Address """
 
-    username = 'someone'
+    username = ''
     """ SSH Username """
 
     port = 22
