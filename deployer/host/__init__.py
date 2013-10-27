@@ -806,7 +806,7 @@ class SSHBackend(object):
                                     'port': 'port',
                                     'connecttimeout': 'timeout',
                                     }
-                            for ck, pk in config_map.iteritems():
+                            for ck, pk in config_map.items():
                                 if ck in host_config:
                                     kw[pk] = host_config[ck]
 
