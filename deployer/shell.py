@@ -300,9 +300,12 @@ class Run(NodeACHandler):
     """
     Run a shell command on all hosts in the current node.
     """
+    use_sudo = False
+
     def get_command(self):
         try:
-            return Console(self.shell.pty).input('Enter command')
+            text = '[SUDO] Enter command' if self.use_sudo else 'Enter command'
+            return Console(self.shell.pty).input(text)
         except NoInput:
             return
 
@@ -325,12 +328,17 @@ class Run(NodeACHandler):
             return
 
         # Run
+        use_sudo = self.use_sudo
+
         class RunNode(Node):
             class Hosts:
                 host = self.node.hosts._all
 
             def run(self):
-                self.hosts.run(command)
+                if use_sudo:
+                    self.hosts.sudo(command)
+                else:
+                    self.hosts.run(command)
 
         env = Env(RunNode(), self.shell.pty, self.shell.logger_interface)
 
@@ -341,6 +349,10 @@ class Run(NodeACHandler):
             pass
         except Exception, e:
             self.shell.logger_interface.log_exception(e)
+
+
+class RunWithSudo(Run):
+    use_sudo = True
 
 
 class Find(NodeACHandler):
@@ -737,6 +749,7 @@ class RootHandler(ShellHandler):
             '--connect': Connect,
             '--inspect': Inspect,
             '--run': Run,
+            '--run-with-sudo': RunWithSudo,
             '--version': Version,
             '--source-code': SourceCode,
     }
