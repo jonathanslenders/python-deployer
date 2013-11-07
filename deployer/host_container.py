@@ -122,6 +122,10 @@ class HostsContainer(object):
         """
         Return ``True`` when this host appears in this host container.
         """
+        assert isinstance(host, (Host, HostContainer))
+
+        if isinstance(host, HostContainer):
+            host = host._host
         return host in self._all
 
     def get_from_slug(self, host_slug):

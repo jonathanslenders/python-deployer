@@ -1,6 +1,8 @@
 from deployer.node import SimpleNode, Node
 import termcolor
 
+from deployer.inspection.inspector import Inspector
+
 
 class AnalyseHost(SimpleNode):
     """
@@ -8,27 +10,26 @@ class AnalyseHost(SimpleNode):
     """
     def analyise(self):
         """
-        Discover what a host is used for, which role mappings it has
-        for every service.
+        Discover what a host is used for, which role mappings it has for every
+        node.
         """
-        print termcolor.colored('Showing service::role for every match of %s' % self.host.slug, 'cyan')
+        print termcolor.colored('Showing node::role for every match of %s' % self.host.slug, 'cyan')
 
-        def process_service(service):
-            # Grather roles which contain this host in the current service.
+        def process_node(node):
+            # Gather roles which contain this host in the current node.
             roles = []
-            for role in service.hosts.roles:
-                if self.host in service.hosts.filter(role):
+            for role in node.hosts.roles:
+                if self.host in node.hosts.filter(role):
                     roles.append(role)
 
             # If roles were found, print result
             if roles:
-                print service.__repr__(path_only=True), termcolor.colored(' :: ', 'cyan'), termcolor.colored(', '.join(roles), 'yellow')
+                print '.'.join(Inspector(node).get_path()), termcolor.colored(' :: ', 'cyan'), termcolor.colored(', '.join(roles), 'yellow')
 
-            for name, subservice in service.get_subservices():
-                if subservice.parent == service: # Avoid cycles
-                    process_service(subservice)
+            for childnode in Inspector(node).get_childnodes(verify_parent=True):
+                process_node(childnode)
 
-        process_service(self.root)
+        process_node(Inspector(self).get_root())
     __call__ = analyise
 
 
@@ -52,10 +53,10 @@ class Inspection(Node):
                 print ' - ', name, action
             print
 
-            for name, subservice in service.get_subservices():
-                print_service(subservice)
+            for name, subnode in service.get_subnodes():
+                print_service(subnode)
 
-        print_service(self.root)
+        print_service(Inspector(self).get_root())
 
 
     def global_status(self):
@@ -73,7 +74,7 @@ class Inspection(Node):
                     except Exception, e:
                         print 'Failed: ', e.message
 
-            for name, subservice in service.get_subservices():
-                process_service(subservice)
+            for name, subnode in service.get_subnodes():
+                process_service(subnode)
 
-        process_service(self.root)
+        process_service(Inspector(self).get_root())

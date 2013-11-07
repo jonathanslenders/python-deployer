@@ -329,8 +329,8 @@ class _EnvInspector(Inspector):
     When doing the introspection on an Env object, this acts like a proxy and
     makes sure that the result is compatible for in an Env environment.
     """
-    def get_childnodes(self, include_private=True):
-        nodes = Inspector.get_childnodes(self, include_private)
+    def get_childnodes(self, *a, **kw):
+        nodes = Inspector.get_childnodes(self, *a, **kw)
         return map(self.env._Env__wrap_node, nodes)
 
     @wraps(Inspector.get_actions)
@@ -350,6 +350,11 @@ class _EnvInspector(Inspector):
         for a in Inspector.get_queries(self, *a, **kw):
             actions.append(self.env._Env__wrap_action(a, auto_evaluate=False))
         return actions
+
+    @wraps(Inspector.get_root)
+    def get_root(self): # TODO: unittest
+        node = Inspector.get_root(self)
+        return self.env._Env__wrap_node(node)
 
     def iter_isolations(self, *a, **kw):
         for index, node in Inspector.iter_isolations(self, *a, **kw):
