@@ -1,8 +1,10 @@
 from deployer import std
-from termcolor import colored
 
-import sys
+from termcolor import colored
+from datetime import datetime
+
 import random
+import sys
 
 __doc__ = \
 """
@@ -232,7 +234,7 @@ class Console(object):
         if not node_result:
             raise NoInput
 
-        return select_node_isolation(node_result)
+        return self.select_node_isolation(node_result)
 
     def select_node_isolation(self, node):
         """
@@ -335,6 +337,82 @@ class Console(object):
                 line.append(' ' * (max_length - get_length(j)))
 
         yield ''.join(line)
+
+    def progress_bar(self, message, expected=None):
+        """
+        Display a progress bar.
+        This should be used as a Python context manager.
+        Call the next() method to increase the counter.
+
+        ::
+
+            with console.progress_bar('Looking for nodes') as p:
+                for i in range(0, 1000):
+                    p.next()
+                    ...
+
+        :returns: :class:`ProgressBar` instance.
+        """
+        return ProgressBar(self, message, expected=expected)
+
+
+class ProgressBar(object):
+    interval = .1 # Refresh interval
+
+    def __init__(self, console, message, expected=None):
+        self.console = console
+        self.message = message
+        self.counter = 0
+        self.expected = expected
+
+        self.done = False
+        self._last_print = datetime.now()
+
+        # Duration
+        self.start_time = datetime.now()
+        self.end_time = None
+
+    def __enter__(self):
+        self._print()
+        return self
+
+    def _print(self):
+        if self.expected:
+            if self.expected > 0:
+                perc = '%s%%' % (self.counter * 100 / self.expected)
+            else:
+                perc = '??'
+
+            counter_str = '%s/%s [%s completed]' % (self.counter, self.expected, perc)
+        else:
+            counter_str = '%s' % self.counter
+
+        done = colored(' [DONE] ', 'green') if self.done else ''
+        duration = (self.end_time or datetime.now()) - self.start_time
+
+        message = colored('%s:' % self.message, 'cyan')
+        counter_str = colored(counter_str, 'cyan', attrs=['bold'])
+        duration = colored(duration, 'cyan')
+        sys.stdout.write('%s  %s  [%s] %s\r' % (message, counter_str, duration, done))
+
+    def next(self, counter_name=None):
+        """
+        Increment progress bar counter.
+        """
+        self.counter += 1
+
+        # Only print when the last print was .3sec ago
+        delta = (datetime.now() - self._last_print).microseconds / 1000 / 1000.
+
+        if delta > self.interval:
+            self._print()
+            self._last_print = datetime.now()
+
+    def __exit__(self, *a):
+        self.done = True
+        self.end_time = datetime.now()
+        self._print()
+        print # Keep progress bar
 
 
 # =================[ Text based input ]=================
