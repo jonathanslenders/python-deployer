@@ -126,72 +126,8 @@ class Redis(SimpleNode):
 
         self.config.setup()
         self.upstart_service.setup()
-        self.touch_logfile()
-
-    def tail_logfile(self):
-        self.host.sudo("tail -n 20 -f '%s'" % esc1(self.logfile))
-
-    @property
-    def is_already_installed(self):
-        """
-        Returns true when redis was already installed on all hosts
-        """
-        return self.host.exists(self.config_file) and self.upstart_service.is_already_installed()
-
-
-    def shell(self):
-        print 'Opening telnet connection to Redis... Press Ctrl-C to exit.'
-        print
-        self.host.run('redis-cli -h localhost -a "%s" -p %s' % (self.password or '', self.port))
-
-
-    def monitor(self):
-        """
-        Monitor all commands that are currently executed on this redis database.
-        """
-        self.host.run('echo "MONITOR" | redis-cli -h localhost -a "%s" -p %s' % (self.password or '', self.port))
-
-
-    def dbsize(self):
-        """
-        Return the number of keys in the selected database.
-        """
-
-
-
-        # Install upstart config, and run
-        self.upstart_service.setup()
         self.upstart_service.start()
-
-        print 'Redis setup successfully on host'
-
-
-    class config(Config):
-        remote_path = Q.parent.config_file
-        lexer = IniLexer
-
-        @property
-        def content(self):
-            self = self.parent
-            return config_template % {
-                    'database_file': self.database_file,
-                    'directory': self.directory,
-                    'password': ('requirepass %s' % self.password if self.password else ''),
-                    'port': self.port,
-                    'auto_save': 'save 60 1' if self.persistent else '',
-                    'bind': ('bind %s' %  self.bind if self.bind else ''),
-                    'timeout': str(int(self.timeout)),
-                    'logfile': self.logfile,
-                }
-
-        def setup(self):
-            Config.setup(self)
-            self.host.sudo("chown '%s' '%s' " % (self.parent.username, self.remote_path))
-
-    def touch_logfile(self):
-        # Touch and chown logfile.
-        self.host.sudo("touch '%s'" % esc1(self.logfile))
-        self.host.sudo("chown '%s' '%s'" % (esc1(self.username), esc1(self.logfile)))
+        self.touch_logfile()
 
     def tail_logfile(self):
         self.host.sudo("tail -n 20 -f '%s'" % esc1(self.logfile))
@@ -223,6 +159,33 @@ class Redis(SimpleNode):
         """
         self.host.run('echo "DBSIZE" | redis-cli -h localhost -a "%s" -p %s' % (self.password or '', self.port))
 
+
+    class config(Config):
+        remote_path = Q.parent.config_file
+        lexer = IniLexer
+
+        @property
+        def content(self):
+            self = self.parent
+            return config_template % {
+                    'database_file': self.database_file,
+                    'directory': self.directory,
+                    'password': ('requirepass %s' % self.password if self.password else ''),
+                    'port': self.port,
+                    'auto_save': 'save 60 1' if self.persistent else '',
+                    'bind': ('bind %s' %  self.bind if self.bind else ''),
+                    'timeout': str(int(self.timeout)),
+                    'logfile': self.logfile,
+                }
+
+        def setup(self):
+            Config.setup(self)
+            self.host.sudo("chown '%s' '%s' " % (self.parent.username, self.remote_path))
+
+    def touch_logfile(self):
+        # Touch and chown logfile.
+        self.host.sudo("touch '%s'" % esc1(self.logfile))
+        self.host.sudo("chown '%s' '%s'" % (esc1(self.username), esc1(self.logfile)))
 
     def info(self):
         """
