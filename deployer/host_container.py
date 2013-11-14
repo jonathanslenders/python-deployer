@@ -326,7 +326,7 @@ class HostContainer(HostsContainer):
         return self._host.slug
 
     @wraps(Host.get_file)
-    def get(self, *args,**kwargs):
+    def get_file(self, *args,**kwargs):
         if len(self) == 1:
             kwargs['logger'] = self._logger
             kwargs['sandbox'] = self._sandbox
@@ -336,7 +336,7 @@ class HostContainer(HostsContainer):
             raise AttributeError
 
     @wraps(Host.put_file)
-    def put(self, *args,**kwargs):
+    def put_file(self, *args,**kwargs):
         if len(self) == 1:
             kwargs['logger'] = self._logger
             kwargs['sandbox'] = self._sandbox
