@@ -1,5 +1,6 @@
 from deployer.cli import CLInterface, Handler, HandlerType
 from deployer.console import Console
+from deployer.exceptions import ActionException
 from deployer.host import Host
 from deployer.node import Env
 from deployer.utils import esc1
@@ -30,34 +31,40 @@ class SCPHandler(Handler):
     def __init__(self, shell):
         self.shell = shell
 
-def remote_handler(func):
+def remote_handler(files_only=False, directories_only=False):
     """ Create a node system that does autocompletion on the remote path. """
-    class ChildHandler(SCPHandler):
-        is_leaf = True
+    def autocomplete_directory(shell):
+        cwd = shell.host.getcwd()
+        if cwd:
+            if cwd in shell._cd_cache:
+                return shell._cd_cache[cwd]
+            else:
+                files = shell.host.listdir()
+                shell._cd_cache[cwd] = files
+                return files
+        else:
+            return []
 
-        def __init__(self, shell, path):
-            self.path = path
-            SCPHandler.__init__(self, shell)
+    def is_file(shell, f):
+        return shell.host.stat(f).is_file
 
-        def __call__(self):
-            func(self.shell, self.path)
+    def is_dir(shell, f):
+        return shell.host.stat(f).is_dir
 
-    class MainHandler(SCPHandler):
-        handler_type = RemoteType()
+    return _create_autocompleter_system(files_only, directories_only, RemoteType,
+            autocomplete_directory, is_file, is_dir)
 
-        def complete_subhandlers(self, part):
-            for f in self.shell.autocomplete_directory():
-                if f.startswith(part):
-                    yield f, ChildHandler(self.shell, f)
-
-        def get_subhandler(self, name):
-            return ChildHandler(self.shell, name)
-
-    return MainHandler
 
 def local_handler(files_only=False, directories_only=False):
+    """ Create a node system that does autocompletion on the local path. """
+    return _create_autocompleter_system(files_only, directories_only, LocalType,
+            lambda shell: os.listdir(os.getcwd()),
+            lambda shell, f: os.path.isfile(f),
+            lambda shell, f: os.path.isdir(f))
+
+
+def _create_autocompleter_system(files_only, directories_only, handler_type_cls, listdir, isfile, isdir):
     def local_handler(func):
-        """ Create a node system that does autocompletion on the local path. """
         class ChildHandler(SCPHandler):
             is_leaf = True
 
@@ -69,17 +76,21 @@ def local_handler(files_only=False, directories_only=False):
                 func(self.shell, self.path)
 
         class MainHandler(SCPHandler):
-            handler_type = LocalType()
+            handler_type = handler_type_cls()
 
             def complete_subhandlers(self, part):
-                for f in os.listdir(os.getcwd()):
+                for f in listdir(self.shell):
                     if f.startswith(part):
-                        if files_only and not os.path.isfile(f):
+                        if files_only and not isfile(self.shell, f):
                             continue
-                        if directories_only and not os.path.isdir(f):
+                        if directories_only and not isdir(self.shell, f):
                             continue
 
                         yield f, ChildHandler(self.shell, f)
+
+                # Root directory.
+                if '/'.startswith(part) and not files_only:
+                    yield f, ChildHandler(self.shell, '/')
 
             def get_subhandler(self, name):
                 return ChildHandler(self.shell, name)
@@ -119,7 +130,26 @@ class Connect(SCPHandler):
                 host = self.shell.host.__class__
 
         env = Env(Connect(), self.shell.pty, self.shell.logger_interface)
-        env.with_host()
+        try:
+            env.with_host()
+        except ActionException as e:
+            pass
+
+@remote_handler(files_only=True)
+def display(shell, path):
+    """ Display remote file. """
+    console = Console(shell.pty)
+
+    with shell.host.open(path, 'r') as f:
+        def reader():
+            while True:
+                line = f.readline()
+                if line:
+                    yield line.rstrip('\n')
+                else:
+                    return # EOF
+
+        console.lesspipe(reader())
 
 
 class Pwd(SCPHandler):
@@ -146,7 +176,7 @@ class Ls(SCPHandler):
             print 'ERROR: ', e
 
 
-@remote_handler
+@remote_handler(directories_only=True)
 def cd(shell, path):
     try:
         shell.host.host_context._chdir(path)
@@ -186,12 +216,28 @@ class Lpwd(SCPHandler):
 
 
 @local_handler(files_only=True)
+def ldisplay(shell, path):
+    """ Display local file. """
+    console = Console(shell.pty)
+
+    with open(path, 'r') as f:
+        def reader():
+            while True:
+                line = f.readline()
+                if line:
+                    yield line.rstrip('\n')
+                else:
+                    return # EOF
+
+        console.lesspipe(reader())
+
+@local_handler(files_only=True)
 def put(shell, path):
     """ Upload local-path and store it on the remote machine. """
     print 'TODO: put', path
 
 
-@remote_handler
+@remote_handler(files_only=True)
 def get(shell, filename):
     """ Retrieve the remote-path and store it on the local machine """
     print 'Downloading %s...' % filename
@@ -199,7 +245,7 @@ def get(shell, filename):
     h.get_file(os.path.join(h.getcwd(), filename), # TODO: wrap this in an SCPOperationNode.
             os.path.join(os.getcwd(), filename), logger=shell.logger_interface)
 
-@remote_handler
+@remote_handler()
 def stat_handler(shell, filename):
     """ Print stat information of this file. """
     s = shell.host.stat(filename)
@@ -212,6 +258,7 @@ def stat_handler(shell, filename):
     print ' st_uid:       %r' % s.st_uid
     print ' st_gid:       %r' % s.st_gid
     print ' st_mode:      %r' % s.st_mode
+
 
 @local_handler()
 def lstat(shell, filename):
@@ -228,6 +275,7 @@ def lstat(shell, filename):
     print ' st_gid:       %r' % s.st_gid
     print ' st_mode:      %r' % s.st_mode
 
+
 class RootHandler(SCPHandler):
     subhandlers = {
             'clear': Clear,
@@ -238,11 +286,13 @@ class RootHandler(SCPHandler):
             'cd': cd,
             'pwd': Pwd,
             'stat': stat_handler,
+            'display': display,
 
             'lls': Lls,
             'lcd': lcd,
             'lpwd': Lpwd,
             'lstat': lstat,
+            'ldisplay': ldisplay,
 
             'put': put,
             'get': get,
@@ -276,18 +326,6 @@ class Shell(CLInterface):
 
         # Caching for autocompletion (directory -> list of content.)
         self._cd_cache = { }
-
-    def autocomplete_directory(self):
-        cwd = self.host.getcwd()
-        if cwd:
-            if cwd in self._cd_cache:
-                return self._cd_cache[cwd]
-            else:
-                files = self.host.listdir()
-                self._cd_cache[cwd] = files
-                return files
-        else:
-            return []
 
     @property
     def prompt(self):
