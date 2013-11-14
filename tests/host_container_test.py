@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 
 from deployer.host_container import HostsContainer, HostContainer
@@ -166,3 +168,57 @@ class HostsContainerTest(unittest.TestCase):
 
         self.assertIsInstance(hosts_container.expand_path('.'), list)
         self.assertIsInstance(hosts_container.filter('role3')[0].expand_path('.'), basestring)
+
+    def test_file_open(self):
+        hosts_container = self.get_definition()
+
+        # Open function should not exist in HostsContainer, only in HostContainer
+        self.assertRaises(AttributeError, lambda: hosts_container.getattr('open'))
+
+        # Call open function.
+        _, name = tempfile.mkstemp()
+        container = hosts_container.filter('role3')[0]
+        with container.open(name, 'w') as f:
+            f.write('my-content')
+
+        # Verify content
+        with open(name, 'r') as f:
+            self.assertEqual(f.read(), 'my-content')
+
+        os.remove(name)
+
+    def test_put_and_get_file(self):
+        hosts_container = self.get_definition()
+        host_container = hosts_container.filter('role3')[0]
+
+        # putfile/getfile functions should not exist in HostsContainer, only in HostContainer
+        self.assertRaises(AttributeError, lambda: hosts_container.getattr('put_file'))
+        self.assertRaises(AttributeError, lambda: hosts_container.getattr('get_file'))
+
+        # Create temp file
+        fd, name1 = tempfile.mkstemp()
+        with os.fdopen(fd, 'w') as f:
+            f.write('my-data')
+
+        # Put operations
+        _, name2 = tempfile.mkstemp()
+        host_container.put_file(name1, name2)
+
+        with open(name1) as f:
+            with open(name2) as f2:
+                self.assertEqual(f.read(), f2.read())
+
+        # Get operation
+        _, name3 = tempfile.mkstemp()
+        host_container.get_file(name1, name3)
+
+        with open(name1) as f:
+            with open(name3) as f2:
+                self.assertEqual(f.read(), f2.read())
+
+        # clean up
+        os.remove(name1)
+        os.remove(name2)
+        os.remove(name3)
+
+
