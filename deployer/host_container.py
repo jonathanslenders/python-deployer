@@ -294,12 +294,12 @@ class HostsContainer(object):
         return map(on_host, self)
 
     @property
-    def hostname(self):
+    def hostname(self): # TODO: Deprecate!!!
         with self.cd('/'):
             return self.run('hostname', sandbox=False).strip()
 
     @property
-    def is_64_bit(self):
+    def is_64_bit(self): # TODO: deprecate!!!
         with self.cd('/'):
             return 'x86_64' in self._run_silent('uname -m', sandbox=False)
 
