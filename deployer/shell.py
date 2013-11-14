@@ -650,6 +650,31 @@ class SourceCode(NodeACHandler):
         Console(self.shell.pty).lesspipe(run())
 
 
+class Scp(NodeACHandler):
+    """
+    Open a secure copy shell at this node.
+    """
+    def __call__(self):
+        # Choose host.
+        hosts = self.node.hosts.get_hosts()
+        if len(hosts) == 0:
+            print 'No hosts found'
+            return
+        elif len(hosts) == 1:
+            host = hosts.copy().pop()
+        else:
+            # Choose a host.
+            options = [ (h.slug, h) for h in hosts ]
+            try:
+                host = Console(self.shell.pty).choice('Choose a host', options, allow_random=True)
+            except NoInput:
+                return
+
+        # Start scp shell
+        from deployer.scp_shell import Shell
+        Shell(self.shell.pty, host, self.shell.logger_interface).cmdloop()
+
+
 class Exit(ShellHandler):
     """
     Quit the deployment shell.
@@ -754,6 +779,7 @@ class RootHandler(ShellHandler):
             '--run-with-sudo': RunWithSudo,
             '--version': Version,
             '--source-code': SourceCode,
+            '--scp': Scp,
     }
 
     @property
