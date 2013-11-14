@@ -1,7 +1,6 @@
 from deployer.contrib.default_config import example_settings
-from deployer.node import Node, SimpleNode, Env
+from deployer.node import Env
 import unittest
-
 
 
 class ExampleConfigTest(unittest.TestCase):

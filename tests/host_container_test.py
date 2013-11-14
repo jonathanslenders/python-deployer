@@ -9,9 +9,9 @@ from our_hosts import LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
 class HostsContainerTest(unittest.TestCase):
     def get_definition(self):
         class Hosts:
-            role1 = LocalHost1, LocalHost2
-            role2 = LocalHost3, LocalHost4, LocalHost5
-            role3 = LocalHost1
+            role1 = { LocalHost1, LocalHost2 }
+            role2 = { LocalHost3, LocalHost4, LocalHost5 }
+            role3 = { LocalHost1 }
 
         return HostsContainer.from_definition(Hosts, pty=DummyPty())
 
@@ -54,13 +54,13 @@ class HostsContainerTest(unittest.TestCase):
         self.assertEqual(len(hosts_container.filter('role2')), 3)
         self.assertEqual(len(hosts_container.filter('role3')), 1)
 
-        # Filter-*
-        self.assertEqual(len(hosts_container.filter('*')), 6)
+        # Non string filter should raise exception.
+        self.assertRaises(TypeError, HostsContainer.filter, 123)
 
         class MyHosts1:
-            role1 = LocalHost1, LocalHost2
+            role1 = { LocalHost1, LocalHost2 }
         class MyHosts2:
-            role2 = LocalHost3, LocalHost4, LocalHost5
+            role2 = { LocalHost3, LocalHost4, LocalHost5 }
 
         self.assertIsInstance(hosts_container.filter('role1'), HostsContainer)
         self.assertIsInstance(hosts_container.filter('role2'), HostsContainer)
@@ -79,8 +79,8 @@ class HostsContainerTest(unittest.TestCase):
         # Filter on two roles.
 
         class MyHosts1_and_2:
-            role1 = LocalHost1, LocalHost2
-            role2 = LocalHost3, LocalHost4, LocalHost5
+            role1 = { LocalHost1, LocalHost2 }
+            role2 = { LocalHost3, LocalHost4, LocalHost5 }
 
         self.assertEqual(hosts_container.filter('role1', 'role2').get_hosts_as_dict(),
                     HostsContainer.from_definition(MyHosts1_and_2).get_hosts_as_dict())
@@ -130,6 +130,8 @@ class HostsContainerTest(unittest.TestCase):
             result = hosts_container.run('pwd', interactive=False)
             self.assertEqual(len(result), 6)
             self.assertEqual(result[0].strip(), '/')
+            self.assertEqual(hosts_container[0].getcwd(), '/')
+            self.assertEqual(hosts_container.getcwd(), ['/'] * 6)
 
     def test_hostcontainer_cd2(self):
         # Test exists in cd.

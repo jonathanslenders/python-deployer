@@ -254,8 +254,8 @@ class InspectorTestIterIsolations(unittest.TestCase):
     def setUp(self):
         class A(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost2, LocalHost3
-                role2 = LocalHost2, LocalHost4, LocalHost5
+                role1 = { LocalHost1, LocalHost2, LocalHost3 }
+                role2 = { LocalHost2, LocalHost4, LocalHost5 }
 
             @map_roles('role1', extra='role2')
             class B(SimpleNode.Array):
@@ -306,7 +306,7 @@ class InspectorIteratorTest(unittest.TestCase):
 
                 class C(SimpleNode.Array):
                     class Hosts:
-                        host = LocalHost1, LocalHost2, LocalHost3, LocalHost4
+                        host = { LocalHost1, LocalHost2, LocalHost3, LocalHost4 }
 
                     def my_action(self): return 'c'
 

@@ -1,8 +1,9 @@
 from deployer.cli import CLInterface, Handler, HandlerType
 from deployer.console import Console
 from deployer.console import NoInput
+from deployer.exceptions import ActionException
 from deployer.inspection import Inspector, PathType
-from deployer.node import ActionException, Env, IsolationIdentifierType
+from deployer.node import Env, IsolationIdentifierType
 
 from inspect import getfile
 from itertools import groupby
@@ -283,7 +284,7 @@ class Connect(NodeACHandler):
 
         class Connect(connect.Connect):
             class Hosts:
-                host = self.node.hosts._all
+                host = self.node.hosts.get_hosts()
 
         env = Env(Connect(), self.shell.pty, self.shell.logger_interface)
 
@@ -332,7 +333,7 @@ class Run(NodeACHandler):
 
         class RunNode(Node):
             class Hosts:
-                host = self.node.hosts._all
+                host = self.node.hosts.get_hosts()
 
             def run(self):
                 if use_sudo:
@@ -342,7 +343,8 @@ class Run(NodeACHandler):
 
         env = Env(RunNode(), self.shell.pty, self.shell.logger_interface)
 
-        # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
+        # Run as any other action. (Nice exception handling, e.g. in case of
+        # NoInput on host selection.)
         try:
             env.run()
         except ActionException, e:

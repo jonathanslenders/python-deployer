@@ -79,7 +79,7 @@ class NodeTest(unittest.TestCase):
                 class X(Node):
                     class Hosts:
                         role1 = LocalHost3
-                        role2 = [ LocalHost4, LocalHost5 ]
+                        role2 = { LocalHost4, LocalHost5 }
 
                 @map_roles(role11='role7')
                 class Y(Node):
@@ -218,7 +218,7 @@ class NodeTest(unittest.TestCase):
     def test_wrapping_middle_node_in_env(self):
         class S(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost2
+                role1 = { LocalHost1, LocalHost2 }
 
             class T(Node):
                 def action(self):
@@ -281,7 +281,7 @@ class NodeTest(unittest.TestCase):
     def test_simple_node(self):
         class N(SimpleNode):
             class Hosts:
-                host = LocalHost1, LocalHost2
+                host = { LocalHost1, LocalHost2 }
 
             def func(self):
                 return 'result'
@@ -293,7 +293,7 @@ class NodeTest(unittest.TestCase):
     def test_simple_node_getitem(self):
         class N(SimpleNode):
             class Hosts:
-                host = LocalHost1, LocalHost2
+                host = { LocalHost1, LocalHost2 }
 
             def func(self):
                 return 'result'
@@ -322,7 +322,7 @@ class NodeTest(unittest.TestCase):
         # __getitem__ should not be possible on a normal node.
         class N(Node):
             class Hosts:
-                host = LocalHost1, LocalHost2
+                host = { LocalHost1, LocalHost2 }
         n = N()
         self.assertRaises(KeyError, lambda:n[0]) # TODO: regex match: KeyError: __getitem__ on isolated node is not allowed.
 
@@ -331,7 +331,7 @@ class NodeTest(unittest.TestCase):
         # self.host as the index parameter.
         class Root(Node):
             class Hosts:
-                role = LocalHost1, LocalHost2
+                role = { LocalHost1, LocalHost2 }
 
             @map_roles('role')
             class A(SimpleNode.Array):
@@ -354,7 +354,7 @@ class NodeTest(unittest.TestCase):
 
         class A(Node):
             class Hosts:
-                my_role = LocalHost1, LocalHost2
+                my_role = { LocalHost1, LocalHost2 }
 
             @map_roles('my_role')
             class B(SimpleNode.Array):
@@ -379,7 +379,7 @@ class NodeTest(unittest.TestCase):
     def test_nested_simple_nodes(self):
         class N(SimpleNode):
             class Hosts:
-                host = LocalHost1, LocalHost2
+                host = { LocalHost1, LocalHost2 }
 
             class M(SimpleNode):
                 def func(self):
@@ -392,7 +392,7 @@ class NodeTest(unittest.TestCase):
     def test_simple_nodes_in_normal_node(self):
         class N(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost
+                role1 = { LocalHost1, LocalHost }
                 role2 = LocalHost3
 
             @map_roles('role1')
@@ -419,7 +419,7 @@ class NodeTest(unittest.TestCase):
     def test_calling_between_simple_and_normal_nodes(self):
         class N(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost
+                role1 = { LocalHost1, LocalHost }
                 role2 = LocalHost3
 
             def do_tests(this):
@@ -461,7 +461,7 @@ class NodeTest(unittest.TestCase):
 
         class N(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost2
+                role1 = { LocalHost1, LocalHost2 }
                 role2 = LocalHost3
 
             class M(Node):
@@ -512,9 +512,9 @@ class NodeTest(unittest.TestCase):
         # we will map *all* roles to 'host'
         class A(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost2
-                role2 = LocalHost3
-                role3 = LocalHost4
+                role1 = { LocalHost1, LocalHost2 }
+                role2 = { LocalHost3 }
+                role3 = { LocalHost4 }
 
             class B(SimpleNode.Array):
                 pass
@@ -526,8 +526,8 @@ class NodeTest(unittest.TestCase):
         # mapping between A and B, this hosts will be used.
         class A(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost2
-                role2 = LocalHost3, LocalHost4
+                role1 = { LocalHost1, LocalHost2 }
+                role2 = { LocalHost3, LocalHost4 }
 
             class B(SimpleNode.Array):
                 class Hosts:
@@ -550,7 +550,7 @@ class NodeTest(unittest.TestCase):
         # Exception: Invalid initialisation of SimpleNode.JustOne. 2 hosts given to <Node A.B>.
         class A(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost2
+                role1 = { LocalHost1, LocalHost2 }
 
             class B(SimpleNode.JustOne):
                 pass
@@ -674,11 +674,11 @@ class NodeTest(unittest.TestCase):
 
         class A(Node):
             class Hosts:
-                host = [ LocalHost1, LocalHost2, LocalHost3 ]
+                host = { LocalHost1, LocalHost2, LocalHost3 }
 
             class B(Node):
                 class Hosts:
-                    host = [ LocalHost4 ]
+                    host = { LocalHost4 }
 
             @map_roles('host')
             class C(SimpleNode.Array):
@@ -704,7 +704,7 @@ class NodeTest(unittest.TestCase):
     def test_default_action(self):
         class A(Node):
             class Hosts:
-                role = LocalHost1, LocalHost2
+                role = { LocalHost1, LocalHost2 }
 
             def __call__(self):
                 return 'A.call'
@@ -731,7 +731,7 @@ class NodeTest(unittest.TestCase):
 
         class A(Node):
             class Hosts:
-                role = LocalHost1, LocalHost2
+                role = { LocalHost1, LocalHost2 }
 
             @map_roles('role')
             class B(SimpleNode.Array):
@@ -757,7 +757,7 @@ class NodeTest(unittest.TestCase):
 
         class Root(Node):
             class Hosts:
-                host = LocalHost1, LocalHost2
+                host = { LocalHost1, LocalHost2 }
 
             @map_roles(host='host')
             class A(SimpleNode.Array):
@@ -787,8 +787,8 @@ class NodeTest(unittest.TestCase):
     def test_initialize_node(self):
         class A(Node):
             class Hosts:
-                role1 = LocalHost2
-                role2 = LocalHost4, LocalHost5
+                role1 = { LocalHost2 }
+                role2 = { LocalHost4, LocalHost5 }
 
             def action(self):
                 # Define a new Node-tree
@@ -813,8 +813,8 @@ class NodeTest(unittest.TestCase):
 
         class A(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost2, LocalHost3
-                role2 = LocalHost2, LocalHost4, LocalHost5
+                role1 = { LocalHost1, LocalHost2, LocalHost3 }
+                role2 = { LocalHost2, LocalHost4, LocalHost5 }
 
             @map_roles('role1', extra='role2')
             class B(SimpleNode.Array):
@@ -839,12 +839,11 @@ class NodeTest(unittest.TestCase):
     def test_nesting_normal_node_in_simple_node(self):
         # It is possible to nest multiple sequences of Node-SimpleNode.Array
         # inside each other. This behaves like a multi-dimensional array.
-        this = self
 
         class A(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost2, LocalHost3
-                role2 = LocalHost2, LocalHost4, LocalHost5
+                role1 = { LocalHost1, LocalHost2, LocalHost3 }
+                role2 = { LocalHost2, LocalHost4, LocalHost5 }
 
             @map_roles('role1', extra='role2')
             class B(SimpleNode.Array):
@@ -921,7 +920,7 @@ class NodeTest(unittest.TestCase):
         # host for this role.
         class A(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost2
+                role1 = { LocalHost1, LocalHost2 }
                 role2 = LocalHost3
 
             @map_roles('role2')
@@ -942,6 +941,8 @@ class NodeTest(unittest.TestCase):
 
             def action(self):
                 with self.hosts.cd('/tmp'):
+                    this.assertEqual(self.hosts.getcwd(), ['/tmp'])
+                    this.assertEqual(self.hosts[0].getcwd(), '/tmp')
                     this.assertEqual(self.hosts[0].run('pwd').strip(), '/tmp')
 
                     with self.hosts.cd('/'):

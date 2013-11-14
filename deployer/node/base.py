@@ -21,7 +21,9 @@ __all__ = (
     'EnvAction',
     'IsolationIdentifierType',
     'Node',
+    'NodeBase',
     'SimpleNode',
+    'SimpleNodeBase',
     'iter_isolations',
     'required_property',
 )
@@ -405,7 +407,7 @@ class NodeBase(type):
                 not getattr(attrs['host'].fget, '_internal', False)):
             raise TypeError("Please don't override the reserved name 'host' in a Node.")
 
-        if name != 'Node':
+        if name != 'Node': # TODO: this "!='Node'" may not be completely safe...
             # Replace actions/childnodes/properties by descriptors
             for attr_name, attr in attrs.items():
                 wrapped_attribute = cls._wrap_attribute(attr_name, attr, name, node_type)
@@ -431,9 +433,13 @@ class NodeBase(type):
         """
         # The Hosts definition (should be a Hosts class ore RoleMapping)
         if attr_name == 'Hosts':
-            # Validate node type
-            if not isclass(attribute) and not isinstance(attribute, RoleMapping):
-                raise Exception('Node.Hosts should be a class definition or a RoleMapping instance.')
+            # Validate 'Hosts' value
+            if not isinstance(attribute, RoleMapping):
+                if isclass(attribute):
+                    # Try to initialize a HostContainer. If that fails, something is wrong.
+                    HostsContainer.from_definition(attribute)
+                else:
+                    raise Exception('Node.Hosts should be a class definition or a RoleMapping instance.')
             return attribute
 
         # Wrap functions into an ActionDescriptor
@@ -674,8 +680,9 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
         For a SimpleNode (or array cell), create a SimpleNode instance which
         matches a single cell, that is one Host for the 'host'-role.
         """
-        hosts2 = dict(**node.hosts._hosts)
-        hosts2['host'] = host
+        assert isinstance(host, Host)
+        hosts2 = node.hosts.get_hosts_as_dict()
+        hosts2['host'] = host.__class__
 
         class SimpleNodeItem(node.__class__):
             _node_is_isolated = True
@@ -695,10 +702,10 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
         # already isolated. This means that the roles are correct
         # and we can iterate through it.
         for i, host in enumerate(node.hosts.filter('host')._all):
+            assert isinstance(host, Host)
             if identifier_type == IsolationIdentifierType.INT_TUPLES:
                 identifier = (i,)
             elif identifier_type == IsolationIdentifierType.HOST_TUPLES:
-                assert isinstance(host, Host)
                 identifier = (host.__class__,)
             elif identifier_type == IsolationIdentifierType.HOSTS_SLUG:
                 identifier = (host.slug, )
