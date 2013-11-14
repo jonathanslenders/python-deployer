@@ -14,27 +14,9 @@ __all__ = (
 
 class LocalStat(Stat):
     """
-    Stat info for SSH files.
+    Stat info for local files.
     """
-    def __init__(self, path):
-        self._stat = os.stat(path)
-
-    @property
-    def st_size(self):
-        return self._stat.st_size
-
-    @property
-    def st_uid(self):
-        return self._stat.st_uid
-
-    @property
-    def st_gid(self):
-        return self._stat.st_gid
-
-    @property
-    def st_mode(self):
-        return self._stat.st_mode
-
+    pass
 
 
 # Global variable for localhost sudo password cache.
@@ -171,7 +153,7 @@ class LocalHost(Host):
 
     @wraps(Host.stat)
     def stat(self, path):
-        return LocalStat(os.path.join(self.getcwd(), path))
+        return LocalStat(os.stat(os.path.join(self.getcwd(), path)))
 
     def listdir(self, path='.'):
         return os.listdir(os.path.join(* [self.getcwd(), path]))

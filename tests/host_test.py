@@ -1,5 +1,6 @@
 from deployer.pseudo_terminal import DummyPty
 from deployer.utils import IfConfig
+from deployer.host.base import Stat
 
 from our_hosts import LocalHost1
 
@@ -109,6 +110,28 @@ class HostTest(unittest.TestCase):
         os.remove(name1)
         os.remove(name2)
         os.remove(name3)
+
+    def test_stat(self):
+        """ Test the stat method. """
+        host = LocalHost1()
+
+        # Create temp file
+        fd, name = tempfile.mkstemp()
+
+        # Call stat on temp file.
+        s = host.stat(name)
+        self.assertIsInstance(s, Stat)
+        self.assertEqual(s.st_size, 0)
+        self.assertEqual(s.is_file, True)
+        self.assertEqual(s.is_dir, False)
+        self.assertIsInstance(s.st_uid, int)
+        self.assertIsInstance(s.st_gid, int)
+        os.remove(name)
+
+        # Call stat on directory
+        s = host.stat('/tmp')
+        self.assertEqual(s.is_file, False)
+        self.assertEqual(s.is_dir, True)
 
     def test_ifconfig(self):
         # ifconfig should return an IfConfig instance.

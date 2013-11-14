@@ -147,9 +147,7 @@ class SSHStat(Stat):
     """
     Stat info for SSH files.
     """
-    def __init__(self, stat_result):
-        Stat.__init__(stat_result)
-
+    pass
 
 
 class SSHHost(Host):
