@@ -1,15 +1,41 @@
 import getpass
 import os
 import pexpect
+from functools import wraps
 
 from deployer.console import Console
 from deployer.exceptions import ExecCommandFailed
 
-from .base import Host
+from .base import Host, Stat
 
 __all__ = (
     'LocalHost',
 )
+
+class LocalStat(Stat):
+    """
+    Stat info for SSH files.
+    """
+    def __init__(self, path):
+        self._stat = os.stat(path)
+
+    @property
+    def st_size(self):
+        return self._stat.st_size
+
+    @property
+    def st_uid(self):
+        return self._stat.st_uid
+
+    @property
+    def st_gid(self):
+        return self._stat.st_gid
+
+    @property
+    def st_mode(self):
+        return self._stat.st_mode
+
+
 
 # Global variable for localhost sudo password cache.
 _localhost_password = None
@@ -142,6 +168,10 @@ class LocalHost(Host):
     def _open(self, remote_path, mode):
         # Use the builtin 'open'
         return open(remote_path, mode)
+
+    @wraps(Host.stat)
+    def stat(self, path):
+        return LocalStat(os.path.join(self.getcwd(), path))
 
     def listdir(self, path='.'):
         return os.listdir(os.path.join(* [self.getcwd(), path]))

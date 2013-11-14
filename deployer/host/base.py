@@ -7,6 +7,7 @@ import random
 import socket
 import termcolor
 import time
+from stat import S_ISDIR, S_ISREG
 
 from deployer.exceptions import ExecCommandFailed
 from deployer.loggers import DummyLoggerInterface
@@ -101,29 +102,37 @@ class HostContext(object):
 
 class Stat(object):
     """ Base `Stat` class """
-    @property
-    def is_dir(self):
-        raise NotImplementedError
-
-    @property
-    def is_file(self):
-        raise NotImplementedError
+    def __init__(self, stat_result):
+        self._stat_result = stat_result
 
     @property
     def st_size(self):
-        raise NotImplementedError
+        """ File size in bytes. """
+        return self._stat_result.st_size
 
     @property
     def st_uid(self):
-        raise NotImplementedError
+        """ User ID """
+        return self._stat_result.st_uid
 
     @property
     def st_gid(self):
-        raise NotImplementedError
+        """ Group ID """
+        return self._stat_result.st_gid
 
     @property
     def st_mode(self):
-        raise NotImplementedError
+        return self._stat_result.st_mode
+
+    @property
+    def is_dir(self):
+        """ True when this is a directory. """
+        return S_ISDIR(self.st_mode)
+
+    @property
+    def is_file(self):
+        """ True when this is a regular file. """
+        return S_ISREG(self.st_mode)
 
 
 class Host(object):
@@ -146,9 +155,9 @@ class Host(object):
     Username for connecting to the Host
     """
 
-    password = '' # For sudo
+    password = ''
     """
-    Password for connecting to the host.
+    Password for connecting to the host. (for sudo)
     """
 
     # Terminal to report to use for interactive sessions
@@ -162,6 +171,9 @@ class Host(object):
     def __init__(self):
         self.dummy_logger = DummyLoggerInterface() # XXX: remove self.dummy_logger variable.
         self.host_context = HostContext()
+
+    def __repr__(self):
+        return 'Host(slug=%r, context=%r)' % (self.slug, self.host_context)
 
     def get_start_path(self):
         """

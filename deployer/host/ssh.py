@@ -147,34 +147,9 @@ class SSHStat(Stat):
     """
     Stat info for SSH files.
     """
-    def __init__(self, ssh_stat):
-        self._ssh_stat = ssh_stat
+    def __init__(self, stat_result):
+        Stat.__init__(stat_result)
 
-    @property
-    def is_dir(self):
-        from stat import S_ISDIR
-        return S_ISDIR(self._ssh_stat.st_mode)
-
-    @property
-    def is_file(self):
-        from stat import S_ISREG
-        return S_ISREG(self._ssh_stat.st_mode)
-
-    @property
-    def st_size(self):
-        return self._ssh_stat.st_size
-
-    @property
-    def st_uid(self):
-        return self._ssh_stat.st_uid
-
-    @property
-    def st_gid(self):
-        return self._ssh_stat.st_gid
-
-    @property
-    def st_mode(self):
-        return self._ssh_stat.st_mode
 
 
 class SSHHost(Host):
