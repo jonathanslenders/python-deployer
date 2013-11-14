@@ -46,6 +46,7 @@ def connect(self, hostname, port=SSH_PORT, username=None, password=None, pkey=No
     t.start_client()
     ResourceManager.register(self, t)
 
+    progress_bar_callback(4) # Exchange keys
     server_key = t.get_remote_server_key()
     keytype = server_key.get_name()
 
@@ -75,5 +76,5 @@ def connect(self, hostname, port=SSH_PORT, username=None, password=None, pkey=No
     else:
         key_filenames = key_filename
 
-    progress_bar_callback(4) # Authenticate
+    progress_bar_callback(5) # Authenticate
     self._auth(username, password, pkey, key_filenames, allow_agent, look_for_keys)

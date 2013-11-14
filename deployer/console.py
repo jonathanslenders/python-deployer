@@ -454,9 +454,9 @@ class ProgressBar(object):
         """
         Increment progress bar counter.
         """
-        self.set_progress(self.counter + 1)
+        self.set_progress(self.counter + 1, rewrite=False)
 
-    def set_progress(self, value):
+    def set_progress(self, value, rewrite=True):
         """
         Set counter to this value.
         """
@@ -465,7 +465,7 @@ class ProgressBar(object):
         # Only print when the last print was .3sec ago
         delta = (datetime.now() - self._last_print).microseconds / 1000 / 1000.
 
-        if delta > self.interval:
+        if rewrite or delta > self.interval:
             self._print()
             self._last_print = datetime.now()
 

@@ -853,7 +853,8 @@ class SSHBackend(object):
             1: "Resolving DNS",
             2: "Creating socket",
             3: "Creating transport",
-            4: "Authenticating" }))
+            4: "Exchanging keys",
+            5: "Authenticating" }))
 
 class Stat(object):
     """ Base `Stat` class """
