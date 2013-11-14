@@ -51,13 +51,10 @@ class HostContext(object):
         # TODO: Guarantee thread safety!! When doing parallel deployments, and
         #       several threads act on the same host, things will probably go
         #       wrong...
-    def __init__(self, start_path=None):
+    def __init__(self):
         self._command_prefixes = []
         self._path = []
         self._env = []
-
-        if start_path:
-            self._path.append(start_path)
 
     def __repr__(self):
         return 'HostContext(prefixes=%r, path=%r, env=%r)' % (
@@ -164,6 +161,7 @@ class Host(object):
         The path in which commands at the server will be executed.
         by default. (if no cd-statements are used.)
         Usually, this is the home directory.
+        It should always return an absolute path, starting with '/'
         """
         raise NotImplementedError
 #        return self.get_home_directory(self.username)
@@ -177,7 +175,7 @@ class Host(object):
         Return current working directory as absolute path.
         """
         path = os.path.normpath(os.path.join(*[ self.get_start_path() ] + self.host_context._path))
-        assert path[0] == '/' # Returns absolute directory.
+        assert path[0] == '/' # Returns absolute directory (get_start_path() should be absolute)
         return path
 
     def get_home_directory(self, username=None): # TODO: or use getcwd() on the sftp object??

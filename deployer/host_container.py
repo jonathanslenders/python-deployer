@@ -84,8 +84,6 @@ class HostsContainer(object):
             elif isinstance(v, (set, tuple)):
                 for h in v:
                     assert issubclass(h, Host)
-                    if isinstance(h, Host):
-                        import pdb; pdb.set_trace()
                 # note: The isinstance check is because SimpleNodeItem passes instances.
 #                hosts[k] = { h.__class__ if isinstance(h, Host) else h for h in v }
                 hosts[k] = { h for h in v }
@@ -393,20 +391,3 @@ class HostContainer(HostsContainer):
     @wraps(HostsContainer.has_command)
     def has_command(self, *a, **kw):
         return HostsContainer.has_command(self, *a, **kw)[0]
-
-
-def _isolate_hosts(hosts_dict, role, host_slug):
-    """
-    Make sure that for the given role, only a host with `host_slug` will
-    stay over.
-
-    `hosts_dict` should be a maping of a role name to a set of hosts
-    """
-    result = { }
-    for r, hosts in hosts_dict.items():
-        assert isinstance(hosts, set)
-        if r == role:
-            result[r] = { h for h in hosts if h.slug == host_slug }
-        else:
-            result[r] = set(hosts)
-    return result
