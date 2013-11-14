@@ -1,5 +1,6 @@
 from contextlib import nested
-from deployer.host import Host, HostContext, ExecCommandFailed
+from deployer.host import Host, HostContext
+from deployer.exceptions import ExecCommandFailed
 from deployer.utils import isclass, esc1
 from functools import wraps
 
