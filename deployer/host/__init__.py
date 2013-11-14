@@ -63,14 +63,6 @@ class HostContext(object):
         return 'HostContext(prefixes=%r, path=%r, env=%r)' % (
                         self._command_prefixes, self._path, self._env)
 
-#    def clone(self):
-#        # Create a copy from this context. (We need it for thread-safety.)
-#        c = HostContext()
-#        c._command_prefixes = self._command_prefixes[:]
-#        c._path = self._path[:]
-#        c._env = self._env[:]
-#        return c
-
     def prefix(self, command):
         """
         Prefix all commands with given command plus ``&&``.
