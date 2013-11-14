@@ -75,18 +75,11 @@ class HostsContainer(object):
                 # This happens when we define Hosts inline in an action, to be
                 # initialized, e.g. by initialize_node.
                 hosts[k] = v.get_hosts()
-#            elif isinstance(v, Host):
-#                # This happens when we create a new Node, isolated from a
-#                # parallel node. (In SimpleNodeItem)
-#                hosts[k] = { v.__class__  }
-#                import pdb; pdb.set_trace()
             elif isclass(v) and issubclass(v, Host):
                 hosts[k] = { v }
             elif isinstance(v, (set, tuple)):
                 for h in v:
                     assert issubclass(h, Host)
-                # note: The isinstance check is because SimpleNodeItem passes instances.
-#                hosts[k] = { h.__class__ if isinstance(h, Host) else h for h in v }
                 hosts[k] = { h for h in v }
             elif not k.startswith('_'):
                 raise TypeError('Invalid attribute in host definition %s: %r=%r' % (hosts_class, k, v))
