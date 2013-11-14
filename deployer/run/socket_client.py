@@ -111,7 +111,7 @@ class DeploymentClient(object):
             # When in a gnome-terminal:
             elif display_env and colorterm_env == 'gnome-terminal':
                 subprocess.call('gnome-terminal -e "%s" &' % self.new_window_command, shell=True)
-	    # Fallback to xterm
+            # Fallback to xterm
             elif display_env and xterm_env:
                 subprocess.call('xterm -e %s &' % self.new_window_command, shell=True)
             else:
@@ -121,7 +121,7 @@ class DeploymentClient(object):
                         'TMUX and XTERM environment variables are empty.\r\n')
                 sys.stdout.flush()
 
-        except Exception, ex:
+        except Exception as e:
             # TODO: Somehow, the subprocess.call raised an IOError Invalid argument,
             # we don't know why, but need to debug when it happens again.
             import pdb; pdb.set_trace()

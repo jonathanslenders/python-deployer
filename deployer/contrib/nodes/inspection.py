@@ -69,14 +69,14 @@ class Inspection(Node):
         def process_node(node):
             print node.__repr__()
 
-            for name, action in service.get_actions():
+            for name, action in node.get_actions():
                 if name == 'status':
                     try:
                         action()
-                    except Exception, e:
+                    except Exception as e:
                         print 'Failed: ', e.message
 
-            for name, subnode in service.get_subnodes():
-                process_service(subnode)
+            for name, subnode in node.get_subnodes():
+                process_node(subnode)
 
         process_node(Inspector(self).get_root())

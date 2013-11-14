@@ -172,7 +172,7 @@ class NodeTest(unittest.TestCase):
 
         try:
             env.return_false()
-        except ActionException, e:
+        except ActionException as e:
             self.assertIsInstance(e.inner_exception, ExecCommandFailed)
 
     def test_action_with_params(self):
@@ -611,7 +611,7 @@ class NodeTest(unittest.TestCase):
 
         try:
             env.action()
-        except ActionException, e:
+        except ActionException as e:
             self.assertIsInstance(e.inner_exception, AttributeError)
 
     def test_custom_node_init(self):
@@ -649,7 +649,7 @@ class NodeTest(unittest.TestCase):
         self.assertRaises(ActionException, env.action)
         try:
             env.action()
-        except ActionException, e:
+        except ActionException as e:
             self.assertIsInstance(e.inner_exception, NotImplementedError)
 
     def test_action_aliases(self):

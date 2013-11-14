@@ -276,7 +276,7 @@ class Connection(object):
             # Call function
             try:
                 result = f(connection.pty)
-            except Exception, e:
+            except Exception as e:
                 # Just print the exception, it's actually the tasks of the
                 # runInNewPtys caller to make sure that all the passed
                 # functions don't raise errors, or to implement a global
@@ -335,7 +335,7 @@ class Connection(object):
                 try:
                     result = f(self.pty)
                     results.append(result)
-                except Exception, e:
+                except Exception as e:
                     results.append(str(e))
                 countDown()
         handleRemainingInCurrentPty()

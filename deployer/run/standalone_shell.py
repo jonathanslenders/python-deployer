@@ -76,7 +76,7 @@ def start(root_node, interactive=True, cd_path=None, logfile=None,
             if action_name:
                 try:
                     return shell.run_action(action_name, *parameters)
-                except ActionException, e:
+                except ActionException as e:
                     sys.exit(1)
                 except:
                     import traceback

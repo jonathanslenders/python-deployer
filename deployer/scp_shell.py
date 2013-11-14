@@ -119,10 +119,7 @@ class Connect(SCPHandler):
                 host = self.shell.host.__class__
 
         env = Env(Connect(), self.shell.pty, self.shell.logger_interface)
-        try:
-            env.with_host()
-        except Exception, e:
-            print e # XXX
+        env.with_host()
 
 
 class Pwd(SCPHandler):

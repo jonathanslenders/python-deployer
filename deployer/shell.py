@@ -291,9 +291,9 @@ class Connect(NodeACHandler):
         # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
         try:
             env.with_host()
-        except ActionException, e:
+        except ActionException as e:
             pass
-        except Exception, e:
+        except Exception as e:
             self.shell.logger_interface.log_exception(e)
 
 
@@ -347,9 +347,9 @@ class Run(NodeACHandler):
         # NoInput on host selection.)
         try:
             env.run()
-        except ActionException, e:
+        except ActionException as e:
             pass
-        except Exception, e:
+        except Exception as e:
             self.shell.logger_interface.log_exception(e)
 
 
@@ -524,7 +524,7 @@ class Inspect(NodeACHandler):
             try:
                 insp = Inspector(self._get_env())
                 result = insp.trace_query(self.attr_name)
-            except Exception, e:
+            except Exception as e:
                 yield 'Failed to execute query: %r' % e
                 return
 
@@ -553,7 +553,7 @@ class Inspect(NodeACHandler):
 
                 yield termcolor.colored('  Value:          ', 'cyan') + \
                       termcolor.colored(repr(value), 'yellow')
-            except Exception, e:
+            except Exception as e:
                 yield termcolor.colored('  Value:          ', 'cyan') + \
                       termcolor.colored('Failed to evaluate value...', 'yellow')
         console.lesspipe(run())
@@ -752,11 +752,11 @@ class Node(NodeACHandler):
             else:
                 handle_result(result)
 
-        except ActionException, e:
+        except ActionException as e:
             # Already sent to logger_interface in the Action itself.
             pass
 
-        except Exception, e:
+        except Exception as e:
             logger_interface.log_exception(e)
 
 

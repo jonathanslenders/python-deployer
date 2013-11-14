@@ -803,7 +803,7 @@ class Action(object):
                 else:
                     return query._execute_query(i).result
 
-            except Exception, e:
+            except Exception as e:
                 from deployer.exceptions import QueryException
                 raise QueryException(i._node, attr_name, query, e)
 
@@ -899,7 +899,7 @@ class EnvAction(object):
             while True:
                 try:
                     return self._action._func(isolation, *a, **kw)
-                except ActionException, e:
+                except ActionException as e:
                     raise
                 except ExecCommandFailed, e:
                     isolation._logger.log_exception(e)
@@ -933,7 +933,7 @@ class EnvAction(object):
                     elif choice == 'abort':
                         # TODO: send exception to logger -> and print it
                         raise ActionException(e, traceback.format_exc())
-                except Exception, e:
+                except Exception as e:
                     e2 = ActionException(e, traceback.format_exc())
                     isolation._logger.log_exception(e2)
                     raise e2
@@ -983,7 +983,7 @@ class EnvAction(object):
                             # Succeed
                             logger_fork.set_succeeded()
                             return result
-                        except Exception, e:
+                        except Exception as e:
                             # TODO: handle exception in thread
                             logger_fork.set_failed(e)
                             errors.append(e)

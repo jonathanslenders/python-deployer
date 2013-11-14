@@ -319,7 +319,7 @@ class Host(object):
                 height, width = pty.get_size()
                 try:
                     chan.resize_pty(width=width, height=height)
-                except paramiko.SSHException, e:
+                except paramiko.SSHException as e:
                     # Channel closed. Ignore when channel was already closed.
                     pass
             pty.set_ssh_channel_size = set_size
