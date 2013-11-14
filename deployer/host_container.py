@@ -313,6 +313,7 @@ class HostContainer(HostsContainer):
         """
         This host container has only one host.
         """
+        assert len(self) == 1
         return self._all[0]
 
     @property
@@ -330,24 +331,18 @@ class HostContainer(HostsContainer):
             raise AttributeError
 
     @wraps(Host.put_file)
-    def put_file(self, *args,**kwargs):
-        if len(self) == 1:
-            kwargs['logger'] = self._logger
-            kwargs['sandbox'] = self._sandbox
+    def put_file(self, *args, **kwargs):
+        kwargs['logger'] = self._logger
+        kwargs['sandbox'] = self._sandbox
 
-            return self._host.put_file(*args, **kwargs)
-        else:
-            raise AttributeError
+        return self._host.put_file(*args, **kwargs)
 
     @wraps(Host.open)
-    def open(self, *args,**kwargs):
-        if len(self) == 1:
-            kwargs['logger'] = self._logger
-            kwargs['sandbox'] = self._sandbox
+    def open(self, *args, **kwargs):
+        kwargs['logger'] = self._logger
+        kwargs['sandbox'] = self._sandbox
 
-            return self._host.open(*args, **kwargs)
-        else:
-            raise AttributeError
+        return self._host.open(*args, **kwargs)
 
     @wraps(HostsContainer.run)
     def run(self, *a, **kw):
