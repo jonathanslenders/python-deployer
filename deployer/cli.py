@@ -129,6 +129,8 @@ class CLInterface(object):
                 self.currently_running = ' '.join(original_parts)
                 try:
                     h()
+                except ExitCLILoop:
+                    raise
                 except Exception as e:
                     self.handle_exception(e)
                 self.currently_running = None
