@@ -106,7 +106,7 @@ class SSHBackend(object):
                         # Connect to the SSH server.
                         # We use a patched connect function instead of the connect of paramiko's library,
                         # In order to add the progress bar.
-                        from .paramiko_connect import connect as connect_patch
+                        from .paramiko_connect_patch import connect as connect_patch
                         kw['progress_bar_callback'] = progress_bar.set_progress
 
                         #self._ssh_cache.connect = connect_patch
