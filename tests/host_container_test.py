@@ -123,6 +123,12 @@ class HostsContainerTest(unittest.TestCase):
         self.assertEqual(hosts_container.has_command('ls'), [True, True, True, True, True, True])
         self.assertEqual(hosts_container[0].has_command('ls'), True)
 
+        # (unknown command
+        unknown_command = 'this_is_an_unknown_command'
+        self.assertEqual(hosts_container.has_command(unknown_command),
+                        [False, False, False, False, False, False])
+        self.assertEqual(hosts_container[0].has_command(unknown_command), False)
+
     def test_hostcontainer_cd(self):
         hosts_container = self.get_definition()
 
