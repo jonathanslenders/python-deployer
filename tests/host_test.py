@@ -1,10 +1,7 @@
-from deployer.host import LocalHost, HostContext
-from deployer.host_container import HostsContainer, HostContainer
-from deployer.loggers import LoggerInterface
-from deployer.pseudo_terminal import Pty, DummyPty
+from deployer.pseudo_terminal import DummyPty
 from deployer.utils import IfConfig
 
-from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
+from our_hosts import LocalHost1
 
 import os
 import unittest
@@ -13,54 +10,54 @@ import tempfile
 
 class HostTest(unittest.TestCase):
     def test_simple_echo_command(self):
-        host = LocalHost1.get_instance()
+        host = LocalHost1()
         pty = DummyPty()
         self.assertEqual(host.run(pty, 'echo test', interactive=False).strip(), 'test')
 
     def test_host_context(self):
-        host = LocalHost1.get_instance()
-        context = HostContext()
+        host = LocalHost1()
         pty = DummyPty()
+        context = host.host_context
 
         # Test env.
         with context.env('CUSTOM_VAR', 'my-value'):
-            self.assertEqual(host.run(pty, 'echo $CUSTOM_VAR', interactive=False, context=context).strip(), 'my-value')
-        self.assertEqual(host.run(pty, 'echo $CUSTOM_VAR', interactive=False, context=context).strip(), '')
+            self.assertEqual(host.run(pty, 'echo $CUSTOM_VAR', interactive=False).strip(), 'my-value')
+        self.assertEqual(host.run(pty, 'echo $CUSTOM_VAR', interactive=False).strip(), '')
 
         # Test prefix
         with context.prefix('echo prefix'):
-            result = host.run(pty, 'echo command', interactive=False, context=context)
+            result = host.run(pty, 'echo command', interactive=False)
             self.assertIn('prefix', result)
             self.assertIn('command', result)
 
         # Test 'cd /'
         with context.cd('/'):
-            self.assertEqual(host.run(pty, 'pwd', interactive=False, context=context).strip(), '/')
+            self.assertEqual(host.run(pty, 'pwd', interactive=False).strip(), '/')
 
         # Test env nesting.
         with context.env('VAR1', 'var1'):
             with context.env('VAR2', 'var2'):
-                self.assertEqual(host.run(pty, 'echo $VAR1-$VAR2', interactive=False, context=context).strip(), 'var1-var2')
+                self.assertEqual(host.run(pty, 'echo $VAR1-$VAR2', interactive=False).strip(), 'var1-var2')
 
         # Test escaping.
         with context.env('VAR1', 'var1'):
             with context.env('VAR2', '$VAR1', escape=False):
-                self.assertEqual(host.run(pty, 'echo $VAR2', interactive=False, context=context).strip(), 'var1')
+                self.assertEqual(host.run(pty, 'echo $VAR2', interactive=False).strip(), 'var1')
 
             with context.env('VAR2', '$VAR1'): # escape=True by default
-                self.assertEqual(host.run(pty, 'echo $VAR2', interactive=False, context=context).strip(), '$VAR1')
+                self.assertEqual(host.run(pty, 'echo $VAR2', interactive=False).strip(), '$VAR1')
 
     def test_interactive(self):
         # XXX: Not entirely sure whether this test is reliable.
         #      -> the select-loop will stop as soon as no input is available on any end.
-        host = LocalHost1.get_instance()
+        host = LocalHost1()
         pty = DummyPty()
 
         result = host.run(pty, 'echo test').strip()
         self.assertEqual(result, 'test')
 
     def test_input(self):
-        host = LocalHost1.get_instance()
+        host = LocalHost1()
         pty = DummyPty('my-input\n')
 
         result = host.run(pty, 'read varname; echo $varname')
@@ -71,7 +68,7 @@ class HostTest(unittest.TestCase):
         content = 'my-test-content'
 
         # Writing of file
-        host = LocalHost1.get_instance()
+        host = LocalHost1()
         with host.open(test_filename, mode='w') as f:
             f.write(content)
 
@@ -85,7 +82,7 @@ class HostTest(unittest.TestCase):
         os.remove(test_filename)
 
     def test_put_file(self):
-        host = LocalHost1.get_instance()
+        host = LocalHost1()
 
         # Create temp file
         fd, name1 = tempfile.mkstemp()
@@ -115,7 +112,7 @@ class HostTest(unittest.TestCase):
 
     def test_ifconfig(self):
         # ifconfig should return an IfConfig instance.
-        host = LocalHost1.get_instance()
+        host = LocalHost1()
         self.assertIsInstance(host.ifconfig(), IfConfig)
 
 if __name__ == '__main__':

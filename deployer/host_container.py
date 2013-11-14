@@ -3,9 +3,6 @@ from deployer.host import Host, HostContext, ExecCommandFailed
 from deployer.utils import isclass, esc1
 from functools import wraps
 
-import itertools
-
-
 __all__ = ('HostContainer', 'HostsContainer', )
 
 
@@ -24,40 +21,45 @@ class HostsContainer(object):
     thread, and the HostStatus object gets modified in either thread. Clone
     this HostsContainer first.
     """
-    def __init__(self, hosts, pty=None, logger=None, is_sandbox=False, host_contexts=None):
+    def __init__(self, hosts, pty=None, logger=None, is_sandbox=False):
         # the hosts parameter is a dictionary, mapping roles to <Host> instances, or lists
         # of <Host>-instances.
         # e.g. hosts = { 'www': [ <host1>, <host2> ], 'queue': <host3> }
-        self._hosts = hosts
         self._logger = logger
         self._pty = pty
         self._sandbox = is_sandbox
 
-        # Make set of all hosts.
-        all_hosts = set()
-        for h in hosts.values():
-            if isclass(h) and issubclass(h, Host):
-                all_hosts.add(h)
-            else:
-                for i in h:
-                    all_hosts.add(i)
+        # Create
+        self._hosts = { }
 
-        self._all = list(all_hosts) # TODO: Why is this a set???
+        def get(h):
+            # Create host instance if class was given. Otherwise return
+            # instance.
+            if isclass(h):
+                assert issubclass(h, Host)
+                return h()
+            else:
+                assert isinstance(h, Host)
+                return h
+
+        for k, v in hosts.items():
+            # A value should be a list of Host classes.
+            assert isinstance(v, set)
+            self._hosts[k] = { get(h) for h in v }
 
         # Validate hosts. No two host with the same slug can occur in a
-        # container.
-        slugs = set()
-        for h in self._all:
-            if h.slug in slugs:
-                raise Exception('Duplicate host slug %s found.' % h.slug)
-            else:
-                slugs.add(h.slug)
+        # same role within a container.
+        for k, v in hosts.items():
+            slugs = { } # Slug -> Host class
+            for h in v:
+                if h.slug in slugs and h != slugs[h.slug]:
+                    raise Exception('Duplicate host slug %s found in HostsContainer.' % h.slug)
+                else:
+                    slugs[h.slug] = h
 
-        # Host statuses ( { Host class : HostStatus } )
-        if host_contexts:
-            self._host_contexts = { h: host_contexts.get(h, HostContext()) for h in self._all }
-        else:
-            self._host_contexts = { h: HostContext() for h in self._all }
+    @property
+    def _all(self):
+        return [ h for v in self._hosts.values() for h in v ]
 
     @classmethod
     def from_definition(cls, hosts_class, **kw):
@@ -69,15 +71,36 @@ class HostsContainer(object):
             v = getattr(hosts_class, k)
 
             if isinstance(v, HostsContainer):
-                hosts[k] = v._all
+                # This happens when we define Hosts inline in an action, to be
+                # initialized, e.g. by initialize_node.
+                hosts[k] = v.get_hosts()
+            elif isinstance(v, Host):
+                # This happens when we create a new Node, isolated from a
+                # parallel node. (In SimpleNodeItem)
+                hosts[k] = { v.__class__  }
             elif isclass(v) and issubclass(v, Host):
-                hosts[k] = [ v ]
-            elif isinstance(v, (list, tuple)):
-                hosts[k] = v
+                hosts[k] = { v }
+            elif isinstance(v, (list, tuple, set)): # TODO: actually, we should only allow sets!
+                hosts[k] = { h.__class__ if isinstance(h, Host) else h for h in v } # TODO: why do we need instances?
             elif not k.startswith('_'):
-                raise TypeError('Invalid attribute in Hosts: %r=%r' % (k, v))
+                raise TypeError('Invalid attribute in host definition %s: %r=%r' % (hosts_class, k, v))
 
         return cls(hosts, **kw)
+
+    def get_hosts(self):
+        """
+        Return a set of :class:`Host` classes that appear in this container.
+        Each ``Host`` class will abviously appear only once in the set, even
+        when it appears in several roles.
+        """
+        return { h.__class__ for l in self._hosts.values() for h in l }
+
+    def get_hosts_as_dict(self):
+        """
+        Return a dictionary which maps all the roles to the set of
+        :class:`Host` classes for each role.
+        """
+        return { k: { h.__class__ for h in l } for k,l in self._hosts.items() }
 
     def __repr__(self):
         return ('<%s\n' % self.__class__.__name__ +
@@ -88,31 +111,25 @@ class HostsContainer(object):
         """
         Return ``True`` when the roles/hosts are the same.
         """
-        if self.roles != other.roles:
-            return False
-
-        for r in self.roles:
-            if set(self.filter(r)._all) != set(other.filter(r)._all):
-                return False
-
-        return True
+        # We can't do this: host instances are created during initialisation.
+        raise NotImplementedError('There is no valid definition for HostsContainer equality.')
 
     def _new(self, hosts):
-        return HostsContainer(hosts, self._pty, self._logger, self._sandbox,
-                        host_contexts=self._host_contexts)
+        return HostsContainer(hosts, self._pty, self._logger, self._sandbox)
 
     def _new_1(self, host):
-        return HostContainer({ 'host': [host] }, self._pty, self._logger, self._sandbox,
-                        host_contexts=self._host_contexts)
+        return HostContainer({ 'host': {host} }, self._pty, self._logger, self._sandbox)
 
     def __len__(self):
-        return len(self._all)
+        """
+        Returns the amount of :class:`Host` instances in this container. If a
+        host appears in several roles, each appearance will be taken in
+        account.
+        """
+        return sum(len(v) for v in self._hosts.values())
 
     def __nonzero__(self):
-        return len(self._all) > 0
-
-    def count(self): # TODO: depricate count --> we have len()
-        return len(self._all)
+        return len(self) > 0
 
     @property
     def roles(self):
@@ -122,59 +139,57 @@ class HostsContainer(object):
         """
         Return ``True`` when this host appears in this host container.
         """
-        assert isinstance(host, (Host, HostContainer))
+        raise Exception('No valid implementation for this...') # XXX
 
-        if isinstance(host, HostContainer):
-            host = host._host
-        return host in self._all
-
-    def get_from_slug(self, host_slug):
-        for h in self._all:
-            if h.slug == host_slug:
-                return self._new_1(h)
-        raise AttributeError
-
-    def contains_host_with_slug(self, host_slug):
-        return any(h.slug == host_slug for h in self._all)
-
-    def clone(self):
-        return self._new(self._hosts) # TODO: clone HostContext recursively!!
+#        assert isinstance(host, (Host, HostContainer))
+#
+#        if isinstance(host, HostContainer):
+#            host = host._host
+#        return host.__class__ in self.get_hosts()
 
     def filter(self, *roles):
         """
+        Returns a new HostsContainer instance, containing only the hosts
+        matching this filter. The hosts are passed by reference, so if you'd
+        call `cd()` on the returned container, it will also effect the hosts in
+        this object.
+
         Examples:
 
         ::
 
             hosts.filter('role1', 'role2')
-            hosts.filter('*') # Returns everything
-            hosts.filter( ['role1', 'role2' ]) # TODO: deprecate
-            host.filter('role1', MyHostClass) # This means: take 'role1' from this container, but add an instance of this class
         """
-        if len(roles) == 1 and any(isinstance(roles[0], t) for t in (tuple, list)):
-            roles = roles[0]
+        assert all(isinstance(r, basestring) for r in roles), TypeError('Unknown host filter %r' % roles)
 
-        return self._new(_filter_hosts(self._hosts, roles))
-
-    def get(self, *roles):
-        """
-        Similar to ``filter()``, but returns exactly one host instead of a list.
-        """
-        result = self.filter(*roles)
-        if len(result) == 1:
-            return self._new_1(result._all[0])
-        else:
-            raise AttributeError
+        return self._new({ r: self._hosts.get(r, set()) for r in roles })
 
     def __getitem__(self, index):
-        return self._new_1(self._all[index])
+        """
+        For backwards-compatibility:
+
+        We only allow the [0] index operation, because the hosts that exist in
+        a HostsContainer don't have an order defined. [0] will work, but a random
+        host is returned.
+
+        :returns: :class:`HostContainer`;
+        """
+        if index != 0:
+            raise Exception('Only [0] index operation is allowed on HostsContainer instance.')
+
+        hosts = list(self._all)
+
+        if len(hosts) == 0:
+            raise IndexError
+
+        return self._new_1(hosts[index])
 
     def __iter__(self):
         for h in self._all:
             yield self._new_1(h)
 
     def expand_path(self, path):
-        return [ h.get_instance().expand_path(path, self._host_contexts[h]) for h in self._all ]
+        return [ h.expand_path(path) for h in self._all ]
 
     @wraps(Host.run)
     def run(self, *a, **kw):
@@ -186,12 +201,12 @@ class HostsContainer(object):
         # First create a list of callables
         def closure(host):
             def call(pty):
+                assert pty # TODO: this fails???
                 kw2 = dict(**kw)
                 if not 'sandbox' in kw2:
                     kw2['sandbox'] = self._sandbox
-                kw2['context'] = self._host_contexts[host]
                 kw2['logger'] = self._logger
-                return host.get_instance().run(pty, *a, **kw2)
+                return host.run(pty, *a, **kw2)
             return call
 
         callables = map(closure, self._all)
@@ -232,21 +247,25 @@ class HostsContainer(object):
         """
         Call 'prefix' with this parameters on every host.
         """
-        return nested(* [ s.prefix(*a, **kw) for s in self._host_contexts.values() ])
+        return nested(* [ h.host_context.prefix(*a, **kw) for h in self._all ])
 
     @wraps(HostContext.cd)
     def cd(self, *a, **kw):
         """
         Call 'cd' with this parameters on every host.
         """
-        return nested(* [ c.cd(*a, **kw) for c in self._host_contexts.values() ])
+        return nested(* [ h.host_context.cd(*a, **kw) for h in self._all ])
 
     @wraps(HostContext.env)
     def env(self, *a, **kw):
         """
         Call 'env' with this parameters on every host.
         """
-        return nested(* [ c.env(*a, **kw) for c in self._host_contexts.values() ])
+        return nested(* [ h.host_context.env(*a, **kw) for h in self._all ])
+
+    def getcwd(self):
+        """ Call getcwd() for every host """
+        return [ h._host.getcwd() for h in self ]
 
     #
     # Commands
@@ -257,7 +276,7 @@ class HostsContainer(object):
         Returns ``True`` when this file exists on the hosts.
         """
         def on_host(container):
-            return container._host.get_instance().exists(filename, use_sudo=use_sudo, context=container._host_context)
+            return container._host.exists(filename, use_sudo=use_sudo)
 
         return map(on_host, self)
 
@@ -298,10 +317,6 @@ class HostContainer(HostsContainer):
         return self._all[0]
 
     @property
-    def _host_context(self):
-        return self._host_contexts[self._host]
-
-    @property
     def slug(self):
         return self._host.slug
 
@@ -310,9 +325,8 @@ class HostContainer(HostsContainer):
         if len(self) == 1:
             kwargs['logger'] = self._logger
             kwargs['sandbox'] = self._sandbox
-            kwargs['context'] = self._host_context
 
-            return self._host.get_instance().get_file(*args, **kwargs)
+            return self._host.get_file(*args, **kwargs)
         else:
             raise AttributeError
 
@@ -321,9 +335,8 @@ class HostContainer(HostsContainer):
         if len(self) == 1:
             kwargs['logger'] = self._logger
             kwargs['sandbox'] = self._sandbox
-            kwargs['context'] = self._host_context
 
-            return self._host.get_instance().put_file(*args, **kwargs)
+            return self._host.put_file(*args, **kwargs)
         else:
             raise AttributeError
 
@@ -332,9 +345,8 @@ class HostContainer(HostsContainer):
         if len(self) == 1:
             kwargs['logger'] = self._logger
             kwargs['sandbox'] = self._sandbox
-            kwargs['context'] = self._host_context
 
-            return self._host.get_instance().open(*args, **kwargs)
+            return self._host.open(*args, **kwargs)
         else:
             raise AttributeError
 
@@ -346,9 +358,13 @@ class HostContainer(HostsContainer):
     def sudo(self, *a, **kw):
         return HostsContainer.sudo(self, *a, **kw)[0]
 
+    @wraps(HostsContainer.getcwd)
+    def getcwd(self):
+        return HostsContainer.getcwd(self)[0]
+
     def start_interactive_shell(self, command=None, initial_input=None):
         if not self._sandbox:
-            return self._host.get_instance().start_interactive_shell(self._pty, command=command, initial_input=initial_input)
+            return self._host.start_interactive_shell(self._pty, command=command, initial_input=initial_input)
         else:
             print 'Interactive shell is not available in sandbox mode.'
 
@@ -357,7 +373,7 @@ class HostContainer(HostsContainer):
         Proxy to the Host object. Following commands can be
         accessed when this hostcontainer contains exactly one host.
         """
-        return getattr(self._host.get_instance(), name)
+        return getattr(self._host, name)
 
     @wraps(HostsContainer.expand_path)
     def expand_path(self, *a, **kw):
@@ -372,42 +388,18 @@ class HostContainer(HostsContainer):
         return HostsContainer.has_command(self, *a, **kw)[0]
 
 
-def _filter_hosts(hosts_dict, roles):
-    """
-    Take a hosts dictionary and return a subdictionary of the hosts matching this roles.
-    When some of the roles are Host classes, initiate the host class instead.
-    """
-    if isinstance(roles, basestring):
-        roles = [roles]
-
-    def get(r):
-        """
-        When the query is a string, look it up in the dictionary,
-        but when it is a host class, initiate the class instead.
-        """
-        if isinstance(r, basestring):
-            if r == '*':
-                # This returns everything.
-                return list(itertools.chain(*hosts_dict.values()))
-            else:
-                return hosts_dict.get(r, [])
-        elif isinstance(r, Host):
-            return r.get_instance()
-        else:
-            raise Exception('Unknown host filter: %s' % r)
-
-    return { r: get(r) for r in roles }
-
-
 def _isolate_hosts(hosts_dict, role, host_slug):
     """
     Make sure that for the given role, only a host with `host_slug` will
     stay over.
+
+    `hosts_dict` should be a maping of a role name to a set of hosts
     """
     result = { }
     for r, hosts in hosts_dict.items():
+        assert isinstance(hosts, set)
         if r == role:
-            result[r] = [ h for h in hosts if h.slug == host_slug ]
+            result[r] = { h for h in hosts if h.slug == host_slug }
         else:
-            result[r] = hosts[:]
+            result[r] = set(hosts)
     return result

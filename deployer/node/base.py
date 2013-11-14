@@ -1,8 +1,10 @@
 from deployer.console import Console
 from deployer.exceptions import ExecCommandFailed, ActionException
 from deployer.groups import Group
+from deployer.host import Host
 from deployer.host_container import HostsContainer, HostContainer
 from deployer.loggers import DummyLoggerInterface
+from deployer.node.role_mapping import RoleMapping, ALL_HOSTS, DefaultRoleMapping
 from deployer.pseudo_terminal import DummyPty
 from deployer.query import Query
 from deployer.utils import isclass
@@ -14,17 +16,14 @@ import traceback
 
 
 __all__ = (
+    'Action',
     'Env',
+    'EnvAction',
+    'IsolationIdentifierType',
     'Node',
     'SimpleNode',
-    'required_property'
-    'map_roles',
-
-    # Decorators.
-    'suppress_action_result',
-    'dont_isolate_yet',
-    'isolate_only_one',
-    'alias',
+    'iter_isolations',
+    'required_property',
 )
 
 
@@ -43,53 +42,6 @@ class required_property(property):
                             (self.name, self.owner, self.description))
 
         property.__init__(self, fget)
-
-
-class RoleMapping(object):
-    """
-    A role mapping defines which hosts from a parent Node will used in the childnode,
-    and for which roles.
-
-    # Example:
-        @map_roles(role='parent_role', role2=['parent_role2', 'parent_role3'])
-
-    # If you don't define any role names, they'll map to the name 'host'.
-        @map_roles('parent_role', 'another_parent_role')
-    """
-    def __init__(self, *host_mapping, **mappings):
-        if host_mapping:
-            mappings = dict(host=host_mapping, **mappings)
-
-        self._mappings = mappings
-
-    def __call__(self, node_class):
-        if not isclass(node_class) or not issubclass(node_class, Node):
-            raise TypeError('Role mapping decorator incorrectly applied. '
-                            '%r is not a Node class' % node_class)
-
-        # Apply role mapping on a copy of the node class.
-        return type(node_class.__name__, (node_class, ), {
-                    'Hosts': self,
-                    # Keep the module, to make sure that inspect.getsourcelines still works.
-                    '__module__': node_class.__module__,
-                    })
-
-    def apply(self, parent_node_instance):
-        """
-        Map roles from the parent to the child node.
-        (Apply the filter to the HostsContainer from the parent.)
-        """
-        return HostsContainer({ role: parent_node_instance.hosts.filter(f)._all for role, f in self._mappings.items() })
-
-map_roles = RoleMapping
-
-
-class DefaultRoleMapping(RoleMapping):
-    """
-    Default mapping: take the host container from the parent.
-    """
-    def apply(self, parent_node_instance):
-        return parent_node_instance.hosts
 
 
 class ChildNodeDescriptor(object):
@@ -271,17 +223,20 @@ class Env(object):
     @property
     def hosts(self):
         """
-        :class:`deployer.host_container.HostsContainer` instance. This is the proxy to the actual hosts.
+        :class:`deployer.host_container.HostsContainer` instance. This is the
+        proxy to the actual hosts.
         """
-        # Create a new HostsContainer object which is identical to the one of the Node object,
-        # but add pty/logger/sandbox settings.
-        return HostsContainer(self._node.hosts._hosts, self._pty, self._logger, self._is_sandbox,
-                    host_contexts=self._node.hosts._host_contexts)
+        # Create a new HostsContainer object which is identical to the one of
+        # the Node object, but add pty/logger/sandbox settings. (So, this
+        # doesn't create new Host instances, only a new container.)
+        return HostsContainer(self._node.hosts._hosts, pty=self._pty,
+                        logger=self._logger, is_sandbox=self._is_sandbox)
 
     @property
     def console(self):
         """
-        Interface for user input. Returns a :class:`deployer.console.Console` instance.
+        Interface for user input. Returns a :class:`deployer.console.Console`
+        instance.
         """
         if not self._pty:
             raise AttributeError('Console is not available in Env when no pty was given.')
@@ -363,10 +318,12 @@ class NodeNestingRules:
         else:
             return mapping_option in (MappingOptions.OPTIONAL, MappingOptions.NOT_ALLOWED)
 
+
 def _internal(func):
     """ Mark this function as internal. """
     func.internal = True
     return func
+
 
 class NodeBase(type):
     """
@@ -544,7 +501,7 @@ class SimpleNodeBase(NodeBase):
             raise Exception('Second .Array operation is not allowed.')
 
         # When this class doesn't have a Hosts, create default mapper.
-        hosts = RoleMapping(host='*') if self.Hosts is None else self.Hosts
+        hosts = RoleMapping(host=ALL_HOSTS) if self.Hosts is None else self.Hosts
 
         class SimpleNodeArray(self):
             _node_type = NodeTypes.SIMPLE_ARRAY
@@ -564,7 +521,7 @@ class SimpleNodeBase(NodeBase):
             raise Exception('Second .JustOne operation is not allowed.')
 
         # When this class doesn't have a Hosts, create default mapper.
-        hosts = RoleMapping(host='*') if self.Hosts is None else self.Hosts
+        hosts = RoleMapping(host=ALL_HOSTS) if self.Hosts is None else self.Hosts
 
         class SimpleNode_One(self):
             _node_type = NodeTypes.SIMPLE_ONE
@@ -582,7 +539,7 @@ class SimpleNodeBase(NodeBase):
         return SimpleNode_One
 
 
-def get_node_path(node):
+def get_node_path(node): # TODO: maybe replace this by using the inspection module.
     """
     Return a string which represents this node's path in the tree.
     """
@@ -611,7 +568,7 @@ class Node(object):
     _node_isolation_identifier = None
     _node_name = None # NodeBase will set this to the attribute name as soon as we nest this node inside another one.
 
-    node_group = None # TODO: move to _node_group??
+    node_group = None # TODO: rename to _node_group??
 
     Hosts = None
     """
@@ -668,7 +625,7 @@ class Node(object):
             raise KeyError('__getitem__ on isolated node is not allowed.')
 
         if isinstance(index, HostContainer):
-            index = (index._host, )
+            index = (index._host.__class__, )
 
         if not isinstance(index, tuple):
             index = (index, )
@@ -693,8 +650,13 @@ class IsolationIdentifierType:
     Manners of identifing a node in an array of nodes.
     """
     INT_TUPLES = 'INT_TUPLES'
+    """ Use a tuple of integers """
+
     HOST_TUPLES = 'HOST_TUPLES'
+    """ Use a tuple of :class:`Host` classes """
+
     HOSTS_SLUG = 'HOSTS_SLUG'
+    """ Use a tuple of :class:`Host` slugs """
 
 
 def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
@@ -736,7 +698,8 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
             if identifier_type == IsolationIdentifierType.INT_TUPLES:
                 identifier = (i,)
             elif identifier_type == IsolationIdentifierType.HOST_TUPLES:
-                identifier = (host,)
+                assert isinstance(host, Host)
+                identifier = (host.__class__,)
             elif identifier_type == IsolationIdentifierType.HOSTS_SLUG:
                 identifier = (host.slug, )
 
@@ -791,7 +754,10 @@ class SimpleNode(Node):
 
     def host(self):
         if self._node_is_isolated:
-            return self.hosts.get('host')
+            host = self.hosts.filter('host')
+            if len(host) != 1:
+                raise AttributeError
+            return host[0]
         else:
             raise AttributeError
     host._internal = True
@@ -984,7 +950,8 @@ class EnvAction(object):
             # Multiple hosts, but isolate_one_only flag set.
             elif getattr(self._action._func, 'isolate_one_only', False):
                 # Ask the end-user which one to use.
-                options = [ (i.host.slug, i) for i in isolations ]
+                        # TODO: this is not necessarily okay. we can have several levels of isolation.
+                options = [ ('%s    [%s]' % (i.host.slug, i.host.address), i) for i in isolations ]
                 i = Console(self._env._pty).choice('Choose a host', options, allow_random=True)
                 return self._run_on_node(i, *a, **kw)
 
@@ -1031,59 +998,4 @@ class EnvAction(object):
                     return fork_result.result
         else:
             return self._run_on_node(self._env, *a, **kw)
-
-
-def suppress_action_result(action):
-    """
-    When using a deployment shell, don't print the returned result to stdout.
-    For example, when the result is superfluous to be printed, because the
-    action itself contains already print statements, while the result
-    can be useful for the caller.
-    """
-    action.suppress_result = True
-    return action
-
-def dont_isolate_yet(func):
-    """
-    If the node has not yet been separated in serveral parallel, isolated
-    nodes per host. Don't do it yet for this function.
-    When anothor action of the same host without this decorator is called,
-    the node will be split.
-
-    It's for instance useful for reading input, which is similar for all
-    isolated executions, (like asking which Git Checkout has to be taken),
-    before forking all the threads.
-
-    Note that this will not guarantee that a node will not be split into
-    its isolations, it does only say, that it does not have to. It is was
-    already been split before, and this is called from a certain isolation,
-    we'll keep it like that.
-    """
-    func.dont_isolate_yet = True
-    return func
-
-def isolate_one_only(func):
-    """
-    When using role isolation, and several hosts are available, run on only
-    one role.  Useful for instance, for a database client. it does not make
-    sense to run the interactive client on every host which has database
-    access.
-    """
-    func.isolate_one_only = True
-    return func
-
-def alias(name):
-    """
-    Give this node action an alias. It will also be accessable using that
-    name in the deployment shell. This is useful, when you want to have special
-    characters which are not allowed in Python function names, like dots, in
-    the name of an action.
-    """
-    def decorator(func):
-       if hasattr(func, 'action_alias'):
-           func.action_alias.append(name)
-       else:
-           func.action_alias = [ name ]
-       return func
-    return decorator
 

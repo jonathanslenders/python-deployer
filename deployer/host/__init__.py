@@ -8,7 +8,6 @@ import paramiko
 import pexpect
 import random
 import socket
-import sys
 import termcolor
 import threading
 import time
@@ -21,6 +20,7 @@ from deployer.std import raw_mode
 from deployer.utils import esc1
 
 from twisted.internet import fdesc
+from functools import wraps
 
 
 __all__ = (
@@ -51,22 +51,25 @@ class HostContext(object):
         # TODO: Guarantee thread safety!! When doing parallel deployments, and
         #       several threads act on the same host, things will probably go
         #       wrong...
-    def __init__(self):
+    def __init__(self, start_path=None):
         self._command_prefixes = []
         self._path = []
         self._env = []
+
+        if start_path:
+            self._path.append(start_path)
 
     def __repr__(self):
         return 'HostContext(prefixes=%r, path=%r, env=%r)' % (
                         self._command_prefixes, self._path, self._env)
 
-    def clone(self):
-        # Create a copy from this context. (We need it for thread-safety.)
-        c = HostContext()
-        c._command_prefixes = self._command_prefixes[:]
-        c._path = self._path[:]
-        c._env = self._env[:]
-        return c
+#    def clone(self):
+#        # Create a copy from this context. (We need it for thread-safety.)
+#        c = HostContext()
+#        c._command_prefixes = self._command_prefixes[:]
+#        c._path = self._path[:]
+#        c._env = self._env[:]
+#        return c
 
     def prefix(self, command):
         """
@@ -103,6 +106,10 @@ class HostContext(object):
                 self._path.pop()
         return CD()
 
+    def _chdir(self, path):
+        """ Move to this directory. Not to be used together with the `cd` context manager. """
+        # NOTE: This is used by the sftp shell.
+        self._path = [ os.path.join(* self._path + [path]) ]
 
     def env(self, variable, value, escape=True):
         """
@@ -121,13 +128,6 @@ class HostContext(object):
             def __exit__(context, *args):
                 self._env.pop()
         return ENV()
-
-
-# Remember instances for the Host classes. Keep them in this global
-# dictionary. (Another way would be to save the instance in a mangled name in
-# the class itself, but we had some trouble going that way, something with
-# inheritance.)
-_host_instances = { }
 
 
 class Host(object):
@@ -155,8 +155,6 @@ class Host(object):
     Password for connecting to the host.
     """
 
-    start_path = None # None or string
-
     # Terminal to report to use for interactive sessions
     term = os.environ.get('TERM', 'xterm') # xterm, vt100, xterm-256color
 
@@ -166,42 +164,31 @@ class Host(object):
     magic_sudo_prompt = termcolor.colored('[:__enter-sudo-password__:]', 'grey') #, attrs=['concealed'])
 
     def __init__(self):
-        self.dummy_logger = DummyLoggerInterface()
+        self.dummy_logger = DummyLoggerInterface() # XXX: remove self.dummy_logger variable.
+        self.host_context = HostContext()
 
-    @classmethod
-    def get_instance(cls):
+    def get_start_path(self):
         """
-        Return an instance of this host.
-        """
-        # Singleton class.
-        try:
-            return _host_instances[cls]
-        except KeyError:
-            _host_instances[cls] = cls()
-            return _host_instances[cls]
-
-    def _get_start_path(self):
-        """
-        Return the path in which commands at the server will be executed.
+        The path in which commands at the server will be executed.
         by default. (if no cd-statements are used.)
+        Usually, this is the home directory.
         """
-        if self.start_path:
-            return self.start_path
-        elif self.username:
-            return '~%s' % self.username
-        else:
-            return '~'
+        raise NotImplementedError
+#        return self.get_home_directory(self.username)
+#        if self.username:
+#            return '~%s' % self.username
+#        else:
+#            return '~'
 
-    def get_cwd(self, context):
+    def getcwd(self):
         """
-        Current working directory.
+        Return current working directory as absolute path.
         """
-        if context._path:
-            return os.path.join(*context._path)
-        else:
-            return self.get_home_directory()
+        path = os.path.normpath(os.path.join(*[ self.get_start_path() ] + self.host_context._path))
+        assert path[0] == '/' # Returns absolute directory.
+        return path
 
-    def get_home_directory(self, username=None):
+    def get_home_directory(self, username=None): # TODO: or use getcwd() on the sftp object??
         # TODO: maybe: return self.expand_path('~%s' % username if username else '~')
         if username:
             return self.run(DummyPty(), 'cd /; echo -n ~%s' % username, sandbox=False)
@@ -242,32 +229,32 @@ class Host(object):
         from deployer.utils import parse_ifconfig_output
         return parse_ifconfig_output(self._run_silent('cd /; /sbin/ifconfig'))
 
-    def _wrap_command(self, command, context, sandbox):
+    def _wrap_command(self, command, sandbox):
         """
         Prefix command with cd-statements and variable assignments
         """
         result = []
 
         # Ensure that the start-path exists (only if one was given. Not for the ~)
-        if self.start_path:
-            result.append("(mkdir -p '%s' 2> /dev/null || true) && " %
-                            esc1(self.expand_path(self.start_path, context)))
+#        if self.start_path:
+#            result.append("(mkdir -p '%s' 2> /dev/null || true) && " %
+#                            esc1(self.expand_path(self.start_path)))
 
         # Prefix with all cd-statements
-        for p in [self._get_start_path()] + context._path:
-            # TODO: We can't have double quotes around paths,
-            #       or shell expansion of '*' does not work.
-            #       Make this an option for with cd(path):...
-            if sandbox:
-                # In sandbox mode, it may be possible that this directory
-                # is not yet created, only 'cd' to it when the directory
-                # really exists.
-                result.append('if [ -d %s ]; then cd %s; fi && ' % (p,p))
-            else:
-                result.append('cd %s && ' % p)
+        cwd = self.getcwd()
+        # TODO: We can't have double quotes around paths,
+        #       or shell expansion of '*' does not work.
+        #       Make this an option for with cd(path):...
+        if sandbox:
+            # In sandbox mode, it may be possible that this directory
+            # is not yet created, only 'cd' to it when the directory
+            # really exists.
+            result.append('if [ -d %s ]; then cd %s; fi && ' % (cwd,cwd))
+        else:
+            result.append('cd %s && ' % cwd)
 
         # Prefix with variable assignments
-        for var, value in context._env:
+        for var, value in self.host_context._env:
             #result.append('%s=%s ' % (var, value))
             result.append("export %s=%s && " % (var, value))
 
@@ -279,11 +266,15 @@ class Host(object):
             # Also, note that the value is not escaped, this allow inclusion
             # of other variables.
 
-        result.append(command)
+        # Add the command itself. Put in between braces to make sure that we
+        # get the operator priority right. (if the command itself has an ||
+        # operator, it won't otherwise work in combination with cd-statements.)
+        result.append('(%s)' % command)
+
         return ''.join(result)
 
     def run(self, pty, command='echo "no command given"', use_sudo=False, sandbox=False, interactive=True,
-                        logger=None, user=None, ignore_exit_status=False, initial_input=None, context=None):
+                    logger=None, user=None, ignore_exit_status=False, initial_input=None):
         """
         Execute this shell command on the host.
 
@@ -301,14 +292,10 @@ class Host(object):
         :param logger: The logger interface.
         :type logger: LoggerInterface
         :param initial_input: When ``interactive``, send this input first to the host.
-        :type initial_input: basestring
-        :param context:
-        :type context: :class:`deployer.host.HostContext;
         """
         assert isinstance(command, basestring)
 
         logger = logger or self.dummy_logger
-        context = context or HostContext()
 
         # Create new channel for this command
         chan = self._get_session()
@@ -330,7 +317,7 @@ class Host(object):
         else:
             pty.set_ssh_channel_size = lambda:None
 
-        command = " && ".join(context._command_prefixes + [command])
+        command = " && ".join(self.host_context._command_prefixes + [command])
 
         # Start logger
         with logger.log_run(self, command=command, use_sudo=use_sudo,
@@ -359,7 +346,7 @@ class Host(object):
                                 #"sudo -u '%s' bash -c '%s'" % (user, esc1(command))
                                 if user else
                                 "sudo -p '%s' bash -c '%s' " % (esc1(self.magic_sudo_prompt), esc1(command))),
-                                context, sandbox
+                                sandbox
                                 )
 
                     logging.debug('Running wrapped command "%s"' % wrapped_command)
@@ -372,13 +359,13 @@ class Host(object):
                         "echo '%s' | sudo -p '(passwd)' -u '%s' -P %s " % (esc1(self.password), esc1(user), command)
                         if user else
                         "echo '%s' | sudo -p '(passwd)' -S %s " % (esc1(self.password), command)),
-                        context, sandbox
+                        sandbox
                         )
 
                     logging.debug('Running wrapped command "%s" interactive' % wrapped_command)
                     chan.exec_command(wrapped_command)
             else:
-                chan.exec_command(self._wrap_command(command, context, sandbox))
+                chan.exec_command(self._wrap_command(command, sandbox))
 
             if interactive:
                 # Pty receive/send loop
@@ -568,40 +555,45 @@ class Host(object):
         # Only tilde expansion
         return os.path.expanduser(path)
 
-    def expand_path(self, path, context=None):
+    def expand_path(self, path):
         raise NotImplementedError
 
-    def _tempfile(self, context):
+    def _tempfile(self):
         """ Return temporary filename """
-        return self.expand_path('~/deployer-tempfile-%s-%s' % (time.time(), random.randint(0, 1000000)), context)
+        return self.expand_path('~/deployer-tempfile-%s-%s' % (time.time(), random.randint(0, 1000000)))
 
-    @property
-    def sftp(self):
-        raise NotImplementedError
-
-    def get_file(self, remote_path, local_path, use_sudo=False, logger=None, sandbox=False, context=None):
+    def get_file(self, remote_path, local_path, use_sudo=False, logger=None, sandbox=False):
         """
         Download this remote_file.
         """
-        with self.open(remote_path, 'rb', use_sudo=use_sudo, logger=logger, sandbox=sandbox, context=context) as f:
+        with self.open(remote_path, 'rb', use_sudo=use_sudo, logger=logger, sandbox=sandbox) as f:
             # Expand paths
             local_path = self._expand_local_path(local_path)
 
             with open(local_path, 'wb') as f2:
-                f2.write(f.read())
+                f2.write(f.read()) # TODO: read/write in chunks and print progress bar.
 
-    def put_file(self, local_path, remote_path, use_sudo=False, logger=None, sandbox=False, context=None):
+    def put_file(self, local_path, remote_path, use_sudo=False, logger=None, sandbox=False):
         """
         Upload this local_file to the remote location.
         """
-        with self.open(remote_path, 'wb', use_sudo=use_sudo, logger=logger, sandbox=sandbox, context=context) as f:
+        with self.open(remote_path, 'wb', use_sudo=use_sudo, logger=logger, sandbox=sandbox) as f:
             # Expand paths
             local_path = self._expand_local_path(local_path)
 
             with open(local_path, 'rb') as f2:
                 f.write(f2.read())
 
-    def open(self, remote_path, mode="rb", use_sudo=False, logger=None, sandbox=False, context=None):
+    def stat(self, remote_path):
+        raise NotImplementedError
+
+    def listdir(self, path):
+        raise NotImplementedError
+
+    def _open(self, remote_path, mode):
+        raise NotImplementedError
+
+    def open(self, remote_path, mode="rb", use_sudo=False, logger=None, sandbox=False):
         """
         Open file handler to remote file. Can be used both as:
 
@@ -617,10 +609,9 @@ class Host(object):
             host.open('/path/to/somefile', wb').write('some content')
         """
         logger = logger or self.dummy_logger
-        context = context or HostContext()
 
         # Expand path
-        remote_path = self.expand_path(remote_path, context)
+        remote_path = self.expand_path(remote_path)
 
         class RemoteFile(object):
             def __init__(rf):
@@ -636,9 +627,9 @@ class Host(object):
                     rf._file = open('/dev/null', mode)
                 else:
                     if use_sudo:
-                        rf._temppath = self._tempfile(context)
+                        rf._temppath = self._tempfile()
 
-                        if self.exists(remote_path, context=context):
+                        if self.exists(remote_path):
                             # Copy existing file to available location
                             self._run_silent_sudo("cp '%s' '%s' " % (esc1(remote_path), esc1(rf._temppath)))
                             self._run_silent_sudo("chown '%s' '%s' " % (esc1(self.username), esc1(rf._temppath)))
@@ -652,9 +643,9 @@ class Host(object):
                             raise IOError('Remote file: "%s" does not exist' % remote_path)
 
                         # Open stream to this temp file
-                        rf._file = self.sftp.open(rf._temppath, mode)
+                        rf._file = self._open(rf._temppath, mode)
                     else:
-                        rf._file = self.sftp.open(remote_path, mode)
+                        rf._file = self._open(remote_path, mode)
 
                 rf._is_open = True
 
@@ -704,7 +695,7 @@ class Host(object):
                         if not sandbox:
                             if use_sudo:
                                 # Restore permissions (when this file already existed.)
-                                if self.exists(remote_path, context=context):
+                                if self.exists(remote_path):
                                     self._run_silent_sudo("chown --reference='%s' '%s' " % (esc1(remote_path), esc1(rf._temppath)))
                                     self._run_silent_sudo("chmod --reference='%s' '%s' " % (esc1(remote_path), esc1(rf._temppath)))
 
@@ -745,6 +736,9 @@ class Host(object):
         return self._run_silent(command, **kw)
 
 
+_ssh_backends = { } # Maps Host class to SSHBackend instances.
+
+
 class SSHBackend(object):
     """
     Manage Paramiko's SSH connection for a Host.
@@ -753,10 +747,15 @@ class SSHBackend(object):
     share the same backend (this class). Only one ssh connection per host
     will be created, and shared between all threads.
     """
-    def __init__(self, get_host_instance):
-        self._get_host_instance = get_host_instance
+    def __init__(self, host_cls):
         self._ssh_cache = None
         self._lock = threading.Lock()
+
+    def __new__(self, host_cls):
+        # Create singleton SSHBackend
+        if host_cls not in _ssh_backends:
+            _ssh_backends[host_cls] = object.__new__(self, host_cls)
+        return _ssh_backends[host_cls]
 
     def __del__(self):
         # Terminate Paramiko's SSH thread
@@ -764,76 +763,165 @@ class SSHBackend(object):
             self._ssh_cache.close()
             self._ssh_cache = None
 
-    @property
-    def ssh(self):
+    def get_ssh(self, host):
         """
         Ssh connection. The actual connection to the host is established
-        only after the first call of self._ssh
+        only after the first call of this function.
         """
         # Lock: be sure not to create this connection from several threads at
         # the same time.
         with self._lock:
             if not (self._ssh_cache and self._ssh_cache._transport and self._ssh_cache._transport.is_active()):
-                h = self._get_host_instance()
+                # Create progress bar.
+                progress_bar = self._create_connect_progress_bar(host)
 
-                # Show connecting message (in current stdout)
-                sys.stdout.write('*** Connecting to %s (%s)...\n' % (h.address, h.slug))
-                sys.stdout.flush()
+                with progress_bar:
+                    h = host
 
-                # Connect
-                self._ssh_cache = paramiko.SSHClient()
+                    # Connect
+                    self._ssh_cache = paramiko.SSHClient()
 
-                if not h.reject_unknown_hosts:
-                    self._ssh_cache.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    if not h.reject_unknown_hosts:
+                        self._ssh_cache.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-                try:
-                    kw = {}
+                    try:
+                        kw = {}
 
-                    if h.config_filename:
-                        try:
-                            config_file = file(os.path.expanduser(h.config_filename))
-                        except IOError:
-                            pass
-                        else:
-                            ssh_config = paramiko.config.SSHConfig()
-                            ssh_config.parse(config_file)
-                            host_config = ssh_config.lookup(h.address)
+                        if h.config_filename:
+                            try:
+                                config_file = file(os.path.expanduser(h.config_filename))
+                            except IOError:
+                                pass
+                            else:
+                                ssh_config = paramiko.config.SSHConfig()
+                                ssh_config.parse(config_file)
+                                host_config = ssh_config.lookup(h.address)
 
-                            # Map ssh_config to paramiko config
-                            config_map = {
-                                    'identityfile': 'key_filename',
-                                    'user': 'username',
-                                    'port': 'port',
-                                    'connecttimeout': 'timeout',
-                                    }
-                            for ck, pk in config_map.items():
-                                if ck in host_config:
-                                    kw[pk] = host_config[ck]
+                                # Map ssh_config to paramiko config
+                                config_map = {
+                                        'identityfile': 'key_filename',
+                                        'user': 'username',
+                                        'port': 'port',
+                                        'connecttimeout': 'timeout',
+                                        }
+                                for ck, pk in config_map.items():
+                                    if ck in host_config:
+                                        kw[pk] = host_config[ck]
 
-                    if h.port:
-                        kw['port'] = h.port
-                    if h.username:
-                        kw['username'] = h.username
-                    if h.timeout:
-                        kw['timeout'] = h.timeout
+                        if h.port:
+                            kw['port'] = h.port
+                        if h.username:
+                            kw['username'] = h.username
+                        if h.timeout:
+                            kw['timeout'] = h.timeout
 
-                    # Paramiko's authentication method can be either a public key, public key file, or password.
-                    if h.rsa_key:
-                        # RSA key
-                        rsa_key_file_obj = StringIO.StringIO(h.rsa_key)
-                        kw["pkey"] = paramiko.RSAKey.from_private_key(rsa_key_file_obj, h.rsa_key_password)
-                    elif h.key_filename:
-                        kw["key_filename"] = h.key_filename
-                    elif h.password:
-                        kw["password"] = h.password
+                        # Paramiko's authentication method can be either a public key, public key file, or password.
+                        if h.rsa_key:
+                            # RSA key
+                            rsa_key_file_obj = StringIO.StringIO(h.rsa_key)
+                            kw["pkey"] = paramiko.RSAKey.from_private_key(rsa_key_file_obj, h.rsa_key_password)
+                        elif h.key_filename:
+                            kw["key_filename"] = h.key_filename
+                        elif h.password:
+                            kw["password"] = h.password
 
-                    self._ssh_cache.connect(h.address, **kw)
+                        # Connect to the SSH server.
+                        # We use a patched connect function instead of the connect of paramiko's library,
+                        # In order to add the progress bar.
+                        from .paramiko_connect import connect as connect_patch
+                        kw['progress_bar_callback'] = progress_bar.set_progress
 
-                except (paramiko.SSHException, Exception) as e:
-                    self._ssh_cache = None
-                    raise Exception('Could not connect to host %s (%s)\n%s' % (h.slug, h.address, unicode(e)))
+                        #self._ssh_cache.connect = connect_patch
+                        connect_patch(self._ssh_cache, h.address, **kw)
+
+                    except (paramiko.SSHException, Exception) as e:
+                        self._ssh_cache = None
+                        raise Exception('Could not connect to host %s (%s)\n%s' % (h.slug, h.address, unicode(e)))
 
             return self._ssh_cache
+
+    def get_sftp(self, host):
+        """ Return the paramiko SFTPClient for this connection. """
+        transport = self.get_ssh(host).get_transport()
+        transport.set_keepalive(host.keepalive_interval)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+
+#        # Sometimes, Paramiko his sftp.getcwd() returns an empty path.
+#        # Probably, because he doesn't know it yet. By calling chdir('.')
+#        # we make sure that we have a path.
+#        sftp.chdir('.')
+
+        return sftp
+
+    def _create_connect_progress_bar(self, host):
+        from deployer.console import ProgressBarSteps
+        from deployer.pseudo_terminal import Pty
+        console = Console(Pty())
+        return console.progress_bar_with_steps('Connecting to %s %s' % (host.address, host.slug), steps=ProgressBarSteps({
+            1: "Resolving DNS",
+            2: "Creating socket",
+            3: "Creating transport",
+            4: "Authenticating" }))
+
+class Stat(object):
+    """ Base `Stat` class """
+    @property
+    def is_dir(self):
+        raise NotImplementedError
+
+    @property
+    def is_file(self):
+        raise NotImplementedError
+
+    @property
+    def st_size(self):
+        raise NotImplementedError
+
+    @property
+    def st_uid(self):
+        raise NotImplementedError
+
+    @property
+    def st_gid(self):
+        raise NotImplementedError
+
+    @property
+    def st_mode(self):
+        raise NotImplementedError
+
+
+class SSHStat(Stat):
+    """
+    Stat info for SSH files.
+    """
+    def __init__(self, ssh_stat):
+        self._ssh_stat = ssh_stat
+
+    @property
+    def is_dir(self):
+        from stat import S_ISDIR
+        return S_ISDIR(self._ssh_stat.st_mode)
+
+    @property
+    def is_file(self):
+        from stat import S_ISREG
+        return S_ISREG(self._ssh_stat.st_mode)
+
+    @property
+    def st_size(self):
+        return self._ssh_stat.st_size
+
+    @property
+    def st_uid(self):
+        return self._ssh_stat.st_uid
+
+    @property
+    def st_gid(self):
+        return self._ssh_stat.st_gid
+
+    @property
+    def st_mode(self):
+        return self._ssh_stat.st_mode
 
 
 class SSHHost(Host):
@@ -883,34 +971,50 @@ class SSHHost(Host):
     """ SSH keep alive in seconds  """
 
     def __init__(self):
+        self._backend = SSHBackend(self.__class__)
+        self._cached_start_path = None
         Host.__init__(self)
-        self._backend = SSHBackend(lambda: self)
 
     def _get_session(self):
-        transport = self._backend.ssh.get_transport()
+        transport = self._backend.get_ssh(self).get_transport()
         transport.set_keepalive(self.keepalive_interval)
         chan = transport.open_session()
         return chan
 
-    @property
-    def sftp(self):
-        transport = self._backend.ssh.get_transport()
-        transport.set_keepalive(self.keepalive_interval)
-        return paramiko.SFTPClient.from_transport(transport)
+    @wraps(Host.get_start_path)
+    def get_start_path(self):
+        if self._cached_start_path is None:
+            sftp = self._backend.get_sftp(self)
+            sftp.chdir('.')
+            self._cached_start_path = sftp.getcwd()
+        return self._cached_start_path
 
-    def expand_path(self, path, context):
+    def expand_path(self, path):
         def expand_tilde(p):
             if p.startswith('~/') or p == '~':
-                home = self.sftp.normalize('.')
+                home = self._backend.get_sftp(self).normalize('.')
                 return p.replace('~', home, 1)
             else:
                 return p
 
-        # Expand remote path, using the start path and cwd
-        if self.start_path:
-            return os.path.join(expand_tilde(self.start_path), expand_tilde(self.get_cwd(context)), expand_tilde(path))
-        else:
-            return os.path.join(expand_tilde(self.get_cwd(context)), expand_tilde(path))
+        # Expand remote path, using the current working directory.
+        return os.path.join(expand_tilde(self.getcwd()), expand_tilde(path))
+
+    @wraps(Host.stat)
+    def stat(self, remote_path):
+        sftp = self._backend.get_sftp(self)
+        sftp.chdir(self.getcwd())
+        s = sftp.lstat(remote_path)
+        return SSHStat(s)
+
+    @wraps(Host.listdir)
+    def listdir(self, path='.'):
+        sftp = self._backend.get_sftp(self)
+        sftp.chdir(self.getcwd())
+        return sftp.listdir(path)
+
+    def _open(self, remote_path, mode):
+        return self._backend.get_sftp(self).open(remote_path, mode)
 
     def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None, sandbox=False):
         """
@@ -920,7 +1024,7 @@ class SSHHost(Host):
 
         # Start a new shell using the same dimentions as the current terminal
         height, width = pty.get_size()
-        chan = self._backend.ssh.invoke_shell(term=self.term, height=height, width=width)
+        chan = self._backend.get_ssh(self).invoke_shell(term=self.term, height=height, width=width)
 
         # Keep size of local pty and remote pty in sync
         def set_size():
@@ -948,14 +1052,9 @@ class SSHHost(Host):
             return status_code
 
 
-class LocalHostBackend(object):
-    """
-    The backend for LocalHost, is just a password store.
-    Just to make sure that the password doesn't have to be asked again
-    for every new clone of LocalHost. (In every thread.)
-    """
-    def __init__(self):
-        self.password = None
+# Global variable for localhost sudo password cache.
+_localhost_password = None
+_localhost_start_path = os.getcwd()
 
 
 class LocalHost(Host):
@@ -965,24 +1064,23 @@ class LocalHost(Host):
     """
     slug = 'localhost'
     address = 'localhost'
-
-    def __init__(self):
-        Host.__init__(self)
-        self._backend = LocalHostBackend()
+    start_path = os.getcwd()
 
     def run(self, pty, *a, **kw):
         if kw.get('use_sudo', False):
             self._ensure_password_is_known(pty)
         return Host.run(self, pty, *a, **kw)
 
-    def expand_path(self, path, context):
+    def expand_path(self, path):
         return os.path.expanduser(path) # TODO: expansion like with SSHHost!!!!
 
     def _ensure_password_is_known(self, pty):
         # Make sure that we know the localhost password, before running sudo.
+        global _localhost_password
         tries = 0
-        while not self._backend.password:
-            self._backend.password = Console(pty).input('[sudo] password for %s at %s' %
+
+        while _localhost_password is None:
+            _localhost_password = Console(pty).input('[sudo] password for %s at %s' %
                         (self.username, self.slug), is_password=True)
 
             # Check password
@@ -998,18 +1096,21 @@ class LocalHost(Host):
 
     @property
     def password(self):
-        return self._backend.password
+        return _localhost_password
 
     @property
     def username(self):
         return getpass.getuser()
+
+    def get_start_path(self):
+        return _localhost_start_path
 
     def get_ip_address(self, interface='eth0'):
         # Just return '127.0.0.1'. Laptops are often only connected
         # on wlan0, and looking for eth0 would return an empty string.
         return '127.0.0.1'
 
-    def _get_session(self):
+    def _get_session(self): # TODO: choose a better API, then paramiko's.
         """
         Return a channel through which we can execute commands.
         It will reserve a pseudo terminal and attach the process
@@ -1079,18 +1180,12 @@ class LocalHost(Host):
 
         return channel()
 
-    @property
-    def sftp(self):
-        # (For Localhost)
-        # Compatibility with Paramiko's SFTPClient.from_transport
-        import __builtin__
-        class LocalhostFTP(object):
-            open = __builtin__.open
+    def _open(self, remote_path, mode):
+        # Use the builtin 'open'
+        return open(remote_path, mode)
 
-            def normalize(self, path):
-                return os.path.realpath(path)
-
-        return LocalhostFTP()
+    def listdir(self, path='.'):
+        return os.listdir(os.path.join(* [self.getcwd(), path]))
 
     def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
         """

@@ -3,15 +3,13 @@ import unittest
 from deployer.query import Q, QueryResult
 from deployer.node import Node, SimpleNode, Env, Action
 from deployer.groups import Production, Staging, production, staging
-from deployer.pseudo_terminal import Pty, DummyPty
-from deployer.loggers import LoggerInterface
-from deployer.node import map_roles, dont_isolate_yet, required_property, suppress_action_result, alias, EnvAction
+from deployer.node import map_roles, suppress_action_result, EnvAction
 from deployer.inspection import Inspector, PathType
 from deployer.inspection.inspector import NodeIterator
 from deployer.inspection import filters
-from deployer.host_container import HostsContainer
 
-from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
+from our_hosts import LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
+
 
 class InspectorTest(unittest.TestCase):
     def setUp(self):

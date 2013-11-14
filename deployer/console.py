@@ -245,8 +245,8 @@ class Console(object):
 
         # List isolations first. (This is a list of index/node tuples.)
         options = [
-                (' '.join(index), node) for index, node in
-                Inspector(node).iter_isolations(identifier_type=IsolationIdentifierType.HOSTS_SLUG)
+                (' '.join([ '%s (%s)' % (h.slug, h.address) for h in hosts ]), node) for hosts, node in
+                Inspector(node).iter_isolations(identifier_type=IsolationIdentifierType.HOST_TUPLES)
                 ]
 
         if len(options) > 1:
@@ -355,11 +355,53 @@ class Console(object):
         """
         return ProgressBar(self, message, expected=expected)
 
+    def progress_bar_with_steps(self, message, steps):
+        """
+        Display a progress bar with steps.
+
+        ::
+
+            steps = ProgressBarSteps({
+                1: "Resolving address",
+                2: "Create transport",
+                3: "Get remote key",
+                4: "Authenticating" })
+
+            with console.progress_bar_with_steps('Connecting to SSH server', steps=steps) as p:
+                ...
+                p.set_progress(1)
+                ...
+                p.set_progress(2)
+                ...
+
+        :param steps: :class:`ProgressBarSteps` instance.
+        """
+        return ProgressBar(self, message, steps=steps)
+
+
+class ProgressBarSteps(object): # TODO: unittest this class.
+    def __init__(self, steps):
+        # Validate
+        for k,v in steps.items():
+            assert isinstance(k, int)
+            assert isinstance(v, basestring)
+
+        self._steps = steps
+
+    def get_step_description(self, step):
+        return self._steps.get(step, '')
+
+    def get_steps_count(self):
+        return max(self._steps.keys())
+
 
 class ProgressBar(object):
     interval = .1 # Refresh interval
 
-    def __init__(self, console, message, expected=None):
+    def __init__(self, console, message, expected=None, steps=None):
+        if expected and steps:
+            raise Exception("Don't give expected and steps parameter at the same time.")
+
         self.console = console
         self.message = message
         self.counter = 0
@@ -371,6 +413,13 @@ class ProgressBar(object):
         # Duration
         self.start_time = datetime.now()
         self.end_time = None
+
+        # In case of steps
+        if steps is not None:
+            assert isinstance(steps, ProgressBarSteps)
+            self.expected = steps.get_steps_count()
+
+        self.steps = steps
 
     def __enter__(self):
         self._print()
@@ -387,19 +436,31 @@ class ProgressBar(object):
         else:
             counter_str = '%s' % self.counter
 
-        done = colored(' [DONE] ', 'green') if self.done else ''
         duration = (self.end_time or datetime.now()) - self.start_time
 
         message = colored('%s:' % self.message, 'cyan')
         counter_str = colored(counter_str, 'cyan', attrs=['bold'])
         duration = colored(duration, 'cyan')
-        sys.stdout.write('%s  %s  [%s] %s\r' % (message, counter_str, duration, done))
 
-    def next(self, counter_name=None):
+        done = colored(' [%s] ' % (
+                'DONE' if self.done else
+                self.steps.get_step_description(self.counter) if self.steps
+                else ''), 'green')
+
+        sys.stdout.write('\x1b[K%s  %s  [%s] %s\r' % (message, counter_str, duration, done))
+        # '\x1b[K' clears the line.
+
+    def next(self):
         """
         Increment progress bar counter.
         """
-        self.counter += 1
+        self.set_progress(self.counter + 1)
+
+    def set_progress(self, value):
+        """
+        Set counter to this value.
+        """
+        self.counter = value
 
         # Only print when the last print was .3sec ago
         delta = (datetime.now() - self._last_print).microseconds / 1000 / 1000.

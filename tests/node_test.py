@@ -1,15 +1,13 @@
 import unittest
 
 from deployer.exceptions import ActionException, ExecCommandFailed
-from deployer.host_container import HostsContainer
 from deployer.inspection import Inspector
-from deployer.loggers import LoggerInterface
-from deployer.node import Node, SimpleNode, Env, alias
+from deployer.node import Node, SimpleNode, Env
 from deployer.node import map_roles, dont_isolate_yet, required_property, alias, IsolationIdentifierType
-from deployer.pseudo_terminal import Pty, DummyPty
 from deployer.query import Q
 
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
+
 
 class NodeTest(unittest.TestCase):
     def test_assignments_to_node(self):
@@ -24,7 +22,6 @@ class NodeTest(unittest.TestCase):
 
         MyNode.s = S2
         self.assertEqual(MyNode.s, S2) # TODO: the same for methods is not true!!!
-
 
     def test_node_initialisation(self):
         class S(Node):
@@ -57,8 +54,8 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(s.T.hosts.roles, ['role1', 'role2'])
         self.assertEqual(s.U.hosts.roles, ['role1', 'role2'])
 
-        self.assertEqual(s.hosts, s.T.hosts)
-        self.assertEqual(s.hosts, s.U.hosts)
+        self.assertEqual(s.hosts.get_hosts_as_dict(), s.T.hosts.get_hosts_as_dict())
+        self.assertEqual(s.hosts.get_hosts_as_dict(), s.U.hosts.get_hosts_as_dict())
 
     def test_mapping(self):
         class S(Node):
@@ -66,11 +63,11 @@ class NodeTest(unittest.TestCase):
                 role1 = LocalHost
                 role2 = LocalHost2
 
-            @map_roles(role3='role1', role4='role2', role5='role3', role6=['role1', 'role2'])
+            @map_roles(role3='role1', role4='role2', role5='role3', role6=('role1', 'role2'))
             class T(Node):
                 pass
 
-            @map_roles(role7=['role1', 'role3'], role8='role1')
+            @map_roles(role7=('role1', 'role3'), role8='role1')
             class U(Node):
                 class V(Node):
                     pass
@@ -91,13 +88,13 @@ class NodeTest(unittest.TestCase):
                         role1 = LocalHost1
 
         s = S()
-        self.assertEqual(isinstance(s, Node), True)
-        self.assertEqual(isinstance(s.T, Node), True)
-        self.assertEqual(isinstance(s.U, Node), True)
-        self.assertEqual(isinstance(s.U.V, Node), True)
-        self.assertEqual(isinstance(s.U.W, Node), True)
-        self.assertEqual(isinstance(s.U.X, Node), True)
-        self.assertEqual(isinstance(s.U.Y, Node), True)
+        self.assertIsInstance(s, Node)
+        self.assertIsInstance(s.T, Node)
+        self.assertIsInstance(s.U, Node)
+        self.assertIsInstance(s.U.V, Node)
+        self.assertIsInstance(s.U.W, Node)
+        self.assertIsInstance(s.U.X, Node)
+        self.assertIsInstance(s.U.Y, Node)
 
         self.assertEqual(s.hosts.roles, ['role1', 'role2'])
         self.assertEqual(s.T.hosts.roles, ['role3', 'role4', 'role5', 'role6'])
@@ -108,12 +105,18 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(s.U.X.hosts.roles, ['role1', 'role2'])
         self.assertEqual(s.U.Y.hosts.roles, ['role11'])
 
-        self.assertEqual(s.T.hosts, HostsContainer({ 'role3': LocalHost, 'role4': LocalHost2, 'role5': [], 'role6': [ LocalHost, LocalHost2 ] }))
-        self.assertEqual(s.U.hosts, HostsContainer({ 'role7': LocalHost, 'role8': LocalHost }))
-        self.assertEqual(s.U.V.hosts, HostsContainer({ 'role7': LocalHost, 'role8': LocalHost }))
-        self.assertEqual(s.U.W.hosts, HostsContainer({ 'role9': [], 'role10': LocalHost }))
-        self.assertEqual(s.U.X.hosts, HostsContainer({ 'role1': LocalHost3, 'role2': [ LocalHost4, LocalHost5] }))
-        self.assertEqual(s.U.Y.hosts, HostsContainer({ 'role11': LocalHost }))
+        self.assertEqual(s.T.hosts.get_hosts_as_dict(),
+                { 'role3': {LocalHost}, 'role4': {LocalHost2}, 'role5': set(), 'role6': { LocalHost, LocalHost2 } })
+        self.assertEqual(s.U.hosts.get_hosts_as_dict(),
+                { 'role7': {LocalHost}, 'role8': {LocalHost} })
+        self.assertEqual(s.U.V.hosts.get_hosts_as_dict(),
+                { 'role7': {LocalHost}, 'role8': {LocalHost} })
+        self.assertEqual(s.U.W.hosts.get_hosts_as_dict(),
+                { 'role9': set(), 'role10': {LocalHost} })
+        self.assertEqual(s.U.X.hosts.get_hosts_as_dict(),
+                { 'role1': {LocalHost3}, 'role2': {LocalHost4, LocalHost5} })
+        self.assertEqual(s.U.Y.hosts.get_hosts_as_dict(),
+                { 'role11': {LocalHost} })
 
     def test_invalid_mapping(self):
         class NotANode(object): pass
@@ -138,7 +141,7 @@ class NodeTest(unittest.TestCase):
                 return self.hosts.filter('role1').run('/bin/echo echo', interactive=False)
 
             def echo_on_role2(self):
-                return self.hosts.get('role2').run('/bin/echo echo', interactive=False)
+                return self.hosts.filter('role2')[0].run('/bin/echo echo', interactive=False)
 
         s = S()
         env = Env(s)
