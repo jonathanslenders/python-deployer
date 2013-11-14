@@ -20,6 +20,9 @@ class HostTest(unittest.TestCase):
         pty = DummyPty()
         context = host.host_context
 
+        # Test __repr__
+        self.assertIn('HostContext(', repr(context))
+
         # Test env.
         with context.env('CUSTOM_VAR', 'my-value'):
             self.assertEqual(host.run(pty, 'echo $CUSTOM_VAR', interactive=False).strip(), 'my-value')
@@ -47,6 +50,10 @@ class HostTest(unittest.TestCase):
 
             with context.env('VAR2', '$VAR1'): # escape=True by default
                 self.assertEqual(host.run(pty, 'echo $VAR2', interactive=False).strip(), '$VAR1')
+
+    def test_repr(self):
+        host = LocalHost1()
+        self.assertIn('Host(', repr(host))
 
     def test_interactive(self):
         # XXX: Not entirely sure whether this test is reliable.
