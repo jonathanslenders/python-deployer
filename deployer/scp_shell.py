@@ -398,7 +398,7 @@ class Shell(CLInterface):
         get_name = lambda p: os.path.split(p)[-1]
 
         return [
-                    ('local:%s' % get_name(os.getcwd()), 'yellow'),
+                    ('local:%s' % get_name(self.localhost.getcwd() or ''), 'yellow'),
                     (' ~ ', 'cyan'),
                     ('%s:' % self.host.slug, 'yellow'),
                     (get_name(self.host.getcwd() or ''), 'yellow'),
