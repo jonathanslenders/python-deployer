@@ -338,7 +338,7 @@ class Console(object):
 
         yield ''.join(line)
 
-    def progress_bar(self, message, expected=None):
+    def progress_bar(self, message, expected=None, clear_on_finish=False):
         """
         Display a progress bar.
         This should be used as a Python context manager.
@@ -353,7 +353,7 @@ class Console(object):
 
         :returns: :class:`ProgressBar` instance.
         """
-        return ProgressBar(self, message, expected=expected)
+        return ProgressBar(self, message, expected=expected, clear_on_finish=clear_on_finish)
 
     def progress_bar_with_steps(self, message, steps):
         """
@@ -398,7 +398,7 @@ class ProgressBarSteps(object): # TODO: unittest this class.
 class ProgressBar(object):
     interval = .1 # Refresh interval
 
-    def __init__(self, console, message, expected=None, steps=None):
+    def __init__(self, console, message, expected=None, steps=None, clear_on_finish=False):
         if expected and steps:
             raise Exception("Don't give expected and steps parameter at the same time.")
 
@@ -406,6 +406,7 @@ class ProgressBar(object):
         self.message = message
         self.counter = 0
         self.expected = expected
+        self.clear_on_finish = clear_on_finish
 
         self.done = False
         self._last_print = datetime.now()
@@ -472,8 +473,14 @@ class ProgressBar(object):
     def __exit__(self, *a):
         self.done = True
         self.end_time = datetime.now()
-        self._print()
-        print # Keep progress bar
+
+        if self.clear_on_finish:
+            # Clear the line.
+            sys.stdout.write('\x1b[K')
+        else:
+            # Redraw and keep progress bar
+            self._print()
+            print
 
 
 # =================[ Text based input ]=================
