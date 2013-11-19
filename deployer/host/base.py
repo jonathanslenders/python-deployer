@@ -779,4 +779,4 @@ class Host(object):
         kw['interactive'] = False
         kw['use_sudo'] = True
         kw['silent'] = True
-        return self._run(command, **kw)
+        return self.run(command, **kw)
