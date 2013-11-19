@@ -630,6 +630,13 @@ class Host(object):
     def listdir(self, path):
         raise NotImplementedError
 
+    def listdir_attr(self, path):
+        """
+        Return a dictionarry which maps the filenames in this directory to
+        :class:`Stat` instances.
+        """
+        raise NotImplementedError
+
     def _open(self, remote_path, mode):
         raise NotImplementedError
 
