@@ -433,6 +433,12 @@ class Host(object):
     def _get_session(self):
         raise NotImplementedError
 
+    def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
+        """
+        Start an interactive bash shell.
+        """
+        raise NotImplementedError
+
     def _posix_shell(self, pty, chan, raw=True, log_entry=None, initial_input=None):
         """
         Create a loop which redirects sys.stdin/stdout into this channel.
@@ -625,7 +631,7 @@ class Host(object):
         logger = logger or self.dummy_logger
 
         # Expand path
-        remote_path = self.expand_path(remote_path)
+        remote_path = os.path.normpath(os.path.join(self.getcwd(), self.expand_path(remote_path)))
 
         class RemoteFile(object):
             def __init__(rf):
