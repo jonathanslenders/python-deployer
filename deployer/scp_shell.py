@@ -3,6 +3,7 @@ from deployer.console import Console
 from deployer.host import Host
 from deployer.host import LocalHost
 from deployer.utils import esc1
+from termcolor import colored
 
 import sys
 import os
@@ -22,6 +23,12 @@ class RemoteType(HandlerType):
 
 class ModifyType(HandlerType):
     color = 'red'
+
+class DirectoryType(HandlerType):
+    color = 'blue'
+
+class FileType(HandlerType):
+    color = None
 
 
 class CacheMixin(object):
@@ -49,14 +56,10 @@ class CacheMixin(object):
     def fill_cache(self, pty):
         """ Fill cache for current directory. """
         console = Console(pty)
-        with console.progress_bar('Reading directory...', clear_on_finish=True) as p:
-            # Loop through all the files, and call 'stat'
-            content = self.listdir()
-            p.expected = len(content)
-
-            for f in content:
-                p.next()
-                self.stat(f)
+        with console.progress_bar('Reading directory...', clear_on_finish=True):
+            cwd = self.getcwd()
+            for filename, s in self.listdir_attr().items():
+                self._stat_cache[(cwd, filename)] = s
 
 # Handlers
 
@@ -85,6 +88,14 @@ def _create_autocompleter_system(files_only, directories_only, handler_type_cls,
                 self.path = path
                 SCPHandler.__init__(self, shell)
 
+            @property
+            def handler_type(self):
+                host = get_host_func(self.shell)
+                if self.path in ('..', '.', '/') or host.stat(self.path).is_dir:
+                    return DirectoryType()
+                else:
+                    return FileType()
+
             def __call__(self):
                 func(self.shell, self.path)
 
@@ -108,7 +119,26 @@ def _create_autocompleter_system(files_only, directories_only, handler_type_cls,
                     yield f, ChildHandler(self.shell, '/')
 
             def get_subhandler(self, name):
-                return ChildHandler(self.shell, name)
+                host = get_host_func(self.shell)
+
+                # First check whether this name appears in the current directory.
+                # (avoids stat calls on unknown files.)
+                if name in host.listdir():
+                    # When this file does not exist, return
+                    try:
+                        s = host.stat(name)
+                        if (files_only and not s.is_file):
+                            return
+                        if (directories_only and not s.is_dir):
+                            return
+                    except IOError: # stat on non-existing file.
+                        return
+                    finally:
+                        return ChildHandler(self.shell, name)
+
+                # Root, current and parent directory.
+                if name in ('/', '..', '.') and not files_only:
+                    return ChildHandler(self.shell, name)
 
         return MainHandler
     return local_handler
@@ -138,7 +168,7 @@ class Connect(SCPHandler):
 
     def __call__(self): # XXX: code duplication of deployer/shell.py
         initial_input = "cd '%s'\n" % esc1(self.shell.host.getcwd())
-        self.shell.host.start_interactive_shell(self.shell.pty, initial_input=initial_input)
+        self.shell.host.start_interactive_shell(initial_input=initial_input)
 
 
 class Lconnect(SCPHandler):
@@ -147,12 +177,12 @@ class Lconnect(SCPHandler):
 
     def __call__(self): # XXX: code duplication of deployer/shell.py
         initial_input = "cd '%s'\n" % esc1(self.shell.localhost.getcwd())
-        self.shell.localhost.start_interactive_shell(self.shell.pty, initial_input=initial_input)
+        self.shell.localhost.start_interactive_shell(initial_input=initial_input)
 
 
 @remote_handler(files_only=True)
-def display(shell, path):
-    """ Display remote file. """
+def view(shell, path):
+    """ View remote file. """
     console = Console(shell.pty)
 
     with shell.host.open(path, 'r') as f:
@@ -169,7 +199,7 @@ def display(shell, path):
 @remote_handler(files_only=True)
 def edit(shell, path):
     """ Edit file in editor. """
-    shell.host.run(shell.pty, "vim '%s'" % esc1(path))
+    shell.host.run("vim '%s'" % esc1(path))
 
 class Pwd(SCPHandler):
     """ Display remote working directory. """
@@ -179,16 +209,29 @@ class Pwd(SCPHandler):
     def __call__(self):
         print self.shell.host.getcwd()
 
+def make_ls_handler(handler_type_, get_host_func):
+    """ Make a function that does a directory listing """
+    class Ls(SCPHandler):
+        is_leaf = True
+        handler_type = handler_type_()
 
-class Ls(SCPHandler):
-    """ Display a remote directory listing """
-    is_leaf = True
-    handler_type = RemoteType()
+        def __call__(self):
+            host = get_host_func(self.shell)
+            files = host.listdir()
 
-    def __call__(self):
-        files = self.shell.host.listdir()
-        console = Console(self.shell.pty)
-        console.lesspipe(console.in_columns(files))
+            def iterator():
+                for f in files:
+                    if host.stat(f).is_dir:
+                        yield colored(f, DirectoryType.color), len(f)
+                    else:
+                        yield f, len(f)
+
+            console = Console(self.shell.pty)
+            console.lesspipe(console.in_columns(iterator()))
+    return Ls
+
+ls = make_ls_handler(RemoteType, lambda shell: shell.host)
+lls = make_ls_handler(LocalType, lambda shell: shell.localhost)
 
 
 @remote_handler(directories_only=True)
@@ -225,8 +268,8 @@ class Lpwd(SCPHandler):
 
 
 @local_handler(files_only=True)
-def ldisplay(shell, path):
-    """ Display local file. """
+def lview(shell, path):
+    """ View local file. """
     console = Console(shell.pty)
 
     with shell.localhost.open(path, 'r') as f:
@@ -245,8 +288,7 @@ def put(shell, filename):
     """ Upload local-path and store it on the remote machine. """
     print 'Uploading %s...', filename
     h = shell.host
-    h.put_file(os.path.join(shell.localhost.getcwd(), filename),
-            filename, logger=shell.logger_interface)
+    h.put_file(os.path.join(shell.localhost.getcwd(), filename), filename)
 
 
 @remote_handler(files_only=True)
@@ -255,7 +297,7 @@ def get(shell, filename):
     target = os.path.join(shell.localhost.getcwd(), filename)
     print 'Downloading %s to %s...' % (filename, target)
     h = shell.host
-    h.get_file(filename, target, logger=shell.logger_interface)
+    h.get_file(filename, target)
 
 
 @remote_handler()
@@ -287,10 +329,11 @@ def lstat(shell, filename):
     print ' st_gid:       %r' % s.st_gid
     print ' st_mode:      %r' % s.st_mode
 
+
 @local_handler(files_only=True)
 def ledit(shell, path):
     """ Edit file in editor. """
-    shell.localhost.run(shell.pty, "vim '%s'" % esc1(path))
+    shell.localhost.run("vim '%s'" % esc1(path))
 
 
 class RootHandler(SCPHandler):
@@ -298,19 +341,19 @@ class RootHandler(SCPHandler):
             'clear': Clear,
             'exit': Exit,
 
-            'ls': Ls,
+            'ls': ls,
             'cd': cd,
             'pwd': Pwd,
             'stat': stat_handler,
-            'display': display,
+            'view': view,
             'edit': edit,
             'connect': Connect,
 
-            'lls': Lls,
+            'lls': lls,
             'lcd': lcd,
             'lpwd': Lpwd,
             'lstat': lstat,
-            'ldisplay': ldisplay,
+            'lview': lview,
             'ledit': ledit,
             'lconnect': Lconnect,
 
@@ -336,12 +379,12 @@ class Shell(CLInterface):
     """
     def __init__(self, pty, host, logger_interface, clone_shell=None): # XXX: import clone_shell
         assert issubclass(host, Host)
+        assert pty
 
-        self.host = type('RemoteSCPHost', (CacheMixin, host), { })()
+        self.host = type('RemoteSCPHost', (CacheMixin, host), { })(pty=pty, logger=logger_interface)
         self.host.fill_cache(pty)
-        self.localhost = LocalHost()
+        self.localhost = LocalHost(pty=pty, logger=logger_interface)
         self.localhost.host_context._chdir(os.getcwd())
-        self.logger_interface = logger_interface
         self.pty = pty
         self.root_handler = RootHandler(self)
 
