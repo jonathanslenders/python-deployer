@@ -471,14 +471,15 @@ class Host(object):
         # Make stdin non-blocking. (The select call will already
         # block for us, we want sys.stdin.read() to read as many
         # bytes as possible without blocking.)
-        fdesc.setNonBlocking(pty.stdin)
+        fdesc.setNonBlocking(self.pty.stdin)
 
         # Set terminal in raw mode
         if raw:
-            context = raw_mode(pty.stdin)
+            context = raw_mode(self.pty.stdin)
         else:
             context = contextlib.nested()
 
+        assert self.pty.set_ssh_channel_size
         with context:
             try:
                 chan.settimeout(0.0)
