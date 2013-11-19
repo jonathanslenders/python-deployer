@@ -153,7 +153,13 @@ class LocalHost(Host):
 
     @wraps(Host.stat)
     def stat(self, path):
-        return LocalStat(os.stat(os.path.join(self.getcwd(), path)))
+        try:
+            return LocalStat(os.stat(os.path.join(self.getcwd(), path)))
+        except OSError as e:
+            # Turn OSError in IOError.
+            # Paramiko also throws IOError when doing stat calls on remote files.
+            # (OSError is only for local system calls and cannot be generalized.)
+            raise IOError(e.message)
 
     def listdir(self, path='.'):
         return os.listdir(os.path.join(* [self.getcwd(), path]))
