@@ -106,7 +106,7 @@ class LocalHost(Host):
             def recv(self, count=1024):
                 try:
                     return self._spawn.read_nonblocking(count)
-                except pexpect.EOF, e:
+                except pexpect.EOF:
                     return ''
 
             def send(self, data):
@@ -154,15 +154,22 @@ class LocalHost(Host):
     @wraps(Host.stat)
     def stat(self, path):
         try:
-            return LocalStat(os.stat(os.path.join(self.getcwd(), path)))
+            full_path = os.path.join(self.getcwd(), path)
+            filename = os.path.split(full_path)[1]
+            return LocalStat(os.stat(full_path), filename)
         except OSError as e:
             # Turn OSError in IOError.
             # Paramiko also throws IOError when doing stat calls on remote files.
             # (OSError is only for local system calls and cannot be generalized.)
             raise IOError(e.message)
 
+    @wraps(Host.listdir)
     def listdir(self, path='.'):
         return os.listdir(os.path.join(* [self.getcwd(), path]))
+
+    @wraps(Host.listdir_stat)
+    def listdir_stat(self, path='.'):
+        return [ self.stat(f) for f in self.listdir() ]
 
     def start_interactive_shell(self, command=None, initial_input=None):
         """

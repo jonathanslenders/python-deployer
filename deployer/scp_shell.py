@@ -58,8 +58,8 @@ class CacheMixin(object):
         console = Console(pty)
         with console.progress_bar('Reading directory...', clear_on_finish=True):
             cwd = self.getcwd()
-            for filename, s in self.listdir_attr().items():
-                self._stat_cache[(cwd, filename)] = s
+            for s in self.listdir_stat():
+                self._stat_cache[(cwd, s.filename)] = s
 
 # Handlers
 

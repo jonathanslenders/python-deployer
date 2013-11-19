@@ -110,8 +110,9 @@ class HostContext(object):
 
 class Stat(object):
     """ Base `Stat` class """
-    def __init__(self, stat_result):
+    def __init__(self, stat_result, filename):
         self._stat_result = stat_result
+        self.filename = filename
 
     @property
     def st_size(self):
@@ -627,13 +628,12 @@ class Host(object):
     def stat(self, remote_path):
         raise NotImplementedError
 
-    def listdir(self, path):
+    def listdir(self, path='.'):
         raise NotImplementedError
 
-    def listdir_attr(self, path):
+    def listdir_stat(self, path='.'):
         """
-        Return a dictionarry which maps the filenames in this directory to
-        :class:`Stat` instances.
+        Return a list of :class:`Stat` instances for each file in this directory.
         """
         raise NotImplementedError
 
