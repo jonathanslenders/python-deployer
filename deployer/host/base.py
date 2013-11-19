@@ -186,7 +186,7 @@ class Host(object):
         Create a deep copy of this Host class.
         (the pty-parameter allows to bind it to anothor pty)
         """
-        h = self.__class__(pty=(self.pty or pty), logger=self.logger)
+        h = self.__class__(pty=(pty or self.pty), logger=self.logger)
         h.host_context = self.host_context.copy()
         return h
 
