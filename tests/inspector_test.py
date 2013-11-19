@@ -296,6 +296,10 @@ class InspectorIteratorTest(unittest.TestCase):
 
         self.Base = Base
 
+        # Ensure that we have a correct __repr__ for this class
+        self.Base.__module__ = 'inspector_test'
+        assert repr(Base) == "<class 'inspector_test.Base'>"
+
         class A(Node):
             def my_action(self): return 'a'
 
@@ -357,7 +361,7 @@ class InspectorIteratorTest(unittest.TestCase):
         insp = self.insp
         self.assertEqual(len(insp.walk(filters.PrivateOnly & filters.IsInstance(self.Base))), 1)
 
-        # Check repr (xxx: maybe this is not the cleanest one.)
+        # Check repr
         self.assertEqual(repr(filters.PrivateOnly & filters.IsInstance(self.Base)),
                 "PrivateOnly & IsInstance(<class 'inspector_test.Base'>)")
 
