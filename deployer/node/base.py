@@ -170,6 +170,14 @@ class Env(object):
 
             self.__class__ = type(self.__class__.__name__, (self.__class__,), { '__call__': call })
 
+        # Create a new HostsContainer object which is identical to the one of
+        # the Node object, but add pty/logger/sandbox settings. (So, this
+        # doesn't create new Host instances, only a new container.)
+        # (do this in this constructor. Each call to Env.hosts should return
+        # the same host container instance.)
+        self._hosts = HostsContainer(self._node.hosts.get_hosts_as_dict(), pty=self._pty,
+                                logger=self._logger, is_sandbox=is_sandbox)
+
         # Lock Env
         self._lock_env = True
 
@@ -228,11 +236,7 @@ class Env(object):
         :class:`deployer.host_container.HostsContainer` instance. This is the
         proxy to the actual hosts.
         """
-        # Create a new HostsContainer object which is identical to the one of
-        # the Node object, but add pty/logger/sandbox settings. (So, this
-        # doesn't create new Host instances, only a new container.)
-        return HostsContainer(self._node.hosts._hosts, pty=self._pty,
-                        logger=self._logger, is_sandbox=self._is_sandbox)
+        return self._hosts
 
     @property
     def console(self):

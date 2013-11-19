@@ -38,7 +38,7 @@ class HostsContainer(object):
             # instance.
             if isclass(h):
                 assert issubclass(h, Host)
-                return h()
+                return h(pty=pty, logger=logger)
             else:
                 assert isinstance(h, Host)
                 return h
@@ -200,12 +200,13 @@ class HostsContainer(object):
         # First create a list of callables
         def closure(host):
             def call(pty):
-                assert pty # TODO: this fails???
+                assert pty
+
                 kw2 = dict(**kw)
-                if not 'sandbox' in kw2:
-                    kw2['sandbox'] = self._sandbox
-                kw2['logger'] = self._logger
-                return host.run(pty, *a, **kw2)
+                kw2.setdefault('sandbox', self._sandbox)
+
+                new_host = host.copy(pty=pty)
+                return new_host.run(*a, **kw2)
             return call
 
         callables = map(closure, self._all)
@@ -313,7 +314,7 @@ class HostContainer(HostsContainer):
         """
         This host container has only one host.
         """
-        assert len(self) == 1
+        assert len(self) == 1, AssertionError('Found multiple hosts in HostContainer')
         return self._all[0]
 
     @property
@@ -322,26 +323,17 @@ class HostContainer(HostsContainer):
 
     @wraps(Host.get_file)
     def get_file(self, *args,**kwargs):
-        if len(self) == 1:
-            kwargs['logger'] = self._logger
-            kwargs['sandbox'] = self._sandbox
-
-            return self._host.get_file(*args, **kwargs)
-        else:
-            raise AttributeError
+        kwargs['sandbox'] = self._sandbox
+        return self._host.get_file(*args, **kwargs)
 
     @wraps(Host.put_file)
     def put_file(self, *args, **kwargs):
-        kwargs['logger'] = self._logger
         kwargs['sandbox'] = self._sandbox
-
         return self._host.put_file(*args, **kwargs)
 
     @wraps(Host.open)
     def open(self, *args, **kwargs):
-        kwargs['logger'] = self._logger
         kwargs['sandbox'] = self._sandbox
-
         return self._host.open(*args, **kwargs)
 
     @wraps(HostsContainer.run)
@@ -358,7 +350,7 @@ class HostContainer(HostsContainer):
 
     def start_interactive_shell(self, command=None, initial_input=None):
         if not self._sandbox:
-            return self._host.start_interactive_shell(self._pty, command=command, initial_input=initial_input)
+            return self._host.start_interactive_shell(command=command, initial_input=initial_input)
         else:
             print 'Interactive shell is not available in sandbox mode.'
 

@@ -33,21 +33,21 @@ class LocalHost(Host):
     address = 'localhost'
     start_path = os.getcwd()
 
-    def run(self, pty, *a, **kw):
+    def run(self, *a, **kw):
         if kw.get('use_sudo', False):
-            self._ensure_password_is_known(pty)
-        return Host.run(self, pty, *a, **kw)
+            self._ensure_password_is_known()
+        return Host.run(self, *a, **kw)
 
     def expand_path(self, path):
         return os.path.expanduser(path) # TODO: expansion like with SSHHost!!!!
 
-    def _ensure_password_is_known(self, pty):
+    def _ensure_password_is_known(self):
         # Make sure that we know the localhost password, before running sudo.
         global _localhost_password
         tries = 0
 
         while _localhost_password is None:
-            _localhost_password = Console(pty).input('[sudo] password for %s at %s' %
+            _localhost_password = Console(self.pty).input('[sudo] password for %s at %s' %
                         (self.username, self.slug), is_password=True)
 
             # Check password
@@ -164,8 +164,8 @@ class LocalHost(Host):
     def listdir(self, path='.'):
         return os.listdir(os.path.join(* [self.getcwd(), path]))
 
-    def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
+    def start_interactive_shell(self, command=None, initial_input=None):
         """
         Start an interactive bash shell.
         """
-        self.run(pty, command='/bin/bash', logger=logger, initial_input=initial_input)
+        self.run(command='/bin/bash', initial_input=initial_input)

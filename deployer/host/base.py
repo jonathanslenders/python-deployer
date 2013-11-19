@@ -37,6 +37,14 @@ class HostContext(object):
         self._path = []
         self._env = []
 
+    def copy(self):
+        """ Create a deep copy. """
+        c = HostContext()
+        c._command_prefixes = list(self._command_prefixes)
+        c._path = list(self._path)
+        c._env = list(self._env)
+        return c
+
     def __repr__(self):
         return 'HostContext(prefixes=%r, path=%r, env=%r)' % (
                         self._command_prefixes, self._path, self._env)
@@ -168,9 +176,19 @@ class Host(object):
     # correct password when sudo asks us.
     magic_sudo_prompt = termcolor.colored('[:__enter-sudo-password__:]', 'grey') #, attrs=['concealed'])
 
-    def __init__(self):
-        self.dummy_logger = DummyLoggerInterface() # XXX: remove self.dummy_logger variable.
+    def __init__(self, pty=None, logger=None):
         self.host_context = HostContext()
+        self.pty = pty or DummyPty()
+        self.logger = logger or DummyLoggerInterface()
+
+    def copy(self, pty=None):
+        """
+        Create a deep copy of this Host class.
+        (the pty-parameter allows to bind it to anothor pty)
+        """
+        h = self.__class__(pty=(self.pty or pty), logger=self.logger)
+        h.host_context = self.host_context.copy()
+        return h
 
     def __repr__(self):
         return 'Host(slug=%r, context=%r)' % (self.slug, self.host_context)
@@ -200,9 +218,9 @@ class Host(object):
     def get_home_directory(self, username=None): # TODO: or use getcwd() on the sftp object??
         # TODO: maybe: return self.expand_path('~%s' % username if username else '~')
         if username:
-            return self.run(DummyPty(), 'cd /; echo -n ~%s' % username, sandbox=False)
+            return self._run_silent('cd /; echo -n ~%s' % username, sandbox=False)
         else:
-            return self.run(DummyPty(), 'cd /; echo -n ~', sandbox=False)
+            return self._run_silent('cd /; echo -n ~', sandbox=False)
 
     def exists(self, filename, use_sudo=True, **kw):
         """
@@ -282,8 +300,8 @@ class Host(object):
 
         return ''.join(result)
 
-    def run(self, pty, command='echo "no command given"', use_sudo=False, sandbox=False, interactive=True,
-                    logger=None, user=None, ignore_exit_status=False, initial_input=None):
+    def run(self, command, use_sudo=False, sandbox=False, interactive=True,
+                    user=None, ignore_exit_status=False, initial_input=None, silent=False):
         """
         Execute this shell command on the host.
 
@@ -304,7 +322,8 @@ class Host(object):
         """
         assert isinstance(command, basestring)
 
-        logger = logger or self.dummy_logger
+        logger = DummyLoggerInterface() if silent else self.logger
+        pty = DummyPty() if silent else self.pty
 
         # Create new channel for this command
         chan = self._get_session()
@@ -378,7 +397,7 @@ class Host(object):
 
             if interactive:
                 # Pty receive/send loop
-                result = self._posix_shell(pty, chan, log_entry=log_entry, initial_input=initial_input)
+                result = self._posix_shell(chan, log_entry=log_entry, initial_input=initial_input)
             else:
                 # Read loop.
                 result = []
@@ -433,13 +452,13 @@ class Host(object):
     def _get_session(self):
         raise NotImplementedError
 
-    def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None):
+    def start_interactive_shell(self, command=None, initial_input=None):
         """
         Start an interactive bash shell.
         """
         raise NotImplementedError
 
-    def _posix_shell(self, pty, chan, raw=True, log_entry=None, initial_input=None):
+    def _posix_shell(self, chan, raw=True, log_entry=None, initial_input=None): # TODO: drop log_entry parameter: not used in logging backends.
         """
         Create a loop which redirects sys.stdin/stdout into this channel.
         The loop ends when channel.recv() returns 0.
@@ -479,7 +498,7 @@ class Host(object):
                         break;
 
                     if reading_from_stdin:
-                        r, w, e = select([pty.stdin, chan], [], [])
+                        r, w, e = select([self.pty.stdin, chan], [], [])
                     else:
                         r, w, e = select([chan], [], [])
 
@@ -498,7 +517,7 @@ class Host(object):
                             # Write received characters to stdout and flush
                             while True:
                                 try:
-                                    pty.stdout.write(x)
+                                    self.pty.stdout.write(x)
                                     break
                                 except IOError, e:
                                     # Sometimes, when we have a lot of output, we get here:
@@ -507,7 +526,7 @@ class Host(object):
                                     # See also: deployer.run.socket_client for a similar issue.
                                     time.sleep(0.2)
 
-                            pty.stdout.flush()
+                            self.pty.stdout.flush()
 
                             # Also remember received output.
                             # We want to return what's written to stdout.
@@ -525,9 +544,9 @@ class Host(object):
                             pass
 
                     # Send stream (one by one character)
-                    if pty.stdin in r:
+                    if self.pty.stdin in r:
                         try:
-                            x = pty.stdin.read(1024)
+                            x = self.pty.stdin.read(1024)
 
                             # We receive \n from stdin, but \r is required to
                             # send. (Until now, the only place where the
@@ -565,7 +584,7 @@ class Host(object):
                         time.sleep(0.01)
             finally:
                 # Set blocking again
-                fdesc.setBlocking(pty.stdin)
+                fdesc.setBlocking(self.pty.stdin)
 
             return ''.join(result)
 
@@ -582,22 +601,22 @@ class Host(object):
         """ Return temporary filename """
         return self.expand_path('~/deployer-tempfile-%s-%s' % (time.time(), random.randint(0, 1000000)))
 
-    def get_file(self, remote_path, local_path, use_sudo=False, logger=None, sandbox=False):
+    def get_file(self, remote_path, local_path, use_sudo=False, sandbox=False):
         """
         Download this remote_file.
         """
-        with self.open(remote_path, 'rb', use_sudo=use_sudo, logger=logger, sandbox=sandbox) as f:
+        with self.open(remote_path, 'rb', use_sudo=use_sudo, sandbox=sandbox) as f:
             # Expand paths
             local_path = self._expand_local_path(local_path)
 
             with open(local_path, 'wb') as f2:
                 f2.write(f.read()) # TODO: read/write in chunks and print progress bar.
 
-    def put_file(self, local_path, remote_path, use_sudo=False, logger=None, sandbox=False):
+    def put_file(self, local_path, remote_path, use_sudo=False, sandbox=False):
         """
         Upload this local_file to the remote location.
         """
-        with self.open(remote_path, 'wb', use_sudo=use_sudo, logger=logger, sandbox=sandbox) as f:
+        with self.open(remote_path, 'wb', use_sudo=use_sudo, sandbox=sandbox) as f:
             # Expand paths
             local_path = self._expand_local_path(local_path)
 
@@ -613,7 +632,7 @@ class Host(object):
     def _open(self, remote_path, mode):
         raise NotImplementedError
 
-    def open(self, remote_path, mode="rb", use_sudo=False, logger=None, sandbox=False):
+    def open(self, remote_path, mode="rb", use_sudo=False, sandbox=False):
         """
         Open file handler to remote file. Can be used both as:
 
@@ -628,8 +647,6 @@ class Host(object):
 
             host.open('/path/to/somefile', wb').write('some content')
         """
-        logger = logger or self.dummy_logger
-
         # Expand path
         remote_path = os.path.normpath(os.path.join(self.getcwd(), self.expand_path(remote_path)))
 
@@ -638,7 +655,7 @@ class Host(object):
                 rf._is_open = False
 
                 # Log entry
-                self._log_entry = logger.log_file(self, mode=mode, remote_path=remote_path,
+                self._log_entry = self.logger.log_file(self, mode=mode, remote_path=remote_path,
                                                 use_sudo=use_sudo, sandboxing=sandbox)
                 self._log_entry.__enter__()
 
@@ -746,11 +763,12 @@ class Host(object):
         return self.run(*args, **kwargs)
 
     def _run_silent(self, command, **kw):
-        pty = DummyPty()
         kw['interactive'] = False
-        kw['logger'] = None
-        return self.run(pty, command, **kw)
+        kw['silent'] = True
+        return self.run(command, **kw)
 
     def _run_silent_sudo(self, command, **kw):
+        kw['interactive'] = False
         kw['use_sudo'] = True
-        return self._run_silent(command, **kw)
+        kw['silent'] = True
+        return self._run(command, **kw)

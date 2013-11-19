@@ -25,14 +25,21 @@ class SSHBackend(object):
     share the same backend (this class). Only one ssh connection per host
     will be created, and shared between all threads.
     """
-    def __init__(self, host_cls):
-        self._ssh_cache = None
-        self._lock = threading.Lock()
+    def __init__(cls, host_cls):
+        pass # Leave __init__ empty, use __new__ for this singleton.
 
-    def __new__(self, host_cls):
-        # Create singleton SSHBackend
+    def __new__(cls, host_cls):
+        """
+        Create singleton SSHBackend
+        """
         if host_cls not in _ssh_backends:
-            _ssh_backends[host_cls] = object.__new__(self, host_cls)
+            self = object.__new__(cls, host_cls)
+
+            # Initialize
+            self._ssh_cache = None
+            self._lock = threading.Lock()
+
+            _ssh_backends[host_cls] = self
         return _ssh_backends[host_cls]
 
     def __del__(self):
@@ -196,10 +203,10 @@ class SSHHost(Host):
     keepalive_interval  = 30
     """ SSH keep alive in seconds  """
 
-    def __init__(self):
+    def __init__(self, *a, **kw):
         self._backend = SSHBackend(self.__class__)
         self._cached_start_path = None
-        Host.__init__(self)
+        Host.__init__(self, *a, **kw)
 
     def _get_session(self):
         transport = self._backend.get_ssh(self).get_transport()
@@ -239,40 +246,44 @@ class SSHHost(Host):
         sftp.chdir(self.getcwd())
         return sftp.listdir(path)
 
+    @wraps(Host.listdir_attr)
+    def listdir_attr(self, path='.'):
+        sftp = self._backend.get_sftp(self)
+        sftp.chdir(self.getcwd())
+        return { a.filename: SSHStat(a) for a in sftp.listdir_attr(path) }
+
     def _open(self, remote_path, mode):
         return self._backend.get_sftp(self).open(remote_path, mode)
 
-    def start_interactive_shell(self, pty, command=None, logger=None, initial_input=None, sandbox=False):
+    def start_interactive_shell(self, command=None, initial_input=None, sandbox=False):
         """
         Start /bin/bash and redirect all SSH I/O from stdin and to stdout.
         """
-        logger = logger or self.dummy_logger
-
         # Start a new shell using the same dimentions as the current terminal
-        height, width = pty.get_size()
+        height, width = self.pty.get_size()
         chan = self._backend.get_ssh(self).invoke_shell(term=self.term, height=height, width=width)
 
         # Keep size of local pty and remote pty in sync
         def set_size():
-            height, width = pty.get_size()
+            height, width = self.pty.get_size()
             chan.resize_pty(width=width, height=height)
-        pty.set_ssh_channel_size = set_size
+        self.pty.set_ssh_channel_size = set_size
 
         # Start logger
-        with logger.log_run(self, command=command, shell=True, sandboxing=sandbox) as log_entry:
+        with self.logger.log_run(self, command=command, shell=True, sandboxing=sandbox) as log_entry:
             # When a command has been passed, use 'exec' to replace the current
             # shell process by this command
             if command:
                 chan.send('exec %s\n' % command)
 
             # PTY receive/send loop
-            self._posix_shell(pty, chan, log_entry=log_entry, initial_input=initial_input)
+            self._posix_shell(chan, log_entry=log_entry, initial_input=initial_input)
 
             # Retrieve status code
             status_code = chan.recv_exit_status()
             log_entry.set_status_code(status_code)
 
-            pty.set_ssh_channel_size = None
+            self.pty.set_ssh_channel_size = None
 
             # Return status code
             return status_code

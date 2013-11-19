@@ -12,12 +12,10 @@ import tempfile
 class HostTest(unittest.TestCase):
     def test_simple_echo_command(self):
         host = LocalHost1()
-        pty = DummyPty()
-        self.assertEqual(host.run(pty, 'echo test', interactive=False).strip(), 'test')
+        self.assertEqual(host.run('echo test', interactive=False).strip(), 'test')
 
     def test_host_context(self):
         host = LocalHost1()
-        pty = DummyPty()
         context = host.host_context
 
         # Test __repr__
@@ -25,31 +23,31 @@ class HostTest(unittest.TestCase):
 
         # Test env.
         with context.env('CUSTOM_VAR', 'my-value'):
-            self.assertEqual(host.run(pty, 'echo $CUSTOM_VAR', interactive=False).strip(), 'my-value')
-        self.assertEqual(host.run(pty, 'echo $CUSTOM_VAR', interactive=False).strip(), '')
+            self.assertEqual(host.run('echo $CUSTOM_VAR', interactive=False).strip(), 'my-value')
+        self.assertEqual(host.run('echo $CUSTOM_VAR', interactive=False).strip(), '')
 
         # Test prefix
         with context.prefix('echo prefix'):
-            result = host.run(pty, 'echo command', interactive=False)
+            result = host.run('echo command', interactive=False)
             self.assertIn('prefix', result)
             self.assertIn('command', result)
 
         # Test 'cd /'
         with context.cd('/'):
-            self.assertEqual(host.run(pty, 'pwd', interactive=False).strip(), '/')
+            self.assertEqual(host.run('pwd', interactive=False).strip(), '/')
 
         # Test env nesting.
         with context.env('VAR1', 'var1'):
             with context.env('VAR2', 'var2'):
-                self.assertEqual(host.run(pty, 'echo $VAR1-$VAR2', interactive=False).strip(), 'var1-var2')
+                self.assertEqual(host.run('echo $VAR1-$VAR2', interactive=False).strip(), 'var1-var2')
 
         # Test escaping.
         with context.env('VAR1', 'var1'):
             with context.env('VAR2', '$VAR1', escape=False):
-                self.assertEqual(host.run(pty, 'echo $VAR2', interactive=False).strip(), 'var1')
+                self.assertEqual(host.run('echo $VAR2', interactive=False).strip(), 'var1')
 
             with context.env('VAR2', '$VAR1'): # escape=True by default
-                self.assertEqual(host.run(pty, 'echo $VAR2', interactive=False).strip(), '$VAR1')
+                self.assertEqual(host.run('echo $VAR2', interactive=False).strip(), '$VAR1')
 
     def test_repr(self):
         host = LocalHost1()
@@ -59,16 +57,15 @@ class HostTest(unittest.TestCase):
         # XXX: Not entirely sure whether this test is reliable.
         #      -> the select-loop will stop as soon as no input is available on any end.
         host = LocalHost1()
-        pty = DummyPty()
 
-        result = host.run(pty, 'echo test').strip()
+        result = host.run('echo test').strip()
         self.assertEqual(result, 'test')
 
     def test_input(self):
-        host = LocalHost1()
         pty = DummyPty('my-input\n')
+        host = LocalHost1(pty=pty)
 
-        result = host.run(pty, 'read varname; echo $varname')
+        result = host.run('read varname; echo $varname')
         self.assertEqual(result, 'my-input\r\nmy-input\r\n')
 
     def test_opening_files(self):
