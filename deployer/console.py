@@ -443,9 +443,9 @@ class ProgressBar(object):
         counter_str = colored(counter_str, 'cyan', attrs=['bold'])
         duration = colored(duration, 'cyan')
 
-        done = colored(' [%s] ' % (
-                'DONE' if self.done else
-                self.steps.get_step_description(self.counter) if self.steps
+        done = colored(' %s ' % (
+                '[DONE]' if self.done else
+                '[%s]' % self.steps.get_step_description(self.counter) if self.steps
                 else ''), 'green')
 
         sys.stdout.write('\x1b[K%s  %s  [%s] %s\r' % (message, counter_str, duration, done))
