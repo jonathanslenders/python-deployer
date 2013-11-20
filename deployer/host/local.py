@@ -97,7 +97,14 @@ class LocalHost(Host):
                 # we want to get the right size immediately.
                 class spawn_override(pexpect.spawn):
                     def setwinsize(s, rows=None, cols=None):
-                        pexpect.spawn.setwinsize(s, self._height or rows, self._width or cols)
+                        # Note: This could throw an obscure "close failed in
+                        # file object destructor: IOERROR" if we called this
+                        # with None values. (We shouldn't do that, but not sure
+                        # why it happens.)
+                        w = self._width or cols
+                        h = self._height or rows
+                        if w and h:
+                            pexpect.spawn.setwinsize(s, h, w)
                 self.spawn_override = spawn_override
 
             def get_pty(self, term=None, width=None, height=None):
