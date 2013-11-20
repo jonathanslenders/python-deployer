@@ -96,8 +96,8 @@ class LocalHost(Host):
                 # pexpect.spawn sets by default a winsize of 24x80,
                 # we want to get the right size immediately.
                 class spawn_override(pexpect.spawn):
-                    def setwinsize(s, *a, **kw):
-                        pexpect.spawn.setwinsize(s, self._height, self._width)
+                    def setwinsize(s, rows=None, cols=None):
+                        pexpect.spawn.setwinsize(s, self._height or rows, self._width or cols)
                 self.spawn_override = spawn_override
 
             def get_pty(self, term=None, width=None, height=None):
