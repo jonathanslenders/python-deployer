@@ -138,34 +138,34 @@ servers.
 +-----------------+---------------------+---------------------------------------+
 | Where           | Command             | Meaning                               |
 +=================+=====================+=======================================+
-| Remote          | ``cd`` <directory>  | Go to another directory at the server.|
+| Remote          | ``cd <directory>``  | Go to another directory at the server.|
 |                 +---------------------+---------------------------------------+
 |                 | ``pwd``             | Print working directory at the server.|
 |                 +---------------------+---------------------------------------+
-|                 | ``stat`` <file>     | Print information about file or       |
+|                 | ``stat <file>``     | Print information about file or       |
 |                 |                     | directory on the server.              |
 |                 +---------------------+---------------------------------------+
-|                 | ``edit`` <file>     | Open this file in an editor (vim)     |
+|                 | ``edit <file>``     | Open this file in an editor (vim)     |
 |                 |                     | on the server.                        |
 |                 +---------------------+---------------------------------------+
 |                 | ``connect``         | Open interactive (bash) shell at the  |
 |                 |                     | at the server.                        |
 +-----------------+---------------------+---------------------------------------+
-| Local           | ``lcd`` <directory> | Go locally to another directory.      |
+| Local           | ``lcd <directory>`` | Go locally to another directory.      |
 |                 +---------------------+---------------------------------------+
 |                 | ``lpwd``            | Print local working directory.        |
 |                 +---------------------+---------------------------------------+
-|                 | ``lstat`` <file>    | Print information about a local file  |
+|                 | ``lstat <file>``    | Print information about a local file  |
 |                 |                     | or directory.                         |
 |                 +---------------------+---------------------------------------+
-|                 | ``ledit`` <file>    | Open this local file in an editor     |
+|                 | ``ledit <file>``    | Open this local file in an editor     |
 |                 +---------------------+---------------------------------------+
 |                 | ``lconnect``        | Open local interactive (bash) shell   |
 |                 |                     | at this directory.                    |
 +-----------------+---------------------+---------------------------------------+
-| File operations | ``put`` <file>      | Upload this local file to the server. |
+| File operations | ``put <file>``      | Upload this local file to the server. |
 |                 +---------------------+---------------------------------------+
-|                 | ``get`` <file>      | Download remote file from the server. |
+|                 | ``get <file>``      | Download remote file from the server. |
 +-----------------+---------------------+---------------------------------------+
 | Other           | ``exit``            | Return to the main shell.             |
 |                 +---------------------+---------------------------------------+
