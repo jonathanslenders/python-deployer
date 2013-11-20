@@ -27,12 +27,14 @@ If you save this as ``client.py`` and call it by typing ``python ./client.py
 
     Usage:
       ./client.py run [-s | --single-threaded | --socket SOCKET] [--path PATH]
-                      [--non-interactive] [--log LOGFILE]
+                      [--non-interactive] [--log LOGFILE] [--scp]
                       [--] [ACTION PARAMETER...]
       ./client.py listen [--log LOGFILE] [--non-interactive] [--socket SOCKET]
-      ./client.py connect (--socket SOCKET) [--path PATH] [--] [ACTION PARAMETER...]
+      ./client.py connect (--socket SOCKET) [--path PATH] [--scp]
+                      [--] [ACTION PARAMETER...]
       ./client.py telnet-server [--port PORT] [--log LOGFILE] [--non-interactive]
       ./client.py list-sessions
+      ./client.py scp
       ./client.py -h | --help
       ./client.py --version
 
@@ -40,6 +42,7 @@ If you save this as ``client.py`` and call it by typing ``python ./client.py
       -h, --help             : Display this help text.
       -s, --single-threaded  : Single threaded mode.
       --path PATH            : Start the shell at the node with this location.
+      --scp                  : Open a secure copy shell.
       --non-interactive      : If possible, run script with as few interactions as
                                possible.  This will always choose the default
                                options when asked for questions.
