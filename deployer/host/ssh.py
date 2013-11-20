@@ -140,8 +140,7 @@ class SSHBackend(object):
 
     def _create_connect_progress_bar(self, host):
         from deployer.console import ProgressBarSteps
-        from deployer.pseudo_terminal import Pty
-        console = Console(Pty())
+        console = Console(host.pty)
         return console.progress_bar_with_steps('Connecting to %s %s' % (host.address, host.slug), steps=ProgressBarSteps({
             1: "Resolving DNS",
             2: "Creating socket",
