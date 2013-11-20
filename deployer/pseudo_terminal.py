@@ -31,10 +31,20 @@ class Pty(object):
                          the deployment. Choose default options when possible.
     """
     def __init__(self, stdin=None, stdout=None, interactive=True):
-        self.stdin = stdin or sys.__stdin__
-        self.stdout = stdout or sys.__stdout__
+        self._stdin = stdin or sys.__stdin__
+        self._stdout = stdout or sys.__stdout__
         self.interactive = interactive
         self.set_ssh_channel_size = None
+
+    @property
+    def stdin(self):
+        """ Return the input file object. """
+        return self._stdin
+
+    @property
+    def stdout(self):
+        """ Return the output file object. """
+        return self._stdout
 
     def get_size(self):
         # Thanks to fabric (fabfile.org), and
@@ -140,16 +150,35 @@ class DummyPty(Pty):
     def __init__(self, input_data=''):
         # StringIO for stdout
         self._output = StringIO.StringIO()
+        self._input_data = input_data
+        self._size = (40, 80)
+        self._pipe = None
 
-        # Pipe for input. (Select will be used on this -- so StringIO won't work.)
+        Pty.__init__(self, None, self._output, interactive=False)
+
+    @property
+    def stdin(self):
+        # Lazy pipe creation.
+        if not self._pipe:
+            self._pipe = self._make_pipe()
+        return self._pipe
+
+    def _make_pipe(self):
+        """
+        Create a pipe on which the input data is written. Return the output
+        data. (Select will be used on this -- so StringIO won't work.)
+        """
         r, w = os.pipe()
 
-        r2 = os.fdopen(r, 'r')
-        w2 = os.fdopen(w, 'w')
-        w2.write(input_data)
+        with os.fdopen(w, 'w') as w:
+            w.write(self._input_data)
 
-        Pty.__init__(self, r2, self._output, interactive=False)
-        self._size = (40, 80)
+        return os.fdopen(r, 'r')
+
+    def __del__(self):
+        if self._pipe:
+            self._pipe.close()
+            self._pipe = None
 
     def get_size(self):
         return self._size
