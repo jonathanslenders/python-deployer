@@ -100,27 +100,77 @@ Special commands
 
 Some special commands, starting with double dash:
 
-+-------------------+--------------------------------------------------------+
-| Command           | Meaning                                                |
-+===================+========================================================+
-| ``--inspect``     | Show information about the current node.               |
-|                   |                                                        |
-|                   | This displays the file where the node has been defined,|
-|                   | the hosts that are bound to this node and the list of  |
-|                   | actions child nodes that it contains.                  |
-+-------------------+--------------------------------------------------------+
-| ``--source-code`` | Display the source code of the current node.           |
-+-------------------+--------------------------------------------------------+
-| ``--connect``     | Open an interactive (bash) shell on a host of this     |
-|                   | node. It will ask which host to connect if there are   |
-|                   | several hosts in this node.                            |
-+-------------------+--------------------------------------------------------+
-| ``--version``     | Show version information.                              |
-+-------------------+--------------------------------------------------------+
++---------------------+--------------------------------------------------------+
+| Command             | Meaning                                                |
++=====================+========================================================+
+| ``--inspect``       | Show information about the current node.               |
+|                     |                                                        |
+|                     | This displays the file where the node has been defined,|
+|                     | the hosts that are bound to this node and the list of  |
+|                     | actions child nodes that it contains.                  |
++---------------------+--------------------------------------------------------+
+| ``--source-code``   | Display the source code of the current node.           |
++---------------------+--------------------------------------------------------+
+| ``--connect``       | Open an interactive (bash) shell on a host of this     |
+|                     | node. It will ask which host to connect if there are   |
+|                     | several hosts in this node.                            |
++---------------------+--------------------------------------------------------+
+| ``--version``       | Show version information.                              |
++---------------------+--------------------------------------------------------+
+| ``--scp``           | Open an SCP shell.                                     |
++---------------------+--------------------------------------------------------+
+| ``--run``           | Run a shell command on all hosts in the current node.  |
++---------------------+--------------------------------------------------------+
+| ``--run-with-sudo`` | Identical to ``--run``, but using ``sudo``             |
++---------------------+--------------------------------------------------------+
 
 For ``--inspect``, ``--source-code`` and ``--connect``, it's possible to pass
 the name or path of another node as parameter. E.g.:  ``--connect node
 child_node``.
+
+The SCP (secure copy) shell
+---------------------------
+
+Typing ``--scp`` in the main shell will open a subshell in which you can run
+SCP commands. This is useful for manually downloading and uploading files to
+servers.
+
++-----------------+---------------------+---------------------------------------+
+| Where           | Command             | Meaning                               |
++=================+=====================+=======================================+
+| Remote          | ``cd`` <directory>  | Go to another directory at the server.|
+|                 +---------------------+---------------------------------------+
+|                 | ``pwd``             | Print working directory at the server.|
+|                 +---------------------+---------------------------------------+
+|                 | ``stat`` <file>     | Print information about file or       |
+|                 |                     | directory on the server.              |
+|                 +---------------------+---------------------------------------+
+|                 | ``edit`` <file>     | Open this file in an editor (vim)     |
+|                 |                     | on the server.                        |
+|                 +---------------------+---------------------------------------+
+|                 | ``connect``         | Open interactive (bash) shell at the  |
+|                 |                     | at the server.                        |
++-----------------+---------------------+---------------------------------------+
+| Local           | ``lcd`` <directory> | Go locally to another directory.      |
+|                 +---------------------+---------------------------------------+
+|                 | ``lpwd``            | Print local working directory.        |
+|                 +---------------------+---------------------------------------+
+|                 | ``lstat`` <file>    | Print information about a local file  |
+|                 |                     | or directory.                         |
+|                 +---------------------+---------------------------------------+
+|                 | ``ledit`` <file>    | Open this local file in an editor     |
+|                 +---------------------+---------------------------------------+
+|                 | ``lconnect``        | Open local interactive (bash) shell   |
+|                 |                     | at this directory.                    |
++-----------------+---------------------+---------------------------------------+
+| File operations | ``put`` <file>      | Upload this local file to the server. |
+|                 +---------------------+---------------------------------------+
+|                 | ``get`` <file>      | Download remote file from the server. |
++-----------------+---------------------+---------------------------------------+
+| Other           | ``exit``            | Return to the main shell.             |
+|                 +---------------------+---------------------------------------+
+|                 | ``clear``           | Clear screen.                         |
++-----------------+---------------------+---------------------------------------+
 
 
 Implementing a custom shell
