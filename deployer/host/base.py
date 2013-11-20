@@ -150,6 +150,11 @@ class Host(object):
     """
     Definiton of a remote host. An instance will open an SSH connection
     according to the settings defined in the class definition.
+
+    :param pty: The pseudo terminal wrapper which handles the stdin/stdout.
+    :type pty: :class:`deployer.pseudo_terminal.Pty`
+    :param logger: The logger interface.
+    :type logger: LoggerInterface
     """
     #class __metaclass__(type):
     #    @property
@@ -308,8 +313,6 @@ class Host(object):
         """
         Execute this shell command on the host.
 
-        :param pty: The pseudo terminal wrapper which handles the stdin/stdout.
-        :type pty: :class:`deployer.pseudo_terminal.Pty`
         :param command: The shell command.
         :type command: basestring
         :param use_sudo: Run as superuser.
@@ -319,8 +322,6 @@ class Host(object):
         :param interactive: Start an interactive event loop which allows
                             interaction with the remote command. Otherwise, just return the output.
         :type interactive: bool
-        :param logger: The logger interface.
-        :type logger: LoggerInterface
         :param initial_input: When ``interactive``, send this input first to the host.
         """
         assert isinstance(command, basestring)
