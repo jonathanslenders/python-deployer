@@ -94,6 +94,11 @@ class HostContext(object):
     def env(self, variable, value, escape=True):
         """
         Set this environment variable
+
+        ::
+
+            with host.cd('VAR', 'my-value'):
+                host.run('echo $VAR')
         """
         if value is None:
             value = ''
