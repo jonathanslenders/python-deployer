@@ -165,11 +165,15 @@ class HostsContainer(object):
 
     def __getitem__(self, index):
         """
-        For backwards-compatibility:
+        Mostly for backwards-compatibility.
 
-        We only allow the [0] index operation, because the hosts that exist in
-        a HostsContainer don't have an order defined. [0] will work, but a random
-        host is returned.
+        You can use the [0] index operation, but as a HostContainer contains a
+        set of hosts, there is no definition of the 'first' host in a set, so
+        you shouldn't trust the order, and you shouldn't rely on the fact that it'll
+        be always the same host that will be returned.
+        This can be useful if you want to retrieve a value from one node in an
+        array, but when it's not important which one.
+
 
         :returns: :class:`HostContainer`;
         """
