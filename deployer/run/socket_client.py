@@ -182,10 +182,13 @@ class DeploymentClient(object):
         self.socket.sendall(pickle.dumps(('_get_info', '')))
         self._read_loop()
 
-    def run(self, cd_path=None, action_name=None, parameters=None):
+    def run(self, cd_path=None, action_name=None, parameters=None, open_scp_shell=False):
         """
         Run main event loop.
         """
+        if action_name and open_scp_shell:
+            raise Exception("Don't provide 'action_name' and 'open_scp_shell' at the same time")
+
         # Set stdin non blocking and raw
         fdesc.setNonBlocking(sys.stdin)
         tcattr = termios.tcgetattr(sys.stdin.fileno())
@@ -198,6 +201,7 @@ class DeploymentClient(object):
                 'cd_path': cd_path,
                 'action_name': action_name,
                 'parameters': parameters,
+                'open_scp_shell': open_scp_shell,
             })))
 
         self._read_loop()
@@ -255,11 +259,11 @@ def list_sessions():
             pass
 
 
-def start(socket_name, cd_path=None, action_name=None, parameters=None):
+def start(socket_name, cd_path=None, action_name=None, parameters=None, open_scp_shell=False):
     """
     Start a socket client.
     """
     make_stdin_unbuffered()
 
     DeploymentClient(socket_name).run(cd_path=cd_path,
-                    action_name=action_name, parameters=parameters)
+                    action_name=action_name, parameters=parameters, open_scp_shell=open_scp_shell)

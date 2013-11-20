@@ -913,11 +913,13 @@ class Shell(CLInterface):
                 print 'Unknown path given.'
                 return
 
+    def open_scp_shell(self):
+        self.root_handler.get_subhandler('--scp')()
+
     def run_action(self, action_name, *a, **kw):
         """
         Run a deployment command at the current shell state.
         """
-        self.state._node
         env = Env(self.state._node, self.pty, self.logger_interface, is_sandbox=False)
         return getattr(env, action_name)(*a, **kw)
 
