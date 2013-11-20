@@ -7,6 +7,11 @@ Now
 
 ?
 
+Version 0.3.2: 22 november 2013
+-------------------------------
+
+- Bug fix in DummyPty(). Fixes "too many open files" on OS X.
+
 Version 0.3.1: 21 november 2013
 -------------------------------
 
