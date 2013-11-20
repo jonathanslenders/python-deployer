@@ -9,12 +9,14 @@ import termcolor
 import time
 from stat import S_ISDIR, S_ISREG
 
+from deployer.console import Console
 from deployer.exceptions import ExecCommandFailed
 from deployer.loggers import DummyLoggerInterface
 from deployer.pseudo_terminal import DummyPty, select
 from deployer.std import raw_mode
 from deployer.utils import esc1
 
+from StringIO import StringIO
 from twisted.internet import fdesc
 
 __all__ = (
@@ -706,9 +708,35 @@ class Host(object):
                 # (When open(...).write(...) is used.)
                 rf.close()
 
-            def read(rf):
+            def read(rf, size=-1):
                 if rf._is_open:
-                    return rf._file.read()
+                    # Always read in chunks of 1024 bytes and show a progress bar.
+
+                    # Create progress bar.
+                    p = Console(self.pty).progress_bar('Downloading data',
+                            expected=(size if size >= 0 else None))
+                    result = StringIO()
+
+                    with p:
+                        while True:
+                            if size == 0:
+                                break
+                            elif size < 0:
+                                # If we have to read until EOF, keep reaeding
+                                # in chunks of 1024
+                                chunk = rf._file.read(1024)
+                            else:
+                                # If we have to read for a certain size, read
+                                # until we reached that size.
+                                read_size = min(1024, size)
+                                chunk = rf._file.read(read_size)
+                                size -= len(chunk)
+
+                            if not chunk: break # EOF
+                            result.write(chunk)
+                            p.set_progress(result.len)
+
+                    return result.getvalue()
                 else:
                     raise IOError('Cannot read from closed remote file')
 
@@ -723,12 +751,21 @@ class Host(object):
                     # On some hosts, Paramiko blocks when writing more than
                     # 1180 bytes at once. Not sure about the reason or the
                     # exact limit, but using chunks of 1024 seems to work
-                    # well.
-                    if len(data) > 1024:
-                        rf._file.write(data[:1024])
-                        rf.write(data[1024:])
-                    else:
-                        rf._file.write(data)
+                    # well. (and that way we can visualise our progress bar.)
+
+                    # Create progress bar.
+                    size=len(data)
+                    p = Console(self.pty).progress_bar('Uploading data', expected=size)
+
+                    with p:
+                        if len(data) > 1024:
+                            while data:
+                                p.set_progress(size - len(data), rewrite=False) # Auto rewrite
+                                rf._file.write(data[:1024])
+                                data = data[1024:]
+                        else:
+                            rf._file.write(data)
+                        p.set_progress(size, rewrite=True)
                 else:
                     raise IOError('Cannot write to closed remote file')
 
