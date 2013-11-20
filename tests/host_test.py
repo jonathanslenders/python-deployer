@@ -147,6 +147,13 @@ class HostTest(unittest.TestCase):
         with host.host_context.cd('/'):
             self.assertIsInstance(host.listdir(), list)
 
+    def test_listdir_stat(self):
+        host = LocalHost1()
+
+        result = host.listdir_stat('/tmp')
+        self.assertIsInstance(result, list)
+        for r in result:
+            self.assertIsInstance(r, Stat)
 
 if __name__ == '__main__':
     unittest.main()
