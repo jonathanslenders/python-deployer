@@ -30,6 +30,7 @@ Example:
 
 """
 
+__all__ = ('Console', 'NoInput', 'ProgressBarSteps', 'ProgressBar', )
 
 class NoInput(Exception):
     pass
@@ -38,6 +39,8 @@ class NoInput(Exception):
 class Console(object):
     """
     Interface for user interaction from within a ``Node``.
+
+    :param pty: :class:`deployer.pseudo_terminal.pty` instance.
     """
     def __init__(self, pty):
         self._pty = pty
@@ -355,8 +358,7 @@ class Console(object):
 
     def progress_bar(self, message, expected=None, clear_on_finish=False):
         """
-        Display a progress bar.
-        This should be used as a Python context manager.
+        Display a progress bar. This returns a Python context manager.
         Call the next() method to increase the counter.
 
         ::
@@ -476,6 +478,9 @@ class ProgressBar(object):
     def set_progress(self, value, rewrite=True):
         """
         Set counter to this value.
+
+        :param rewrite: Always redraw the progress bar.
+        :type rewrite: bool
         """
         self.counter = value
 
