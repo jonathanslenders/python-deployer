@@ -219,21 +219,21 @@ group these if we'd put an interactive shell around it.
     class RootNode(Node):
         class StagingSystem(WebSystem):
             class Hosts:
-                load_balancer= [ StagingHost0 ]
-                web = [ StagingHost0  ]
-                master_db = [ StagingHost0 ]
-                slave_db = [ ] # If empty, this line can be left away.
-                queue = [ StagingHost0 ]
-                cache = [ StagingHost0 ]
+                load_balancer= { StagingHost0 }
+                web = { StagingHost0  }
+                master_db = { StagingHost0 }
+                slave_db = set() # If empty, this line can be left away.
+                queue = { StagingHost0 }
+                cache = { StagingHost0 }
 
         class ProductionSystem(WebSystem):
             class Hosts:
-                load_balancer = [ LB0, LB1 ]
-                web = [ WebServer1, WebServer2, WebServer3 ]
-                master_db = [ MasterDB ]
-                slave_db = [ SlaveDB ]
-                queue = [ QueueHost ]
-                cache = [ CacheHost ]
+                load_balancer = { LB0, LB1 }
+                web = { WebServer1, WebServer2, WebServer3 }
+                master_db = { MasterDB }
+                slave_db = { SlaveDB }
+                queue = { QueueHost }
+                cache = { CacheHost }
 
 Note that on the staging system, the same physical host is assigned to all the
 roles. That's fine: the web server can also act as load balancer, as well as a
@@ -354,21 +354,21 @@ base class ``UpstartService`` that handles the common parts.
         """
         class StagingSystem(WebSystem):
             class Hosts:
-                load_balancer = [ StagingHost0 ]
-                web = [ StagingHost0  ]
-                master_db = [ StagingHost0 ]
-                slave_db = [ ] # If empty, this line can be left away.
-                queue = [ StagingHost0 ]
-                cache = [ StagingHost0 ]
+                load_balancer = { StagingHost0 }
+                web = { StagingHost0  }
+                master_db = { StagingHost0 }
+                slave_db = set() # If empty, this line can be left away.
+                queue = { StagingHost0 }
+                cache = { StagingHost0 }
 
         class ProductionSystem(WebSystem):
             class Hosts:
-                load_balancer = [ LB0, LB1 ]
-                web = [ WebServer1, WebServer2, WebServer3 ]
-                master_db = [ MasterDB ]
-                slave_db = [ SlaveDB ]
-                queue = [ QueueHost ]
-                cache = [ CacheHost ]
+                load_balancer = { LB0, LB1 }
+                web = { WebServer1, WebServer2, WebServer3 }
+                master_db = { MasterDB }
+                slave_db = { SlaveDB }
+                queue = { QueueHost }
+                cache = { CacheHost }
 
     if __name__ == '__main__':
         start(RootNode)

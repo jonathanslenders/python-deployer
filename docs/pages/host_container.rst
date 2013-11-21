@@ -13,7 +13,7 @@ object.
 
     class MyNode(Node):
         class Hosts:
-            web_servers = [Host1, Host2]
+            web_servers = { Host1, Host2 }
             caching_servers = Host3
 
         def do_something(self):

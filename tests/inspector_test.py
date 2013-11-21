@@ -3,15 +3,13 @@ import unittest
 from deployer.query import Q, QueryResult
 from deployer.node import Node, SimpleNode, Env, Action
 from deployer.groups import Production, Staging, production, staging
-from deployer.pseudo_terminal import Pty, DummyPty
-from deployer.loggers import LoggerInterface
-from deployer.node import map_roles, dont_isolate_yet, required_property, suppress_action_result, alias, EnvAction
+from deployer.node import map_roles, suppress_action_result, EnvAction
 from deployer.inspection import Inspector, PathType
 from deployer.inspection.inspector import NodeIterator
 from deployer.inspection import filters
-from deployer.host_container import HostsContainer
 
-from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
+from our_hosts import LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
+
 
 class InspectorTest(unittest.TestCase):
     def setUp(self):
@@ -256,8 +254,8 @@ class InspectorTestIterIsolations(unittest.TestCase):
     def setUp(self):
         class A(Node):
             class Hosts:
-                role1 = LocalHost1, LocalHost2, LocalHost3
-                role2 = LocalHost2, LocalHost4, LocalHost5
+                role1 = { LocalHost1, LocalHost2, LocalHost3 }
+                role2 = { LocalHost2, LocalHost4, LocalHost5 }
 
             @map_roles('role1', extra='role2')
             class B(SimpleNode.Array):
@@ -298,6 +296,10 @@ class InspectorIteratorTest(unittest.TestCase):
 
         self.Base = Base
 
+        # Ensure that we have a correct __repr__ for this class
+        self.Base.__module__ = 'inspector_test'
+        assert repr(Base) == "<class 'inspector_test.Base'>"
+
         class A(Node):
             def my_action(self): return 'a'
 
@@ -308,7 +310,7 @@ class InspectorIteratorTest(unittest.TestCase):
 
                 class C(SimpleNode.Array):
                     class Hosts:
-                        host = LocalHost1, LocalHost2, LocalHost3, LocalHost4
+                        host = { LocalHost1, LocalHost2, LocalHost3, LocalHost4 }
 
                     def my_action(self): return 'c'
 
@@ -359,7 +361,7 @@ class InspectorIteratorTest(unittest.TestCase):
         insp = self.insp
         self.assertEqual(len(insp.walk(filters.PrivateOnly & filters.IsInstance(self.Base))), 1)
 
-        # Check repr (xxx: maybe this is not the cleanest one.)
+        # Check repr
         self.assertEqual(repr(filters.PrivateOnly & filters.IsInstance(self.Base)),
                 "PrivateOnly & IsInstance(<class 'inspector_test.Base'>)")
 

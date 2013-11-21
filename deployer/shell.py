@@ -1,8 +1,9 @@
 from deployer.cli import CLInterface, Handler, HandlerType
 from deployer.console import Console
 from deployer.console import NoInput
+from deployer.exceptions import ActionException
 from deployer.inspection import Inspector, PathType
-from deployer.node import ActionException, Env, IsolationIdentifierType
+from deployer.node import Env, IsolationIdentifierType
 
 from inspect import getfile
 from itertools import groupby
@@ -283,16 +284,16 @@ class Connect(NodeACHandler):
 
         class Connect(connect.Connect):
             class Hosts:
-                host = self.node.hosts._all
+                host = self.node.hosts.get_hosts()
 
         env = Env(Connect(), self.shell.pty, self.shell.logger_interface)
 
         # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
         try:
             env.with_host()
-        except ActionException, e:
+        except ActionException as e:
             pass
-        except Exception, e:
+        except Exception as e:
             self.shell.logger_interface.log_exception(e)
 
 
@@ -332,7 +333,7 @@ class Run(NodeACHandler):
 
         class RunNode(Node):
             class Hosts:
-                host = self.node.hosts._all
+                host = self.node.hosts.get_hosts()
 
             def run(self):
                 if use_sudo:
@@ -342,12 +343,13 @@ class Run(NodeACHandler):
 
         env = Env(RunNode(), self.shell.pty, self.shell.logger_interface)
 
-        # Run as any other action. (Nice exception handling, e.g. in case of NoInput on host selection.)
+        # Run as any other action. (Nice exception handling, e.g. in case of
+        # NoInput on host selection.)
         try:
             env.run()
-        except ActionException, e:
+        except ActionException as e:
             pass
-        except Exception, e:
+        except Exception as e:
             self.shell.logger_interface.log_exception(e)
 
 
@@ -522,7 +524,7 @@ class Inspect(NodeACHandler):
             try:
                 insp = Inspector(self._get_env())
                 result = insp.trace_query(self.attr_name)
-            except Exception, e:
+            except Exception as e:
                 yield 'Failed to execute query: %r' % e
                 return
 
@@ -551,7 +553,7 @@ class Inspect(NodeACHandler):
 
                 yield termcolor.colored('  Value:          ', 'cyan') + \
                       termcolor.colored(repr(value), 'yellow')
-            except Exception, e:
+            except Exception as e:
                 yield termcolor.colored('  Value:          ', 'cyan') + \
                       termcolor.colored('Failed to evaluate value...', 'yellow')
         console.lesspipe(run())
@@ -648,6 +650,31 @@ class SourceCode(NodeACHandler):
         Console(self.shell.pty).lesspipe(run())
 
 
+class Scp(NodeACHandler):
+    """
+    Open a secure copy shell at this node.
+    """
+    def __call__(self):
+        # Choose host.
+        hosts = self.node.hosts.get_hosts()
+        if len(hosts) == 0:
+            print 'No hosts found'
+            return
+        elif len(hosts) == 1:
+            host = hosts.copy().pop()
+        else:
+            # Choose a host.
+            options = [ (h.slug, h) for h in hosts ]
+            try:
+                host = Console(self.shell.pty).choice('Choose a host', options, allow_random=True)
+            except NoInput:
+                return
+
+        # Start scp shell
+        from deployer.scp_shell import Shell
+        Shell(self.shell.pty, host, self.shell.logger_interface).cmdloop()
+
+
 class Exit(ShellHandler):
     """
     Quit the deployment shell.
@@ -725,11 +752,11 @@ class Node(NodeACHandler):
             else:
                 handle_result(result)
 
-        except ActionException, e:
+        except ActionException as e:
             # Already sent to logger_interface in the Action itself.
             pass
 
-        except Exception, e:
+        except Exception as e:
             logger_interface.log_exception(e)
 
 
@@ -752,6 +779,7 @@ class RootHandler(ShellHandler):
             '--run-with-sudo': RunWithSudo,
             '--version': Version,
             '--source-code': SourceCode,
+            '--scp': Scp,
     }
 
     @property
@@ -885,11 +913,13 @@ class Shell(CLInterface):
                 print 'Unknown path given.'
                 return
 
+    def open_scp_shell(self):
+        self.root_handler.get_subhandler('--scp')()
+
     def run_action(self, action_name, *a, **kw):
         """
         Run a deployment command at the current shell state.
         """
-        self.state._node
         env = Env(self.state._node, self.pty, self.logger_interface, is_sandbox=False)
         return getattr(env, action_name)(*a, **kw)
 

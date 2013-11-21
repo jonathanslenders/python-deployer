@@ -30,7 +30,7 @@ class StandaloneShell(Shell):
 
 def start(root_node, interactive=True, cd_path=None, logfile=None,
                 action_name=None, parameters=None, shell=StandaloneShell,
-                extra_loggers=None):
+                extra_loggers=None, open_scp_shell=False):
     """
     Start the deployment shell in standalone modus. (No parrallel execution,
     no server/client. Just one interface, and everything sequential.)
@@ -73,10 +73,16 @@ def start(root_node, interactive=True, cd_path=None, logfile=None,
             if cd_path is not None:
                 shell.cd(cd_path)
 
-            if action_name:
+            if action_name and open_scp_shell:
+                raise Exception("Don't provide 'action_name' and 'open_scp_shell' at the same time")
+
+            if open_scp_shell:
+                shell.open_scp_shell()
+
+            elif action_name:
                 try:
                     return shell.run_action(action_name, *parameters)
-                except ActionException, e:
+                except ActionException as e:
                     sys.exit(1)
                 except:
                     import traceback

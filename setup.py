@@ -37,13 +37,13 @@ setup(
     author_email='jonathan.slenders@mobilevikings.com',
     packages=find_packages('.'),
     install_requires = [
-        'paramiko>=1.9.0',
+        'paramiko>=1.12.0',
         'Twisted>=12.2.0',
-        'pexpect==2.4',
+        'pexpect==3.0',
         'Pygments>=1.5',
         'termcolor>=1.1.0',
         'docopt==0.6.1',
-        'setproctitle==1.1.7',
+        'setproctitle==1.1.8',
         ],
     classifiers=[
         'Development Status :: 5 - Production/Stable',

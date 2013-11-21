@@ -18,7 +18,7 @@ class my_remote_host(SSHHost):
 
 class example_settings(Node):
     class Hosts:
-        host = [ localhost ]
+        host = { localhost }
 
     class examples(Node):
         def say_hello(self):

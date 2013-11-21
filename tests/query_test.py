@@ -1,9 +1,10 @@
 import unittest
 
 from deployer.query import Q, Query, QueryResult
-from deployer.node import Node, SimpleNode, Env
+from deployer.node import Node, Env
+from deployer.exceptions import QueryException, ActionException
 
-from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
+from .our_hosts import LocalHost
 
 
 def get_query_result(query, instance):
@@ -271,10 +272,15 @@ class InContextTest(unittest.TestCase):
 
 class InActionTest(unittest.TestCase):
     def test_q_navigation(self):
+        this = self
+        class DummyException(Exception):
+            pass
+
         class MyNode(Node):
             class Hosts:
                 host = LocalHost
 
+            # 1. Normal query from node.
             attr = 'value'
             query = Q.attr
             query2 = Q.attr + Q.attr
@@ -282,9 +288,43 @@ class InActionTest(unittest.TestCase):
             def my_action(self):
                 return self.query
 
+            # 2. Exception in query from node.
+
+            @property
+            def this_raises(self):
+                raise DummyException
+
+            query3 = Q.this_raises + Q.attr
+
+            def my_action2(self):
+                # Calling query3 raises a QueryException
+                # The inner exception that one is the DummyException
+                try:
+                    return self.query3
+                except Exception as e:
+                    this.assertIsInstance(e, ActionException)
+
+                    this.assertIsInstance(e.inner_exception, QueryException)
+                    this.assertIsInstance(e.inner_exception.node, MyNode)
+                    this.assertIsInstance(e.inner_exception.query, Query)
+
+                    this.assertIsInstance(e.inner_exception.inner_exception, DummyException)
+
+                    # Raising the exception again at this point, will turn it
+                    # into an action exception.
+                    raise
+
         s = MyNode()
         env = Env(s)
+
+        # 1.
         self.assertEqual(env.my_action(), 'value')
         self.assertEqual(env.query2, 'valuevalue')
 
+        # 2.
+        self.assertRaises(ActionException, env.my_action2)
+        try:
+            env.my_action2()
+        except Exception as e:
+            self.assertIsInstance(e, ActionException)
 

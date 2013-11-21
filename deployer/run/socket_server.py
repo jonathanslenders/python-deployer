@@ -205,12 +205,14 @@ class Connection(object):
             # .. IOError: [Errno 9] Bad file descriptor
             pass
 
-    def startShell(self, clone_shell=None, cd_path=None, action_name=None, parameters=None):
+    def startShell(self, clone_shell=None, cd_path=None, action_name=None,
+                    parameters=None, open_scp_shell=False):
         """
         Start an interactive shell in this connection.
         """
         self.connection_shell = ConnectionShell(self, clone_shell=clone_shell, cd_path=cd_path)
-        self.connection_shell.startThread(action_name=action_name, parameters=parameters)
+        self.connection_shell.startThread(action_name=action_name, parameters=parameters,
+                    open_scp_shell=open_scp_shell)
 
     def openNewConnection(self, focus=False):
         """
@@ -276,7 +278,7 @@ class Connection(object):
             # Call function
             try:
                 result = f(connection.pty)
-            except Exception, e:
+            except Exception as e:
                 # Just print the exception, it's actually the tasks of the
                 # runInNewPtys caller to make sure that all the passed
                 # functions don't raise errors, or to implement a global
@@ -335,7 +337,7 @@ class Connection(object):
                 try:
                     result = f(self.pty)
                     results.append(result)
-                except Exception, e:
+                except Exception as e:
                     results.append(str(e))
                 countDown()
         handleRemainingInCurrentPty()
@@ -415,7 +417,7 @@ class ConnectionShell(object):
     def startThread(self, *a, **kw):
         threads.deferToThread(lambda: self.thread(*a, **kw))
 
-    def thread(self, action_name=None, parameters=None):
+    def thread(self, action_name=None, parameters=None, open_scp_shell=False):
         parameters = parameters or []
 
         # Set stdin/out pair for this thread.
@@ -432,9 +434,17 @@ class ConnectionShell(object):
                 if self.cd_path:
                     self.shell.cd(self.cd_path)
 
+                if action_name and open_scp_shell:
+                    print "Don't provide 'action_name' and 'open_scp_shell' at the same time"
+                    exit_status = 1
+
+                elif open_scp_shell:
+                    self.shell.open_scp_shell()
+                    exit_status = 0
+
                 # When an action_name is given, call this action immediately,
                 # otherwise, run the interactive cmdloop.
-                if action_name:
+                elif action_name:
                     try:
                         self.shell.run_action(action_name, *parameters)
                         exit_status = 0
@@ -547,6 +557,7 @@ class CliClientProtocol(Protocol):
                 cd_path = data.get('cd_path', None)
                 action_name = data.get('action_name', None)
                 parameters = data.get('parameters', None)
+                open_scp_shell = data.get('open_scp_shell', False)
 
                 # NOTE: The defer to thread method, which will be called back
                 # immeditiately, can hang (wait) if the thread pool has been
@@ -559,7 +570,8 @@ class CliClientProtocol(Protocol):
                     PtyManager.need_pty_callback(self.connection)
                 else:
                     self.connection.startShell(cd_path=cd_path,
-                            action_name=action_name, parameters=parameters)
+                            action_name=action_name, parameters=parameters,
+                            open_scp_shell=open_scp_shell)
 
             # Keep the remainder for the next time.
             remainder = io.read()

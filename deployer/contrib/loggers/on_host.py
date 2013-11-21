@@ -22,7 +22,7 @@ class OnHostLogger(Logger):
                 % ('sudo' if run_entry.use_sudo else '    ',
                     esc1(self.from_host),
                     esc1(self.username),
-                    esc1(run_entry.command)
+                    esc1(run_entry.command or '')
                     ))
         return RunCallback()
 

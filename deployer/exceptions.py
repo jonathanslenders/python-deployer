@@ -27,13 +27,12 @@ class QueryException(DeployerException):
     """
     def __init__(self, node, attr_name, query, inner_exception):
         self.node = node
-        self.node_name = str(node.__class__)
         self.attr_name = attr_name
         self.query = query
         self.inner_exception = inner_exception
 
         DeployerException.__init__(self, 'Running query %s:=%r on "%s" failed' %
-                            (self.attr_name, self.query, self.node_name))
+                            (self.attr_name, self.query, repr(self.node)))
 
 class ActionException(DeployerException):
     """

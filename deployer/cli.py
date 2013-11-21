@@ -6,17 +6,21 @@ Pure Python alternative to readline and cmm.Cmd.
 Author: Jonathan Slenders
 """
 
-
+import logging
 import os
 import termcolor
 import termios
 import time
-import logging
+import traceback
 
 from twisted.internet import fdesc
 from deployer.pseudo_terminal import select
 from deployer.std import raw_mode
 from deployer.console import Console
+
+from pygments import highlight
+from pygments.lexers import PythonTracebackLexer
+from pygments.formatters import TerminalFormatter
 
 
 def commonprefix(*strings):
@@ -47,9 +51,12 @@ class CLInterface(object):
     autocompletion in Python 2.6/2.7 when different ptys are used in different
     threads.
     """
-    prompt = ('>', None)
     not_found_message = 'Command not found...'
     not_a_leaf_message = 'Incomplete command...'
+
+    @property
+    def prompt(self):
+        return [ ('>', 'cyan') ]
 
     def __init__(self, pty, rootHandler):
         self.pty = pty
@@ -120,12 +127,25 @@ class CLInterface(object):
         if h and not parts:
             if h.is_leaf:
                 self.currently_running = ' '.join(original_parts)
-                h()
+                try:
+                    h()
+                except ExitCLILoop:
+                    raise
+                except Exception as e:
+                    self.handle_exception(e)
                 self.currently_running = None
             else:
                 print self.not_a_leaf_message
         else:
             print self.not_found_message
+
+    def handle_exception(self, e):
+        """
+        Default exception handler when something went wrong in the shell.
+        """
+        tb = traceback.format_exc()
+        print highlight(tb, PythonTracebackLexer(), TerminalFormatter())
+        print e
 
     def complete(self, return_all_completions=False):
         # Take part before cursor
@@ -222,7 +242,6 @@ class CLInterface(object):
         Update scroll, to make sure that the cursor is always visible.
         """
         changed = False
-        pos = prompt_length
 
         # Make sure that the cursor is within range.
         # (minus one, because we need to have an insert prompt available after the input text.)

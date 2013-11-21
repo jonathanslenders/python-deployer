@@ -4,7 +4,6 @@ from termcolor import colored
 from datetime import datetime
 
 import random
-import sys
 
 __doc__ = \
 """
@@ -60,38 +59,41 @@ class Console(object):
         :param answers: A list of the accepted answers or None.
         :param default: Default answer.
         """
+        stdin = self._pty.stdin
+        stdout = self._pty.stdout
+
         def print_question():
             answers_str = (' [%s]' % (','.join(answers)) if answers else '')
             default_str = (' (default=%s)' % default if default is not None else '')
-            sys.stdout.write(colored('  %s%s%s: ' % (label, answers_str, default_str), 'cyan'))
-            sys.stdout.flush()
+            stdout.write(colored('  %s%s%s: ' % (label, answers_str, default_str), 'cyan'))
+            stdout.flush()
 
         def read_answer():
             value = ''
             print_question()
 
             while True:
-                c = sys.stdin.read(1)
+                c = stdin.read(1)
 
                 # Enter pressed
                 if c in ('\r', '\n') and (value or default):
-                    sys.stdout.write('\r\n')
+                    stdout.write('\r\n')
                     break
 
                 # Backspace pressed
                 elif c == '\x7f' and value:
-                    sys.stdout.write('\b \b')
+                    stdout.write('\b \b')
                     value = value[:-1]
 
                 # Valid character
                 elif ord(c) in range(32, 127):
-                    sys.stdout.write(colored('*' if is_password else c, attrs=['bold']))
+                    stdout.write(colored('*' if is_password else c, attrs=['bold']))
                     value += c
 
                 elif c == '\x03': # Ctrl-C
                     raise NoInput
 
-                sys.stdout.flush()
+                stdout.flush()
 
             # Return result
             if not value and default is not None:
@@ -99,14 +101,14 @@ class Console(object):
             else:
                 return value
 
-        with std.raw_mode(sys.stdin):
+        with std.raw_mode(stdin):
             while True:
                 if self._pty.interactive:
                     value = read_answer()
                 elif default is not None:
                     print_question()
-                    sys.stdout.write('[non interactive] %r\r\n' % default)
-                    sys.stdout.flush()
+                    stdout.write('[non interactive] %r\r\n' % default)
+                    stdout.flush()
                     value = default
                 else:
                     # XXX: Asking for input in non-interactive session
@@ -118,8 +120,8 @@ class Console(object):
 
                 # Otherwise, ask again.
                 else:
-                    sys.stdout.write('Invalid answer.\r\n')
-                    sys.stdout.flush()
+                    stdout.write('Invalid answer.\r\n')
+                    stdout.flush()
 
     def choice(self, question, options, allow_random=False, default=None):
         """
@@ -139,7 +141,7 @@ class Console(object):
 
         # Ask for valid input
         while True:
-            sys.stdout.write(colored('  %s\n' % question, 'cyan'))
+            self._pty.stdout.write(colored('  %s\n' % question, 'cyan'))
 
             # Print options
             self.lesspipe(('%10i %s' % (i+1, tuple_[0]) for i, tuple_ in enumerate(options)))
@@ -164,7 +166,7 @@ class Console(object):
                 except ValueError:
                     pass
 
-                warning('Invalid input')
+                self.warning('Invalid input')
 
     def confirm(self, question, default=None):
         """
@@ -245,8 +247,8 @@ class Console(object):
 
         # List isolations first. (This is a list of index/node tuples.)
         options = [
-                (' '.join(index), node) for index, node in
-                Inspector(node).iter_isolations(identifier_type=IsolationIdentifierType.HOSTS_SLUG)
+                (' '.join([ '%s (%s)' % (h.slug, h.address) for h in hosts ]), node) for hosts, node in
+                Inspector(node).iter_isolations(identifier_type=IsolationIdentifierType.HOST_TUPLES)
                 ]
 
         if len(options) > 1:
@@ -263,38 +265,40 @@ class Console(object):
         :param line_iterator: A generator function that yields lines (without
                               trailing newline)
         """
+        stdin = self._pty.stdin
+        stdout = self._pty.stdout
         height = self._pty.get_size()[0] - 1
 
-        with std.raw_mode(sys.stdin):
+        with std.raw_mode(stdin):
             lines = 0
             for l in line_iterator:
                 # Print next line
-                sys.stdout.write(l)
-                sys.stdout.write('\r\n')
+                stdout.write(l)
+                stdout.write('\r\n')
                 lines += 1
 
                 # When we are at the bottom of the terminal
                 if lines == height:
                     # Wait for the user to press enter.
-                    sys.stdout.write(colored('  Press enter to continue...', 'cyan'))
-                    sys.stdout.flush()
+                    stdout.write(colored('  Press enter to continue...', 'cyan'))
+                    stdout.flush()
 
                     try:
-                        c = sys.stdin.read(1)
+                        c = stdin.read(1)
 
                         # Control-C or 'q' will quit pager.
                         if c in ('\x03', 'q'):
-                            sys.stdout.write('\r\n')
-                            sys.stdout.flush()
+                            stdout.write('\r\n')
+                            stdout.flush()
                             return
-                    except IOError, e:
+                    except IOError:
                         # Interupted system call.
                         pass
 
                     # Move backwards and erase until the end of the line.
-                    sys.stdout.write('\x1b[40D\x1b[K')
+                    stdout.write('\x1b[40D\x1b[K')
                     lines = 0
-            sys.stdout.flush()
+            stdout.flush()
 
     def in_columns(self, item_iterator, margin_left=0):
         """
@@ -338,7 +342,18 @@ class Console(object):
 
         yield ''.join(line)
 
-    def progress_bar(self, message, expected=None):
+    def warning(self, text):
+        """
+        Print a warning.
+        """
+        stdout = self._pty.stdout
+        stdout.write(colored('*** ', 'yellow'))
+        stdout.write(colored('WARNING: ' , 'red'))
+        stdout.write(colored(text, 'red', attrs=['bold']))
+        stdout.write(colored(' ***\n', 'yellow'))
+        stdout.flush()
+
+    def progress_bar(self, message, expected=None, clear_on_finish=False):
         """
         Display a progress bar.
         This should be used as a Python context manager.
@@ -353,17 +368,60 @@ class Console(object):
 
         :returns: :class:`ProgressBar` instance.
         """
-        return ProgressBar(self, message, expected=expected)
+        return ProgressBar(self._pty, message, expected=expected, clear_on_finish=clear_on_finish)
+
+    def progress_bar_with_steps(self, message, steps):
+        """
+        Display a progress bar with steps.
+
+        ::
+
+            steps = ProgressBarSteps({
+                1: "Resolving address",
+                2: "Create transport",
+                3: "Get remote key",
+                4: "Authenticating" })
+
+            with console.progress_bar_with_steps('Connecting to SSH server', steps=steps) as p:
+                ...
+                p.set_progress(1)
+                ...
+                p.set_progress(2)
+                ...
+
+        :param steps: :class:`ProgressBarSteps` instance.
+        """
+        return ProgressBar(self._pty, message, steps=steps)
+
+
+class ProgressBarSteps(object): # TODO: unittest this class.
+    def __init__(self, steps):
+        # Validate
+        for k,v in steps.items():
+            assert isinstance(k, int)
+            assert isinstance(v, basestring)
+
+        self._steps = steps
+
+    def get_step_description(self, step):
+        return self._steps.get(step, '')
+
+    def get_steps_count(self):
+        return max(self._steps.keys())
 
 
 class ProgressBar(object):
     interval = .1 # Refresh interval
 
-    def __init__(self, console, message, expected=None):
-        self.console = console
+    def __init__(self, pty, message, expected=None, steps=None, clear_on_finish=False):
+        if expected and steps:
+            raise Exception("Don't give expected and steps parameter at the same time.")
+
+        self._pty = pty
         self.message = message
         self.counter = 0
         self.expected = expected
+        self.clear_on_finish = clear_on_finish
 
         self.done = False
         self._last_print = datetime.now()
@@ -371,6 +429,13 @@ class ProgressBar(object):
         # Duration
         self.start_time = datetime.now()
         self.end_time = None
+
+        # In case of steps
+        if steps is not None:
+            assert isinstance(steps, ProgressBarSteps)
+            self.expected = steps.get_steps_count()
+
+        self.steps = steps
 
     def __enter__(self):
         self._print()
@@ -387,46 +452,48 @@ class ProgressBar(object):
         else:
             counter_str = '%s' % self.counter
 
-        done = colored(' [DONE] ', 'green') if self.done else ''
         duration = (self.end_time or datetime.now()) - self.start_time
+        duration = str(duration).split('.')[0] # Don't show decimals.
 
         message = colored('%s:' % self.message, 'cyan')
         counter_str = colored(counter_str, 'cyan', attrs=['bold'])
         duration = colored(duration, 'cyan')
-        sys.stdout.write('%s  %s  [%s] %s\r' % (message, counter_str, duration, done))
 
-    def next(self, counter_name=None):
+        done = colored(' %s ' % (
+                '[DONE]' if self.done else
+                '[%s]' % self.steps.get_step_description(self.counter) if self.steps
+                else ''), 'green')
+
+        self._pty.stdout.write('\x1b[K%s  %s  [%s] %s\r' % (message, counter_str, duration, done))
+        # '\x1b[K' clears the line.
+
+    def next(self):
         """
         Increment progress bar counter.
         """
-        self.counter += 1
+        self.set_progress(self.counter + 1, rewrite=False)
+
+    def set_progress(self, value, rewrite=True):
+        """
+        Set counter to this value.
+        """
+        self.counter = value
 
         # Only print when the last print was .3sec ago
         delta = (datetime.now() - self._last_print).microseconds / 1000 / 1000.
 
-        if delta > self.interval:
+        if rewrite or delta > self.interval:
             self._print()
             self._last_print = datetime.now()
 
     def __exit__(self, *a):
         self.done = True
         self.end_time = datetime.now()
-        self._print()
-        print # Keep progress bar
 
-
-# =================[ Text based input ]=================
-
-
-
-def warning(text):
-    """
-    Print a warning.
-    """
-    sys.stdout.write(colored('*** ', 'yellow'))
-    sys.stdout.write(colored('WARNING: ' , 'red'))
-    sys.stdout.write(colored(text, 'red', attrs=['bold']))
-    sys.stdout.write(colored(' ***\n', 'yellow'))
-    sys.stdout.flush()
-
-
+        if self.clear_on_finish:
+            # Clear the line.
+            self._pty.stdout.write('\x1b[K')
+        else:
+            # Redraw and keep progress bar
+            self._print()
+            self._pty.stdout.write('\n')

@@ -57,7 +57,7 @@ class Monitor(SimpleNode):
         for host in self.hosts:
             try:
                 print '%30s %20s %20s    %s' % (host.slug, host.address, host.hostname, host.get_ip_address())
-            except Exception, e:
+            except Exception as e:
                 print
                 print e
                 print
