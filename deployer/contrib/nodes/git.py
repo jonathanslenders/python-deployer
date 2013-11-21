@@ -23,6 +23,7 @@ class GitBase(SimpleNodeBase):
         'status': 'status',
         'version': 'version',
         'whatchanged': 'whatchanged',
+        'head_sha': 'rev-parse HEAD',
     }
 
     _ignore_exit_status = [ 'show', 'whatchanged' ] # These are displayed through lesspipe, and would return 141 when 'q' was pressed.
