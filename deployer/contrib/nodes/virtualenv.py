@@ -8,9 +8,12 @@ from deployer.utils import esc1
 import os
 
 
-def _pip_install(suffix='', use_mirrors=True):
+def _pip_install(package='', pip_args='', use_mirrors=True):
     use_mirrors = '--use-mirrors' if use_mirrors else ''
-    return "pip install %s --exists-action=w %s" % (use_mirrors, suffix)
+    if package.startswith('-e'):
+        pip_args += ' -e'
+        package = package[2:].strip()
+    return "pip install %s --exists-action=w %s '%s'" % (use_mirrors, pip_args, esc1(package))
 
 class VirtualEnv(SimpleNode):
     """
@@ -94,10 +97,10 @@ class VirtualEnv(SimpleNode):
         """
         with self.host.prefix(self.activate_cmd):
             for f in self.requirements_files:
-                self.host.run(_pip_install("-r '%s'" % esc1(f)))
+                self.host.run(_pip_install(f, '-r'))
 
             for r in self.requirements:
-                self.host.run(_pip_install("'%s'" % esc1(r)))
+                self.host.run(_pip_install(r))
 
     def upgrade_requirements(self):
         """
@@ -105,10 +108,10 @@ class VirtualEnv(SimpleNode):
         """
         with self.host.prefix(self.activate_cmd):
             for f in self.requirements_files:
-                self.host.run(_pip_install("-U -r '%s'" % esc1(f)))
+                self.host.run(_pip_install(f, "-U -r"))
 
             for r in self.requirements:
-                self.host.run(_pip_install("-U '%s'" % esc1(r)))
+                self.host.run(_pip_install(f, "-U"))
 
     @dont_isolate_yet
     def install_package(self, package=None):
@@ -121,7 +124,7 @@ class VirtualEnv(SimpleNode):
         Install package manually through PIP.
         """
         with self.host.prefix(self.activate_cmd):
-            self.host.run(_pip_install("-U '%s'" % esc1(package)))
+            self.host.run(_pip_install(package, "-U"))
 
     def install_ipython(self, version='0.10.2'):
         self.install_package('ipython==%s' % version)
