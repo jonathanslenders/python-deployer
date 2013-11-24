@@ -485,38 +485,78 @@ class Host(object):
 
         assert self.pty.set_ssh_channel_size
         with context:
-            try:
-                chan.settimeout(0.0)
+            # Make channel non blocking.
+            chan.settimeout(0.0)
 
-                # When initial input has been given, send this first
-                if initial_input:
-                    time.sleep(0.2) # Wait a very short while for the channel to be initialized, before sending.
-                    chan.send(initial_input)
+            # When initial input has been given, send this first
+            if initial_input:
+                time.sleep(0.2) # Wait a very short while for the channel to be initialized, before sending.
+                chan.send(initial_input)
 
-                reading_from_stdin = True
+            reading_from_stdin = True
 
-                # Read/write loop
-                while True:
-                    # Don't wait for any input when an exit status code has been
-                    # set already.
-                    if chan.status_event.isSet():
-                        break;
+            # Read/write loop
+            while True:
+                # Don't wait for any input when an exit status code has been
+                # set already.
+                if chan.status_event.isSet():
+                    break;
 
-                    # Make stdin non-blocking. (The select call will already
-                    # block for us, we want sys.stdin.read() to read as many
-                    # bytes as possible without blocking.)
-                    fdesc.setNonBlocking(self.pty.stdin)
+                channels = [self.pty.stdin, chan] if reading_from_stdin else [chan]
+                r, w, e = select(channels, [], [])
 
-                    if reading_from_stdin:
-                        r, w, e = select([self.pty.stdin, chan], [], [])
-                    else:
-                        r, w, e = select([chan], [], [])
+                # Receive stream
+                if chan in r:
+                    try:
+                        x = chan.recv(1024)
 
-                    # Receive stream
-                    if chan in r:
+                        # Received length 0 -> end of stream
+                        if len(x) == 0:
+                            break
+
+                        # Log received characters
+                        log_entry.log_io(x)
+
+                        # Write received characters to stdout and flush
+                        while True:
+                            try:
+                                self.pty.stdout.write(x)
+                                break
+                            except IOError as e:
+                                # Sometimes, when we have a lot of output, we get here:
+                                # IOError: [Errno 11] Resource temporarily unavailable
+                                # Just waiting a little, and retrying seems to work.
+                                # See also: deployer.run.socket_client for a similar issue.
+                                time.sleep(0.2)
+
+                        self.pty.stdout.flush()
+
+                        # Also remember received output.
+                        # We want to return what's written to stdout.
+                        result.append(x)
+
+                        # Do we need to send the sudo password? (It's when the
+                        # magic prompt has been detected in the stream) Note
+                        # that we only monitor the last part of 'result', it's
+                        # a bit fuzzy, but works.
+                        if not password_sent and self.magic_sudo_prompt in ''.join(result[-32:]):
+                            chan.send(self.password)
+                            chan.send('\n')
+                            password_sent = True
+                    except socket.timeout:
+                        pass
+
+                # Send stream (one by one character)
+                # (use 'elif', read stdin only when there is no more output to be received.)
+                elif self.pty.stdin in r:
+                    try:
+                        # Make stdin non-blocking. (The select call already
+                        # blocked for us, we want sys.stdin.read() to read
+                        # as many bytes as possible without blocking.)
                         try:
-                            x = chan.recv(1024)
-
+                            fdesc.setNonBlocking(self.pty.stdin)
+                            x = self.pty.stdin.read(1024)
+                        finally:
                             # Set stdin blocking again
                             # (Writing works better in blocking mode.
                             # Especially OS X seems to be very sensitive if we
@@ -524,84 +564,40 @@ class Host(object):
                             # stdout. That causes a lot of IOErrors.)
                             fdesc.setBlocking(self.pty.stdin)
 
-                            # Received length 0 -> end of stream
-                            if len(x) == 0:
-                                break
+                        # We receive \n from stdin, but \r is required to
+                        # send. (Until now, the only place where the
+                        # difference became clear is in redis-cli, which
+                        # only accepts \r as confirmation.)
+                        x = x.replace('\n', '\r')
+                    except IOError as e:
+                        # What to do with IOError exceptions?
+                        # (we see what happens in the next select-call.)
+                        continue
 
-                            # Log received characters
-                            log_entry.log_io(x)
+                    # Received length 0
+                    # There's no more at stdin to read.
+                    if len(x) == 0:
+                        # However, we should go on processing the input
+                        # from the remote end, until the process finishes
+                        # there (because it was done or processed Ctrl-C or
+                        # Ctrl-D/EOF.)
+                        #
+                        # The end of the input stream happens when we are
+                        # using StringIO at the client side, and we're not
+                        # attached to a real pseudo terminal. (For
+                        # unit-testing, or background commands.)
+                        reading_from_stdin = False
+                        continue
 
-                            # Write received characters to stdout and flush
-                            while True:
-                                try:
-                                    self.pty.stdout.write(x)
-                                    break
-                                except IOError as e:
-                                    # Sometimes, when we have a lot of output, we get here:
-                                    # IOError: [Errno 11] Resource temporarily unavailable
-                                    # Just waiting a little, and retrying seems to work.
-                                    # See also: deployer.run.socket_client for a similar issue.
-                                    time.sleep(0.2)
+                    # Write to channel
+                    chan.send(x)
 
-                            self.pty.stdout.flush()
-
-                            # Also remember received output.
-                            # We want to return what's written to stdout.
-                            result.append(x)
-
-                            # Do we need to send the sudo password? (It's when the
-                            # magic prompt has been detected in the stream) Note
-                            # that we only monitor the last part of 'result', it's
-                            # a bit fuzzy, but works.
-                            if not password_sent and self.magic_sudo_prompt in ''.join(result[-32:]):
-                                chan.send(self.password)
-                                chan.send('\n')
-                                password_sent = True
-                        except socket.timeout:
-                            pass
-
-                    # Send stream (one by one character)
-                    if self.pty.stdin in r:
-                        try:
-                            x = self.pty.stdin.read(1024)
-
-                            # We receive \n from stdin, but \r is required to
-                            # send. (Until now, the only place where the
-                            # difference became clear is in redis-cli, which
-                            # only accepts \r as confirmation.)
-                            x = x.replace('\n', '\r')
-                        except IOError as e:
-                            # What to do with IOError exceptions?
-                            # (we see what happens in the next select-call.)
-                            continue
-
-                        # Received length 0
-                        # There's no more at stdin to read.
-                        if len(x) == 0:
-                            # However, we should go on processing the input
-                            # from the remote end, until the process finishes
-                            # there (because it was done or processed Ctrl-C or
-                            # Ctrl-D/EOF.)
-                            #
-                            # The end of the input stream happens when we are
-                            # using StringIO at the client side, and we're not
-                            # attached to a real pseudo terminal. (For
-                            # unit-testing, or background commands.)
-                            reading_from_stdin = False
-                            continue
-
-                        # Write to channel
-                        chan.send(x)
-
-                        # Not sure about this. Sometimes, when pasting large data
-                        # in the command line, the many concecutive read or write
-                        # commands will make Paramiko hang somehow...  (This was
-                        # the case, when still using a blocking pty.stdin.read(1)
-                        # instead of a non-blocking readmany.
-                        time.sleep(0.01)
-            finally:
-                # Set blocking again
-                fdesc.setBlocking(self.pty.stdin)
+                    # Not sure about this. Sometimes, when pasting large data
+                    # in the command line, the many concecutive read or write
+                    # commands will make Paramiko hang somehow...  (This was
+                    # the case, when still using a blocking pty.stdin.read(1)
+                    # instead of a non-blocking readmany.
+                    time.sleep(0.01)
 
             return ''.join(result)
 
