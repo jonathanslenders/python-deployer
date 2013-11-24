@@ -477,11 +477,6 @@ class Host(object):
         result = []
         password_sent = False
 
-        # Make stdin non-blocking. (The select call will already
-        # block for us, we want sys.stdin.read() to read as many
-        # bytes as possible without blocking.)
-        fdesc.setNonBlocking(self.pty.stdin)
-
         # Set terminal in raw mode
         if raw:
             context = raw_mode(self.pty.stdin)
@@ -507,6 +502,11 @@ class Host(object):
                     if chan.status_event.isSet():
                         break;
 
+                    # Make stdin non-blocking. (The select call will already
+                    # block for us, we want sys.stdin.read() to read as many
+                    # bytes as possible without blocking.)
+                    fdesc.setNonBlocking(self.pty.stdin)
+
                     if reading_from_stdin:
                         r, w, e = select([self.pty.stdin, chan], [], [])
                     else:
@@ -516,6 +516,13 @@ class Host(object):
                     if chan in r:
                         try:
                             x = chan.recv(1024)
+
+                            # Set stdin blocking again
+                            # (Writing works better in blocking mode.
+                            # Especially OS X seems to be very sensitive if we
+                            # write lange amounts [>1000 bytes] nonblocking to
+                            # stdout. That causes a lot of IOErrors.)
+                            fdesc.setBlocking(self.pty.stdin)
 
                             # Received length 0 -> end of stream
                             if len(x) == 0:
@@ -529,7 +536,7 @@ class Host(object):
                                 try:
                                     self.pty.stdout.write(x)
                                     break
-                                except IOError, e:
+                                except IOError as e:
                                     # Sometimes, when we have a lot of output, we get here:
                                     # IOError: [Errno 11] Resource temporarily unavailable
                                     # Just waiting a little, and retrying seems to work.
@@ -563,7 +570,7 @@ class Host(object):
                             # difference became clear is in redis-cli, which
                             # only accepts \r as confirmation.)
                             x = x.replace('\n', '\r')
-                        except IOError, e:
+                        except IOError as e:
                             # What to do with IOError exceptions?
                             # (we see what happens in the next select-call.)
                             continue

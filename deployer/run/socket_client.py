@@ -136,16 +136,23 @@ class DeploymentClient(object):
 
             # Unmarshalling succeeded, call callback
             if action == '_print':
+                # We set stdin to blocking mode. This is because writing works a
+                # lot better if done blocking. (Especially OS X will easily
+                # throw a "resource unavailable" error if we write large
+                # amounts of data without waiting )
+                fdesc.setBlocking(sys.stdin)
                 while True:
                     try:
                         sys.stdout.write(data)
                         break
-                    except IOError, e:
+                    except IOError as e:
                         # Sometimes, when we have a lot of output, we get here:
                         # IOError: [Errno 11] Resource temporarily unavailable
                         # Just waiting a little, and retrying seems to work.
                         # See also: deployer.host.__init__ for a similar issue.
                         time.sleep(0.2)
+                sys.stdout.flush()
+                fdesc.setNonBlocking(sys.stdin)
 
             elif action == 'open-new-window':
                 focus = data['focus']
@@ -173,7 +180,7 @@ class DeploymentClient(object):
 
             if len(remainder):
                 self._receive('')
-        except (EOFError, ValueError), e:
+        except (EOFError, ValueError) as e:
             # Not enough data, wait for the next part to arrive
             if data:
                 self._buffer.append(data)
@@ -255,7 +262,7 @@ def list_sessions():
     for path in glob.glob('/tmp/deployer.sock.%s.*' % getpass.getuser()):
         try:
             DeploymentClient(path).ask_info()
-        except socket.error, e:
+        except socket.error as e:
             pass
 
 

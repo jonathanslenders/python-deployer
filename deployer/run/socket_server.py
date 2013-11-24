@@ -249,7 +249,7 @@ class Connection(object):
         for f in funcs:
             try:
                 connections.append(getConnection())
-            except PtyManager.NoPtyConnection, e:
+            except PtyManager.NoPtyConnection as e:
                 # getNewConnection can timeout, when opening a new teminal
                 # fails. (In that case we should run functions in our own
                 # thread.)
@@ -398,7 +398,7 @@ class ConnectionShell(object):
 
             # Start a new shell-thread into this connection.
             ConnectionShell(new_connection, clone_shell=self.shell).startThread()
-        except PtyManager.NoPtyConnection, e:
+        except PtyManager.NoPtyConnection as e:
             print 'ERROR: could not open new terminal window...'
 
     def openNewShellFromReactor(self):
@@ -581,7 +581,7 @@ class CliClientProtocol(Protocol):
             # one chunk, immediately parse again.
             if len(remainder):
                 self.dataReceived('')
-        except (EOFError, ValueError), e:
+        except (EOFError, ValueError) as e:
             # Not enough data, wait for the next part to arrive
             if data:
                 self._buffer.append(data)

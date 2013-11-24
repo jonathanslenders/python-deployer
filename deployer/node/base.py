@@ -268,7 +268,7 @@ class Env(object):
         # Only allow setting of attributes when the _lock_env flag has not yet been set.
         try:
             locked = object.__getattribute__(self, '_lock_env')
-        except AttributeError, e:
+        except AttributeError as e:
             locked = False
 
         if locked:
@@ -905,7 +905,7 @@ class EnvAction(object):
                     return self._action._func(isolation, *a, **kw)
                 except ActionException as e:
                     raise
-                except ExecCommandFailed, e:
+                except ExecCommandFailed as e:
                     isolation._logger.log_exception(e)
 
                     if self._env._pty.interactive:
