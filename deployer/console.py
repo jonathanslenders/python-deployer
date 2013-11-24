@@ -46,6 +46,11 @@ class Console(object):
         self._pty = pty
 
     @property
+    def pty(self):
+        """ The :class:`deployer.pseudo_terminal.pty` of this console. """
+        return self._pty
+
+    @property
     def is_interactive(self):
         """
         When ``False`` don't ask for input and choose the default options when

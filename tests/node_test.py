@@ -1,9 +1,11 @@
 import unittest
 
+from deployer.console import Console
 from deployer.exceptions import ActionException, ExecCommandFailed
 from deployer.inspection import Inspector
 from deployer.node import Node, SimpleNode, Env
 from deployer.node import map_roles, dont_isolate_yet, required_property, alias, IsolationIdentifierType
+from deployer.pseudo_terminal import Pty
 from deployer.query import Q
 
 from our_hosts import LocalHost, LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
@@ -979,6 +981,17 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(env.b(), 'result')
         self.assertEqual(getattr(env, 'b.c.d')(), 'result')
 
+    def test_node_console(self):
+        class Root(Node):
+            def a(self):
+                return 'result'
+
+        # Test Console instance.
+        p = Pty()
+        env = Env(Root(), pty=p)
+        self.assertIsInstance(env.console, Console)
+        self.assertEqual(env.console.pty, p)
+        self.assertEqual(env.console.is_interactive, p.interactive) #
 
 if __name__ == '__main__':
     unittest.main()

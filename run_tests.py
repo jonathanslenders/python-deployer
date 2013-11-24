@@ -6,6 +6,7 @@ from tests.node_test import *
 from tests.query_test import *
 from tests.utils_test import *
 from tests.pty_test import *
+from tests.console_test import *
 
 if __name__ == '__main__':
     unittest.main()
