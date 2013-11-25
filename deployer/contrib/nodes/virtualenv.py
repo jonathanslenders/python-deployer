@@ -111,7 +111,7 @@ class VirtualEnv(SimpleNode):
                 self.host.run(_pip_install(f, "-U -r"))
 
             for r in self.requirements:
-                self.host.run(_pip_install(f, "-U"))
+                self.host.run(_pip_install(r, "-U"))
 
     @dont_isolate_yet
     def install_package(self, package=None):
