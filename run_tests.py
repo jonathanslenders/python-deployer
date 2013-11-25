@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from tests.default_config_test import *
 from tests.host_container_test import *
 from tests.host_test import *
