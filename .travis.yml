@@ -7,4 +7,4 @@ install:
   - "pip install . --use-mirrors"
 
 script:
-  - ./runtests.py
+  - ./run_tests.py
