@@ -136,11 +136,6 @@ class DeploymentClient(object):
 
             # Unmarshalling succeeded, call callback
             if action == '_print':
-                # We set stdin to blocking mode. This is because writing works a
-                # lot better if done blocking. (Especially OS X will easily
-                # throw a "resource unavailable" error if we write large
-                # amounts of data without waiting )
-                fdesc.setBlocking(sys.stdin)
                 while True:
                     try:
                         sys.stdout.write(data)
@@ -152,7 +147,6 @@ class DeploymentClient(object):
                         # See also: deployer.host.__init__ for a similar issue.
                         time.sleep(0.2)
                 sys.stdout.flush()
-                fdesc.setNonBlocking(sys.stdin)
 
             elif action == 'open-new-window':
                 focus = data['focus']
@@ -197,7 +191,6 @@ class DeploymentClient(object):
             raise Exception("Don't provide 'action_name' and 'open_scp_shell' at the same time")
 
         # Set stdin non blocking and raw
-        fdesc.setNonBlocking(sys.stdin)
         tcattr = termios.tcgetattr(sys.stdin.fileno())
         tty.setraw(sys.stdin.fileno())
 
@@ -237,7 +230,12 @@ class DeploymentClient(object):
                         break
 
                 if sys.stdin in r:
+                    # Non blocking read. (Write works better in blocking mode.
+                    # Especially on OS X.)
+                    fdesc.setNonBlocking(sys.stdin)
                     data = sys.stdin.read(1)
+                    fdesc.setBlocking(sys.stdin)
+
                     if ord(data) == 14: # Ctrl-N
                         # Tell the server to open a new window.
                         self.socket.sendall(pickle.dumps(('open-new-window', '')))
