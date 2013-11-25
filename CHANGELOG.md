@@ -7,6 +7,11 @@ Now
 
 ...
 
+Version 0.3.5: 26 november 2013
+-------------------------------
+
+- Bug fix in contrib.virtual_env.upgrade_requirments.
+
 
 Version 0.3.3 and 0.3.4: 25 november 2013
 -------------------------------
