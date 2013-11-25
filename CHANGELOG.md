@@ -8,7 +8,7 @@ Now
 ...
 
 
-Version 0.3.3: 25 november 2013
+Version 0.3.3 and 0.3.4: 25 november 2013
 -------------------------------
 - Better OS X support. (No more nonblocking writes to stdout.)
 
