@@ -1,6 +1,8 @@
 Deployer
 ========
 
+[![Build Status](https://travis-ci.org/jonathanslenders/python-deployer.png)](https://travis-ci.org/jonathanslenders/python-deployer)
+
 The deployer is a Python framework for automatic application deployment on
 Posix systems, usually through SSH. When set up, it can be used as a library or
 through the interactive command line.
