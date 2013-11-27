@@ -153,8 +153,7 @@ class SSHStat(Stat):
     """
     Stat info for SSH files.
     """
-    def __init__(self, stat_result):
-        Stat.__init__(self, stat_result, stat_result.filename)
+    pass
 
 
 class SSHHost(Host):
@@ -237,8 +236,11 @@ class SSHHost(Host):
     def stat(self, remote_path):
         sftp = self._backend.get_sftp(self)
         sftp.chdir(self.getcwd())
+
         s = sftp.lstat(remote_path)
-        return SSHStat(s)
+
+        filename = os.path.split(remote_path)[-1]
+        return SSHStat(s, filename=filename)
 
     @wraps(Host.listdir)
     def listdir(self, path='.'):
@@ -250,7 +252,7 @@ class SSHHost(Host):
     def listdir_stat(self, path='.'):
         sftp = self._backend.get_sftp(self)
         sftp.chdir(self.getcwd())
-        return [ SSHStat(a) for a in sftp.listdir_attr(path) ]
+        return [ SSHStat(a, filename=a.filename) for a in sftp.listdir_attr(path) ]
 
     def _open(self, remote_path, mode):
         return self._backend.get_sftp(self).open(remote_path, mode)
