@@ -2,7 +2,7 @@ from deployer.pseudo_terminal import DummyPty
 from deployer.utils import IfConfig
 from deployer.host.base import Stat
 
-from our_hosts import LocalHost1
+from our_hosts import LocalHost1, LocalSSHHost1
 
 import os
 import unittest
@@ -10,12 +10,15 @@ import tempfile
 
 
 class HostTest(unittest.TestCase):
+    def get_host(self, *a, **kw):
+        return LocalHost1(*a, **kw)
+
     def test_simple_echo_command(self):
-        host = LocalHost1()
+        host = self.get_host()
         self.assertEqual(host.run('echo test', interactive=False).strip(), 'test')
 
     def test_host_context(self):
-        host = LocalHost1()
+        host = self.get_host()
         context = host.host_context
 
         # Test __repr__
@@ -50,20 +53,21 @@ class HostTest(unittest.TestCase):
                 self.assertEqual(host.run('echo $VAR2', interactive=False).strip(), '$VAR1')
 
     def test_repr(self):
-        host = LocalHost1()
+        host = self.get_host()
         self.assertIn('Host(', repr(host))
 
     def test_interactive(self):
         # XXX: Not entirely sure whether this test is reliable.
         #      -> the select-loop will stop as soon as no input is available on any end.
-        host = LocalHost1()
+        host = self.get_host()
 
-        result = host.run('echo test').strip()
+        result = host.run('echo test', interactive=True).strip()
         self.assertEqual(result, 'test')
 
     def test_input(self):
+        return
         pty = DummyPty('my-input\n')
-        host = LocalHost1(pty=pty)
+        host = self.get_host(pty=pty)
 
         result = host.run('read varname; echo $varname')
         self.assertEqual(result, 'my-input\r\nmy-input\r\n')
@@ -73,7 +77,7 @@ class HostTest(unittest.TestCase):
         content = 'my-test-content'
 
         # Writing of file
-        host = LocalHost1()
+        host = self.get_host()
         with host.open(test_filename, mode='w') as f:
             f.write(content)
 
@@ -87,7 +91,7 @@ class HostTest(unittest.TestCase):
         os.remove(test_filename)
 
     def test_put_file(self):
-        host = LocalHost1()
+        host = self.get_host()
 
         # Create temp file
         fd, name1 = tempfile.mkstemp()
@@ -117,7 +121,7 @@ class HostTest(unittest.TestCase):
 
     def test_stat(self):
         """ Test the stat method. """
-        host = LocalHost1()
+        host = self.get_host()
 
         # Create temp file
         fd, name = tempfile.mkstemp()
@@ -139,21 +143,27 @@ class HostTest(unittest.TestCase):
 
     def test_ifconfig(self):
         # ifconfig should return an IfConfig instance.
-        host = LocalHost1()
+        host = self.get_host()
         self.assertIsInstance(host.ifconfig(), IfConfig)
 
     def test_listdir(self):
-        host = LocalHost1()
+        host = self.get_host()
         with host.host_context.cd('/'):
             self.assertIsInstance(host.listdir(), list)
 
     def test_listdir_stat(self):
-        host = LocalHost1()
+        host = self.get_host()
 
         result = host.listdir_stat('/tmp')
         self.assertIsInstance(result, list)
         for r in result:
             self.assertIsInstance(r, Stat)
+
+
+class SSHHostTest(HostTest):
+    def get_host(self, *a, **kw):
+        return LocalSSHHost1(*a, **kw)
+
 
 if __name__ == '__main__':
     unittest.main()

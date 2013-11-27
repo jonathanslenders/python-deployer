@@ -5,15 +5,27 @@ import unittest
 from deployer.host_container import HostsContainer, HostContainer
 from deployer.pseudo_terminal import DummyPty
 
-from our_hosts import LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
+from .our_hosts import LocalHost1, LocalHost2, LocalHost3, LocalHost4, LocalHost5
+from .our_hosts import LocalSSHHost1, LocalSSHHost2, LocalSSHHost3, LocalSSHHost4, LocalSSHHost5
 
 
 class HostsContainerTest(unittest.TestCase):
+    def get_hosts(self):
+        """ Use local hosts. """
+        class H:
+            h1 =  LocalHost1
+            h2 =  LocalHost2
+            h3 =  LocalHost3
+            h4 =  LocalHost4
+            h5 =  LocalHost5
+        return H
+
     def get_definition(self):
+        hosts = self.get_hosts()
         class Hosts:
-            role1 = { LocalHost1, LocalHost2 }
-            role2 = { LocalHost3, LocalHost4, LocalHost5 }
-            role3 = { LocalHost1 }
+            role1 = { hosts.h1, hosts.h2}
+            role2 = { hosts.h3, hosts.h4, hosts.h5 }
+            role3 = { hosts.h1 }
 
         return HostsContainer.from_definition(Hosts, pty=DummyPty())
 
@@ -25,8 +37,8 @@ class HostsContainerTest(unittest.TestCase):
 
         self.assertRaises(TypeError, HostsContainer.from_definition, Hosts)
 
-
     def test_host_container(self):
+        hosts = self.get_hosts()
         hosts_container = self.get_definition()
 
         # (fuzzy) __repr__
@@ -60,9 +72,9 @@ class HostsContainerTest(unittest.TestCase):
         self.assertRaises(TypeError, HostsContainer.filter, 123)
 
         class MyHosts1:
-            role1 = { LocalHost1, LocalHost2 }
+            role1 = { hosts.h1, hosts.h2 }
         class MyHosts2:
-            role2 = { LocalHost3, LocalHost4, LocalHost5 }
+            role2 = { hosts.h3, hosts.h4, hosts.h5 }
 
         self.assertIsInstance(hosts_container.filter('role1'), HostsContainer)
         self.assertIsInstance(hosts_container.filter('role2'), HostsContainer)
@@ -81,8 +93,8 @@ class HostsContainerTest(unittest.TestCase):
         # Filter on two roles.
 
         class MyHosts1_and_2:
-            role1 = { LocalHost1, LocalHost2 }
-            role2 = { LocalHost3, LocalHost4, LocalHost5 }
+            role1 = { hosts.h1, hosts.h2 }
+            role2 = { hosts.h3, hosts.h4, hosts.h5 }
 
         self.assertEqual(hosts_container.filter('role1', 'role2').get_hosts_as_dict(),
                     HostsContainer.from_definition(MyHosts1_and_2).get_hosts_as_dict())
@@ -221,4 +233,16 @@ class HostsContainerTest(unittest.TestCase):
         os.remove(name2)
         os.remove(name3)
 
+
+class SSHHostsContainerTest(HostsContainerTest):
+    """ Run the same tests, but using an SSH connection. """
+    def get_hosts(self):
+        """ Use local hosts. """
+        class H:
+            h1 =  LocalSSHHost1
+            h2 =  LocalSSHHost2
+            h3 =  LocalSSHHost3
+            h4 =  LocalSSHHost4
+            h5 =  LocalSSHHost5
+        return H
 
