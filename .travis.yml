@@ -6,5 +6,10 @@ python:
 install:
   - "pip install . --use-mirrors"
 
+before_script:
+  # Allow passwordless login to localhost
+  - ssh-keygen -f ~/.ssh/id_rsa_local -N ""
+  - cat ~/.ssh/id_rsa_local.pub >> ~/.ssh/authorized_keys
+
 script:
   - ./run_tests.py
