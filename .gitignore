@@ -1,5 +1,11 @@
 *.py[cod]
 
+# Docs
+docs/_build/
+
+# Coverage
+htmlcov/
+
 # C extensions
 *.so
 
