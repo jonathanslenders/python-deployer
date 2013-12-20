@@ -330,6 +330,7 @@ class Host(object):
         :param initial_input: When ``interactive``, send this input first to the host.
         """
         assert isinstance(command, basestring)
+        assert not initial_input or interactive # initial_input can only in case of interactive.
 
         logger = DummyLoggerInterface() if silent else self.logger
         pty = DummyPty() if silent else self.pty
