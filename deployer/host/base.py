@@ -409,39 +409,10 @@ class Host(object):
                 result = self._posix_shell(chan, log_entry=log_entry, initial_input=initial_input)
             else:
                 # Read loop.
-                result = []
-                while True:
-                    # Before calling recv, call select to make sure
-                    # the channel is ready to be read. (Trick for
-                    # getting the SIGCHLD pipe of Localhost to work.)
-                    while True:
-                        r, w, e = select([chan], [], [], 5)
-                        if r:
-                            break
-                        else:
-                            print 'XXX: Select timed out, retrying...', r, w, e
-
-                    if chan in r:
-                        # Blocking call. Returns when data has been received or at
-                        # the end of the channel stream.
-                        try:
-                            data = chan.recv(1024)
-                        except IOError:
-                            # In case of localhost: application terminated,
-                            # caught in SIGCHLD, and closed slave PTY
-                            break
-
-                        if data:
-                            result += [data]
-                        else:
-                            break
-
-                result = ''.join(result)
-                log_entry.log_io(result)
+                result = self._read_non_interactive(chan)
 
                 #print result # I don't think we need to print the result of non-interactive runs
-                              # In any case self._run_silent_sudo should not
-                              # print anything.
+                              # In any case self._run_silent_sudo should not print anything.
 
             # Retrieve status code
             status_code = chan.recv_exit_status()
@@ -459,6 +430,10 @@ class Host(object):
             return result
 
     def _get_session(self):
+        raise NotImplementedError
+
+    def _read_non_interactive(self, channel):
+        """ Read data from channel and return output. """
         raise NotImplementedError
 
     def start_interactive_shell(self, command=None, initial_input=None):

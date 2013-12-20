@@ -257,6 +257,10 @@ class SSHHost(Host):
     def _open(self, remote_path, mode):
         return self._backend.get_sftp(self).open(remote_path, mode)
 
+    def _read_non_interactive(self, channel):
+        stdout = channel.makefile('rb', -1)
+        return stdout.read()
+
     def start_interactive_shell(self, command=None, initial_input=None, sandbox=False):
         """
         Start /bin/bash and redirect all SSH I/O from stdin and to stdout.

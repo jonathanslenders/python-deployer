@@ -116,6 +116,10 @@ class LocalHost(Host):
                 except pexpect.EOF:
                     return ''
 
+            def read(self):
+                """ Read all blocking. """
+                return self._spawn.read()
+
             def send(self, data):
                 return self._spawn.write(data)
 
@@ -177,6 +181,43 @@ class LocalHost(Host):
     @wraps(Host.listdir_stat)
     def listdir_stat(self, path='.'):
         return [ self.stat(f) for f in self.listdir() ]
+
+    def _read_non_interactive(self, chan):
+        return chan.read()
+
+        # XXX: this was the old way of reading non interactive from a local command.
+        #      probably, we can delete this, if the current way has been proven to work
+        #      reliable.
+
+        #result = []
+        #while True:
+        #    # Before calling recv, call select to make sure
+        #    # the channel is ready to be read. (Trick for
+        #    # getting the SIGCHLD pipe of Localhost to work.)
+        #    while True:
+        #        r, w, e = select([chan], [], [], 5)
+        #        if r:
+        #            break
+        #        else:
+        #            print 'XXX: Select timed out, retrying...', r, w, e
+
+        #    if chan in r:
+        #        # Blocking call. Returns when data has been received or at
+        #        # the end of the channel stream.
+        #        try:
+        #            data = chan.recv(1024)
+        #        except IOError:
+        #            # In case of localhost: application terminated,
+        #            # caught in SIGCHLD, and closed slave PTY
+        #            break
+
+        #        if data:
+        #            result += [data]
+        #        else:
+        #            break
+
+        #return ''.join(result)
+
 
     def start_interactive_shell(self, command=None, initial_input=None):
         """
