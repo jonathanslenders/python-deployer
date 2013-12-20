@@ -106,12 +106,6 @@ class LoggerInterface(object):
                 entry._callbacks = []
                 entry._io = []
 
-            def log_io(entry, data):
-                """ Log received I/O """
-                entry._io.append(data)
-                for c in entry._callbacks:
-                    c.log_io(data)
-
             def set_status_code(entry, status_code):
                 entry.status_code = status_code
 
@@ -207,17 +201,11 @@ class Logger(object):
 #
 
 class RunCallback(object):
-    def __init__(self, completed=None, log_io=None):
+    def __init__(self, completed=None):
         if completed:
             self.completed = completed
 
-        if log_io:
-            self.log_io = log_io
-
     def completed(self):
-        pass
-
-    def log_io(self, data):
         pass
 
 

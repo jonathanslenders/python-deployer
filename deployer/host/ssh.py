@@ -283,7 +283,7 @@ class SSHHost(Host):
                 chan.send('exec %s\n' % command)
 
             # PTY receive/send loop
-            self._posix_shell(chan, log_entry=log_entry, initial_input=initial_input)
+            self._posix_shell(chan, initial_input=initial_input)
 
             # Retrieve status code
             status_code = chan.recv_exit_status()

@@ -406,7 +406,7 @@ class Host(object):
 
             if interactive:
                 # Pty receive/send loop
-                result = self._posix_shell(chan, log_entry=log_entry, initial_input=initial_input)
+                result = self._posix_shell(chan, initial_input=initial_input)
             else:
                 # Read loop.
                 result = self._read_non_interactive(chan)
@@ -442,7 +442,7 @@ class Host(object):
         """
         raise NotImplementedError
 
-    def _posix_shell(self, chan, raw=True, log_entry=None, initial_input=None): # TODO: drop log_entry parameter: not used in logging backends.
+    def _posix_shell(self, chan, raw=True, initial_input=None):
         """
         Create a loop which redirects sys.stdin/stdout into this channel.
         The loop ends when channel.recv() returns 0.
@@ -488,9 +488,6 @@ class Host(object):
                         # Received length 0 -> end of stream
                         if len(x) == 0:
                             break
-
-                        # Log received characters
-                        log_entry.log_io(x)
 
                         # Write received characters to stdout and flush
                         while True:
