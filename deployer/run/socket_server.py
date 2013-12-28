@@ -6,6 +6,7 @@ from deployer.daemonize import daemonize
 from deployer.exceptions import ActionException
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger, IndentedDefaultLogger
+from deployer.options import Options
 from deployer.pseudo_terminal import Pty
 from deployer.shell import Shell, ShellHandler
 
@@ -149,6 +150,7 @@ class Connection(object):
     def __init__(self, protocol):
         self.root_node = protocol.factory.root_node
         self.extra_loggers = protocol.factory.extra_loggers
+        self.runtime_options = protocol.factory.runtime_options
         self.transportHandle = protocol._handle
         self.doneCallback = protocol.transport.loseConnection
         self.connection_shell = None
@@ -380,7 +382,7 @@ class ConnectionShell(object):
         self.logger_interface = LoggerInterface()
 
         # Run shell
-        self.shell = SocketShell(connection.root_node, connection.pty,
+        self.shell = SocketShell(connection.root_node, connection.pty, connection.runtime_options,
                                 self.logger_interface, clone_shell=clone_shell)
         self.cd_path = cd_path
 
@@ -622,6 +624,7 @@ def startSocketServer(root_node, shutdownOnLastDisconnect, interactive, socket=N
     factory.root_node = root_node
     factory.interactive = interactive
     factory.extra_loggers = extra_loggers or []
+    factory.runtime_options = Options()
 
     # Listen on socket.
     if socket:

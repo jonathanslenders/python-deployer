@@ -675,6 +675,72 @@ class Scp(NodeACHandler):
         Shell(self.shell.pty, host, self.shell.logger_interface).cmdloop()
 
 
+class SetOption(ShellHandler):
+    """
+    Change shell options.
+    """
+    handler_type = BuiltinType()
+
+    def complete_subhandlers(self, part):
+        for option_name, option in self.shell.options.items():
+            if option_name.startswith(part):
+                yield option_name, SetOptionName(self.shell, option)
+
+    def get_subhandler(self, name):
+        for option_name, option in self.shell.options.items():
+            if option_name == name:
+                return SetOptionName(self.shell, option)
+
+
+class SetOptionName(ShellHandler):
+    handler_type = BuiltinType()
+
+    def __init__(self, shell, option):
+        ShellHandler.__init__(self, shell)
+        self.option = option
+
+    def complete_subhandlers(self, part):
+        for value in self.option.values:
+            if value.startswith(part):
+                yield value, SetOptionNameValue(self.shell, self.option, value)
+
+    def get_subhandler(self, name):
+        if name in self.option.values:
+            return SetOptionNameValue(self.shell, self.option, name)
+
+
+class SetOptionNameValue(ShellHandler):
+    is_leaf = True
+    handler_type = BuiltinType()
+
+    def __init__(self, shell, option, value):
+        ShellHandler.__init__(self, shell)
+        self.option = option
+        self.value = value
+
+    def __call__(self):
+        self.option.set(self.value)
+
+
+class ShowOptions(ShellHandler):
+    """
+    Show the current shell settings.
+    """
+    is_leaf = True
+    handler_type = BuiltinType()
+
+    def __call__(self):
+        print('TODO')
+
+
+class CloseDeadPanes(ShellHandler):
+    is_leaf = True
+    handler_type = BuiltinType()
+
+    def __call__(self):
+        print('TODO')
+
+
 class Exit(ShellHandler):
     """
     Quit the deployment shell.
@@ -773,6 +839,9 @@ class RootHandler(ShellHandler):
             'ls': Ls,
             'sandbox': Sandbox,
             'pwd': Pwd,
+            'set-option': SetOption,
+            'show-options': ShowOptions,
+            'close-dead-panes': CloseDeadPanes,
             '--connect': Connect,
             '--inspect': Inspect,
             '--run': Run,
@@ -887,13 +956,15 @@ class ShellState(object):
         return self._node
 
 
+
 class Shell(CLInterface):
     """
     Deployment shell.
     """
-    def __init__(self, root_node, pty, logger_interface, clone_shell=None):
+    def __init__(self, root_node, pty, options, logger_interface, clone_shell=None):
         self.root_node = root_node
         self.pty = pty
+        self.options = options
         self.logger_interface = logger_interface
 
         if clone_shell:

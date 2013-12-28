@@ -9,6 +9,7 @@ from deployer.cli import HandlerType
 from deployer.console import NoInput, Console
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger
+from deployer.options import Options
 from deployer.pseudo_terminal import Pty
 from deployer.shell import Shell, ShellHandler
 
@@ -62,8 +63,8 @@ class ActiveSessionsHandler(ShellHandler):
 
 class WebShell(Shell):
     """
-    The shell that we provide via telnet/http exposes some additional
-    commands for session and user management and logging.
+    The shell that we provide via telnet exposes some additional commands for
+    session and user management and logging.
     """
     @property
     def extensions(self):
@@ -170,8 +171,11 @@ class Session(object):
                 logger_interface = LoggerInterface()
                 in_shell_logger = DefaultLogger(self.pty.stdout, print_group=False)
 
+                # Create options.
+                options = Options()
+
                 # Run shell
-                shell = WebShell(self.root_node, self.pty, logger_interface, username=self.username)
+                shell = WebShell(self.root_node, self.pty, options, logger_interface, username=self.username)
 
                 shell.session = self # Assign session to shell
                 self.shell = shell
