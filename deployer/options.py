@@ -30,6 +30,7 @@ class Options(object):
         self._options = {
             'colorscheme': Option(['dark_background', 'light_background'], 'dark_background'),
             'keep-panes-open': Option(['on', 'off'], 'off'),
+            'interactive': Option(['on', 'off'], 'on'),
         }
 
     def items(self):
