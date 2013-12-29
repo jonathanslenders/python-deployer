@@ -33,6 +33,9 @@ class Options(object):
             'interactive': Option(['on', 'off'], 'on'),
         }
 
+    def __getitem__(self, name):
+        return self._options[name]
+
     def items(self):
         return self._options.items()
 

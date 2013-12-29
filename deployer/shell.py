@@ -730,15 +730,8 @@ class ShowOptions(ShellHandler):
     handler_type = BuiltinType()
 
     def __call__(self):
-        print('TODO')
-
-
-class CloseDeadPanes(ShellHandler):
-    is_leaf = True
-    handler_type = BuiltinType()
-
-    def __call__(self):
-        print('TODO')
+        for name, option in self.shell.options.items():
+            print '%-20s %s' % (name, option.get())
 
 
 class Exit(ShellHandler):
@@ -841,7 +834,6 @@ class RootHandler(ShellHandler):
             'pwd': Pwd,
             'set-option': SetOption,
             'show-options': ShowOptions,
-            'close-dead-panes': CloseDeadPanes,
             '--connect': Connect,
             '--inspect': Inspect,
             '--run': Run,

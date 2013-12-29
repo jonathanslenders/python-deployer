@@ -8,7 +8,7 @@ from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger, IndentedDefaultLogger
 from deployer.options import Options
 from deployer.pseudo_terminal import Pty
-from deployer.shell import Shell, ShellHandler
+from deployer.shell import Shell, ShellHandler, BuiltinType
 
 from twisted.internet import reactor, defer, abstract, fdesc
 from twisted.internet import threads
@@ -84,6 +84,15 @@ class Monitor(ShellHandler):
 
         self.shell.session.connection.runInNewPtys(monitor, focus=False)
 
+class CloseDeadPanes(ShellHandler):
+    is_leaf = True
+    handler_type = BuiltinType()
+
+    def __call__(self):
+        for c in set(self.shell.connection.connectionPool):
+            if c.process_done:
+                c.send_close()
+
 #
 # Shell instance.
 #
@@ -91,12 +100,18 @@ class Monitor(ShellHandler):
 class SocketShell(Shell):
     """
     """
+    def __init__(self, *a, **kw):
+        self.connection = kw.pop('connection')
+        Shell.__init__(self, *a, **kw)
+
     @property
     def extensions(self):
         return {
                 'new': NewShell,
                 #'jobs': Jobs,
                 'open_monitor': Monitor,
+
+                'close-dead-panes': CloseDeadPanes,
                 }
 
 
@@ -153,7 +168,10 @@ class Connection(object):
         self.runtime_options = protocol.factory.runtime_options
         self.transportHandle = protocol._handle
         self.doneCallback = protocol.transport.loseConnection
+        self.connectionPool = protocol.factory.connectionPool
         self.connection_shell = None
+        self.exit_status = 0
+        self.process_done = False # Done, but waiting for the user to close the pane.
 
         # Create PTY
         master, self.slave = os.openpty()
@@ -184,13 +202,27 @@ class Connection(object):
         self.reader = SelectableFile(self.shell_out, writeCallback)
         self.reader.startReading()
 
-    def close(self, exit_status=0):
+    def finish(self, exit_status=0, always_close=False):
         """
-        Called when the the process in this connection is finished.
+        Called when the process in this connection is finished.
         """
-        # Send status code
-        self.transportHandle('set-exit-status', exit_status)
+        self.exit_status = exit_status
+        self.process_done = True
 
+        close = (always_close or self.runtime_options['keep-panes-open'].get() == 'off')
+
+        # Send status code
+        self.transportHandle('finish', {
+            'exit_status': self.exit_status,
+            'close_on_keypress': not close
+        })
+
+        # If panes are closed automatically, close the pane and terminate
+        # connection. (otherwise, wait for close-dead-panes)
+        if close:
+            self.send_close()
+
+    def send_close(self):
         # Stop IO reader
         self.reader.stopReading()
 
@@ -269,7 +301,7 @@ class Connection(object):
             if todo[0] == 0:
                 done_d.callback(results)
 
-        def thread(f, connection):
+        def thread(f, index, connection):
             """
             In the new spawned thread.
             """
@@ -295,7 +327,7 @@ class Connection(object):
             sys.stdin.del_handler()
 
             # Close connection
-            reactor.callFromThread(connection.close)
+            reactor.callFromThread(connection.finish)
             return result
 
         def startAllThreads():
@@ -308,7 +340,7 @@ class Connection(object):
                 results.append(None)
 
                 # Spawn thread
-                d = threads.deferToThread(thread, f, conn)
+                d = threads.deferToThread(thread, f, index, conn)
 
                 # Attach thread-done callbacks
                 @d.addCallback
@@ -383,7 +415,7 @@ class ConnectionShell(object):
 
         # Run shell
         self.shell = SocketShell(connection.root_node, connection.pty, connection.runtime_options,
-                                self.logger_interface, clone_shell=clone_shell)
+                                self.logger_interface, clone_shell=clone_shell, connection=connection)
         self.cd_path = cd_path
 
     def openNewShellFromThread(self):
@@ -469,7 +501,8 @@ class ConnectionShell(object):
         sys.stdin.del_handler()
 
         # Close connection
-        reactor.callFromThread(self.connection.close, exit_status)
+        reactor.callFromThread(lambda: self.connection.finish(
+                    exit_status=exit_status, always_close=True))
 
 
 class PtyManager(object):

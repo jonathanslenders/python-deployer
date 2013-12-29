@@ -46,6 +46,7 @@ class DeploymentClient(object):
     def __init__(self, socket_path):
         self.socket_path = socket_path
         self._buffer = []
+        self.wait_for_closing = False
         self.exit_status = 0
 
         # Currently running command
@@ -165,8 +166,13 @@ class DeploymentClient(object):
                     print '     - Node module  %s' % process['node_module']
                     print '     - Running      %s' % process['running']
 
-            elif action == 'set-exit-status':
-                self.exit_status = data
+            elif action == 'finish':
+                self.exit_status = data['exit_status']
+
+                if data['close_on_keypress']:
+                    sys.stdout.write('\r\n[DONE] Press ENTER to close window.\r\n')
+                    sys.stdout.flush()
+                    self.wait_for_closing = True
 
             # Keep the remainder for the next time
             remainder = io.read()
@@ -235,6 +241,11 @@ class DeploymentClient(object):
                     fdesc.setNonBlocking(sys.stdin)
                     data = sys.stdin.read(1)
                     fdesc.setBlocking(sys.stdin)
+
+                    # If we're finish and 'wait_for_closing' was set. Any key
+                    # press will terminate the client.
+                    if self.wait_for_closing:
+                        break
 
                     if ord(data) == 14: # Ctrl-N
                         # Tell the server to open a new window.
