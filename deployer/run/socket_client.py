@@ -170,7 +170,7 @@ class DeploymentClient(object):
                 self.exit_status = data['exit_status']
 
                 if data['close_on_keypress']:
-                    sys.stdout.write('\r\n[DONE] Press ENTER to close window.\r\n')
+                    sys.stdout.write('\r\n\r\n[DONE] Press ENTER to close window.\r\n')
                     sys.stdout.flush()
                     self.wait_for_closing = True
 
