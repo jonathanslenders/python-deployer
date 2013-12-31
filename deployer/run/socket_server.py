@@ -209,7 +209,7 @@ class Connection(object):
         self.exit_status = exit_status
         self.process_done = True
 
-        close = (always_close or self.runtime_options['keep-panes-open'].get() == 'off')
+        close = (always_close or self.runtime_options['keep-panes-open'].get_value_as_bool())
 
         # Send status code
         self.transportHandle('finish', {

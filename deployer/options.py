@@ -24,13 +24,24 @@ class Option(object):
         for c in self._callbacks:
             c()
 
+class BooleanOption(Option):
+	def __init__(self, current_value):
+		assert isinstance(current_value, bool)
+		Option.__init__(self, ['on', 'off'], 'on' if current_value else 'off')
+
+	def get_value_as_bool(self):
+		return self._value == 'on'
+
 
 class Options(object):
     def __init__(self):
         self._options = {
-            'colorscheme': Option(['dark_background', 'light_background'], 'dark_background'),
-            'keep-panes-open': Option(['on', 'off'], 'off'),
-            'interactive': Option(['on', 'off'], 'on'),
+            'keep-panes-open': BooleanOption(False),
+
+			# Other options to implement:
+            #    'colorscheme': Option(['dark_background', 'light_background'], 'dark_background'),
+            #    'interactive': BooleanOption(True),
+            #    'interactive': BooleanOption(True),
         }
 
     def __getitem__(self, name):
