@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
+from deployer.exceptions import ActionException
 from deployer.loggers import LoggerInterface
 from deployer.loggers.default import DefaultLogger
-from deployer.exceptions import ActionException
+from deployer.options import Options
 from deployer.pseudo_terminal import Pty
 from deployer.shell import Shell
 
@@ -53,6 +54,9 @@ def start(root_node, interactive=True, cd_path=None, logfile=None,
         pty.trigger_resize()
     signal.signal(signal.SIGWINCH, sigwinch_handler)
 
+    # Create runtime options
+    options = Options()
+
     # Initialize root node
     root_node = root_node()
 
@@ -69,7 +73,7 @@ def start(root_node, interactive=True, cd_path=None, logfile=None,
         with nested(* [logger_interface.attach_in_block(l) for l in extra_loggers]):
             # Create shell
             print 'Running single threaded shell...'
-            shell = shell(root_node, pty, logger_interface)
+            shell = shell(root_node, pty, options, logger_interface)
             if cd_path is not None:
                 shell.cd(cd_path)
 
