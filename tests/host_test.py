@@ -159,6 +159,21 @@ class HostTest(unittest.TestCase):
         for r in result:
             self.assertIsInstance(r, Stat)
 
+    def test_term_var(self):
+        pty = DummyPty()
+        host = self.get_host(pty=pty)
+
+        # Changing the TERM variable of the PTY object.
+        # (set_term_var is called by a client.)
+        pty.set_term_var('xterm')
+        self.assertEqual(host.run('echo $TERM', interactive=False).strip(), 'xterm')
+
+        pty.set_term_var('another-term')
+        self.assertEqual(host.run('echo $TERM', interactive=False).strip(), 'another-term')
+
+        # This with statement should override the variable.
+        with host.host_context.env('TERM', 'env-variable'):
+            self.assertEqual(host.run('echo $TERM', interactive=False).strip(), 'env-variable')
 
 class SSHHostTest(HostTest):
     def get_host(self, *a, **kw):

@@ -33,6 +33,7 @@ class Pty(object):
     def __init__(self, stdin=None, stdout=None, interactive=True):
         self._stdin = stdin or sys.__stdin__
         self._stdout = stdout or sys.__stdout__
+        self._term_var = ''
         self.interactive = interactive
         self.set_ssh_channel_size = None
 
@@ -78,6 +79,12 @@ class Pty(object):
         Return the height.
         """
         return self.get_size()[0]
+
+    def set_term_var(self, value):
+        self._term_var = value
+
+    def get_term_var(self):
+        return self._term_var
 
     def set_size(self, rows, cols):
         """

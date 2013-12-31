@@ -208,6 +208,7 @@ class DeploymentClient(object):
                 'action_name': action_name,
                 'parameters': parameters,
                 'open_scp_shell': open_scp_shell,
+                'term_var': os.environ.get('TERM', 'xterm'), # xterm, vt100, xterm-256color
             })))
 
         self._read_loop()

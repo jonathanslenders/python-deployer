@@ -181,9 +181,6 @@ class Host(object):
     Password for connecting to the host. (for sudo)
     """
 
-    # Terminal to report to use for interactive sessions
-    term = os.environ.get('TERM', 'xterm') # xterm, vt100, xterm-256color
-
     # Magic prompt. We expect this string to not appear in the stdout of
     # random programs. This makes it possible to automatically send the
     # correct password when sudo asks us.
@@ -293,6 +290,9 @@ class Host(object):
         else:
             result.append('cd %s && ' % cwd)
 
+        # Set TERM variable.
+        result.append("export TERM=%s && " % self.pty.get_term_var())
+
         # Prefix with variable assignments
         for var, value in self.host_context._env:
             #result.append('%s=%s ' % (var, value))
@@ -341,7 +341,7 @@ class Host(object):
         # Run in PTY (Sudo usually needs to be run into a pty)
         if interactive:
             height, width = pty.get_size()
-            chan.get_pty(term=self.term, width=width, height=height)
+            chan.get_pty(term=self.pty.get_term_var(), width=width, height=height)
 
             # Keep size of local pty and remote pty in sync
             def set_size():

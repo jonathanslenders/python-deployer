@@ -202,6 +202,9 @@ class Connection(object):
         self.reader = SelectableFile(self.shell_out, writeCallback)
         self.reader.startReading()
 
+    def set_term_var(self, value):
+        self.pty.set_term_var(value)
+
     def finish(self, exit_status=0, always_close=False):
         """
         Called when the process in this connection is finished.
@@ -593,6 +596,9 @@ class CliClientProtocol(Protocol):
                 action_name = data.get('action_name', None)
                 parameters = data.get('parameters', None)
                 open_scp_shell = data.get('open_scp_shell', False)
+                term_var = data.get('term_var', False)
+
+                self.connection.set_term_var(term_var)
 
                 # NOTE: The defer to thread method, which will be called back
                 # immeditiately, can hang (wait) if the thread pool has been

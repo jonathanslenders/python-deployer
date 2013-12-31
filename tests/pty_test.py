@@ -23,3 +23,7 @@ class PtyTest(unittest.TestCase):
         height = p.get_height()
         self.assertIsInstance(height, int)
         self.assertEqual(height, size[0])
+
+        # Test set_term_var/get_term_var
+        p.set_term_var('my-custom-xterm')
+        self.assertEqual('my-custom-xterm', p.get_term_var())
