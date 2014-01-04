@@ -43,6 +43,9 @@ class VirtualEnv(SimpleNode):
             self.packages.install()
 
             self.host.sudo('easy_install pip')
+            self.host.sudo('pip install -U setuptools')
+                        # First, make sure that we have the latest setuptools,
+                        # before upgrading pip.
             self.host.sudo('pip install -U pip virtualenv virtualenvwrapper')
 
         # Install requirements
