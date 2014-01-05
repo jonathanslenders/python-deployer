@@ -21,8 +21,9 @@ class AnalyseHost(SimpleNode):
                 roles = []
                 for role in node.hosts.roles:
                     progress_bar.next()
-                    if self.host in node.hosts.filter(role):
-                        roles.append(role)
+                    for h in node.hosts.filter(role):
+                        if h._host.__class__ == self.host._host.__class__:
+                            roles.append(role)
 
                 # If roles were found, print result
                 if roles:
