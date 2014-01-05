@@ -31,7 +31,7 @@ class Filter(object):
     """
     Base class for ``Inspector.walk`` filters.
     """
-    def _filter(self):
+    def _filter(self, node):
         raise NotImplementedError
 
     def __and__(self, other_filter):
