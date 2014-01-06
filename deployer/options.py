@@ -25,12 +25,12 @@ class Option(object):
             c()
 
 class BooleanOption(Option):
-	def __init__(self, current_value):
-		assert isinstance(current_value, bool)
-		Option.__init__(self, ['on', 'off'], 'on' if current_value else 'off')
+    def __init__(self, current_value):
+        assert isinstance(current_value, bool)
+        Option.__init__(self, ['on', 'off'], 'on' if current_value else 'off')
 
-	def get_value_as_bool(self):
-		return self._value == 'on'
+    def get_value_as_bool(self):
+        return self._value == 'on'
 
 
 class Options(object):
@@ -38,7 +38,7 @@ class Options(object):
         self._options = {
             'keep-panes-open': BooleanOption(False),
 
-			# Other options to implement:
+            # Other options to implement:
             #    'colorscheme': Option(['dark_background', 'light_background'], 'dark_background'),
             #    'interactive': BooleanOption(True),
             #    'interactive': BooleanOption(True),
