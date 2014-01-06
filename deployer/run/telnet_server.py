@@ -24,7 +24,7 @@ import struct
 import sys
 
 
-__doc__ = """
+"""
 Web and telnet server for the deployment scripts.
 Note that this module is using global variables, it should
 never be initialized more than once.

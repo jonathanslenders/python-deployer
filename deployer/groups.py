@@ -1,5 +1,4 @@
 
-__doc__ = \
 """
 A ``Group`` can be attached to every Node, in order to put them in categories.
 

@@ -3,7 +3,6 @@ from deployer.groups import Group
 from deployer.inspection import filters
 from functools import wraps
 
-__doc__ = \
 """
 Inspector
 ---------

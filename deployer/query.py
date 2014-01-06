@@ -2,7 +2,6 @@ import inspect
 
 # Domain specific language for querying in a deploy tree.
 
-__doc__ = \
 """
 Queries provide syntactic sugar for expressions inside nodes.
 

@@ -7,8 +7,6 @@ import sys
 import termios
 import logging
 
-
-__doc__ = \
 """
 .. note:: This module is mainly for internal use.
 

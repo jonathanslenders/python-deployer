@@ -1,6 +1,5 @@
 from deployer.inspection.inspector import Inspector, PathType
 
-__doc__ = \
 """
 The inspection module contains a set of utilities for introspection of the
 deployment tree. This can be either from inside an action, or externally to
