@@ -1,7 +1,3 @@
-import inspect
-
-# Domain specific language for querying in a deploy tree.
-
 """
 Queries provide syntactic sugar for expressions inside nodes.
 
@@ -18,6 +14,8 @@ Queries provide syntactic sugar for expressions inside nodes.
                     ...
                     pass
 """
+
+import inspect
 
 
 __all__ = ('Q', )

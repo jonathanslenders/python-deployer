@@ -1,3 +1,11 @@
+"""
+.. note:: This module is mainly for internal use.
+
+Pty implements a terminal abstraction. This can be around the default stdin/out
+pair, but also around a pseudo terminal that was created through the
+``openpty`` system call.
+"""
+
 import StringIO
 import array
 import fcntl
@@ -6,14 +14,6 @@ import select as _select
 import sys
 import termios
 import logging
-
-"""
-.. note:: This module is mainly for internal use.
-
-Pty implements a terminal abstraction. This can be around the default stdin/out
-pair, but also around a pseudo terminal that was created through the
-``openpty`` system call.
-"""
 
 
 class Pty(object):

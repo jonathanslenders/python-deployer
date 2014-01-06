@@ -1,3 +1,8 @@
+"""
+Patch for the paramiko SSHClient.connect function.
+The only difference is that it calls a progress bar callback.
+"""
+
 from paramiko.config import SSH_PORT
 from paramiko.util import retry_on_signal
 import socket
@@ -7,10 +12,6 @@ from paramiko.transport import Transport
 from paramiko.resource import ResourceManager
 from paramiko.ssh_exception import BadHostKeyException
 
-"""
-Patch for the paramiko SSHClient.connect function.
-The only difference is that it calls a progress bar callback.
-"""
 
 def connect(self, hostname, port=SSH_PORT, username=None, password=None, pkey=None,
             key_filename=None, timeout=None, allow_agent=True, look_for_keys=True,

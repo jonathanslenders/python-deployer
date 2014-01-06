@@ -1,14 +1,14 @@
-from deployer.node import Node, Env, IsolationIdentifierType, iter_isolations, Action
-from deployer.groups import Group
-from deployer.inspection import filters
-from functools import wraps
-
 """
 Inspector
 ---------
 
 Reflexion/introspection on a `deployer.node.Node`
 """
+
+from deployer.node import Node, Env, IsolationIdentifierType, iter_isolations, Action
+from deployer.groups import Group
+from deployer.inspection import filters
+from functools import wraps
 
 __all__ = (
         'PathType',

@@ -1,3 +1,9 @@
+"""
+Web and telnet server for the deployment scripts.
+Note that this module is using global variables, it should
+never be initialized more than once.
+"""
+
 from twisted.conch import telnet
 from twisted.conch.telnet import StatefulTelnetProtocol, TelnetTransport
 from twisted.internet import reactor, abstract, fdesc
@@ -23,12 +29,6 @@ import signal
 import struct
 import sys
 
-
-"""
-Web and telnet server for the deployment scripts.
-Note that this module is using global variables, it should
-never be initialized more than once.
-"""
 
 __all__ = ('start',)
 

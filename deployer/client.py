@@ -1,17 +1,5 @@
 #!/usr/bin/env python
 
-from deployer import __version__
-from deployer.contrib.default_config import example_settings
-from deployer.run.socket_client import list_sessions
-from deployer.run.socket_client import start as start_client
-from deployer.run.socket_server import start as start_server
-from deployer.run.standalone_shell import start as start_standalone
-from deployer.run.telnet_server import start as start_telnet_server
-
-import docopt
-import getpass
-import sys
-
 """Usage:
   client.py run [-s | --single-threaded | --socket SOCKET] [--path PATH]
                   [--non-interactive] [--log LOGFILE] [--scp]
@@ -37,6 +25,19 @@ Options:
   --socket SOCKET        : The path of the unix socket.
   --version              : Show version information.
 """
+
+
+from deployer import __version__
+from deployer.contrib.default_config import example_settings
+from deployer.run.socket_client import list_sessions
+from deployer.run.socket_client import start as start_client
+from deployer.run.socket_server import start as start_server
+from deployer.run.standalone_shell import start as start_standalone
+from deployer.run.telnet_server import start as start_telnet_server
+
+import docopt
+import getpass
+import sys
 
 def start(root_service, name=sys.argv[0], extra_loggers=None):
     """

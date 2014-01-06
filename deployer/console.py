@@ -1,10 +1,3 @@
-from deployer import std
-
-from termcolor import colored
-from datetime import datetime
-
-import random
-
 """
 The ``console`` object is an interface for user interaction from within a
 ``Node``. Among the input methods are choice lists, plain text input and password
@@ -28,6 +21,13 @@ Example:
     automatically.
 
 """
+
+from deployer import std
+
+from termcolor import colored
+from datetime import datetime
+
+import random
 
 __all__ = ('Console', 'NoInput', 'ProgressBarSteps', 'ProgressBar', )
 
