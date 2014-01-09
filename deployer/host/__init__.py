@@ -1,5 +1,4 @@
 
-__doc__ = \
 """
 This module contains the immediate wrappers around the remote hosts and their
 terminals. It's possible to run commands on a host directly by using these

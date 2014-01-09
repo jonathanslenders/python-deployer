@@ -12,7 +12,6 @@ import docopt
 import getpass
 import sys
 
-__doc__ = \
 """Usage:
   client.py run [-s | --single-threaded | --socket SOCKET] [--path PATH]
                   [--non-interactive] [--log LOGFILE] [--scp]

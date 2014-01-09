@@ -113,28 +113,15 @@ class GitOverview(Node):
     Show a nice readable overview of all the git checkouts of all the services in the tree.
     """
     def show(self):
-        # Preparing results.
-        result = { }
-        def walk(service):
-            if service.isinstance(Git):
-                # In case that we have more hosts in this git checkout, call
-                # it for every individual isolation.
-                if service.is_isolated:
-                    result[service] = { i.service.host.slug: service.show_oneline() }
-                else:
-                    result[service] = { i.service.host.slug: i.service.show_oneline() for i in service.get_isolations() }
+        from deployer.inspection import filters, Inspector
 
-            for name, s in service.get_subservices():
-                if s.parent == service: # Make sure that we don't walk in loops (back to parent nodes.)
-                    walk(s)
-        walk(self.root)
+        def iterate():
+            iterator = Inspector(Inspector(self).get_root()).walk(filters.IsInstance(Git) & filters.PublicOnly)
+            for node in iterator:
+                full_path = '.'.join(Inspector(node).get_path())
+                checkout = str(node.show_oneline()).strip()
+                yield ' %-40s %s' % (full_path, checkout)
 
-        # Show results
-        print
-        for service, data in result.items():
-            print termcolor.colored(service.__repr__(path_only=True), service.get_group().color)
-
-            for host_slug, git_output in data.items():
-                print '      %-40s %s' % (termcolor.colored(host_slug, 'green'), git_output.strip())
+        self.console.lesspipe(iterate())
 
     __call__ = show

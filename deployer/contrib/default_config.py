@@ -6,15 +6,6 @@ from deployer.node import Node, map_roles
 class localhost(LocalHost):
     slug = 'localhost'
 
-'''
-from deployer.host import SSHHost
-
-class my_remote_host(SSHHost):
-    slug = 'my-remote-host'
-    address = '192.168.0.100'
-    username = 'username'
-    password = 'password'
-'''
 
 class example_settings(Node):
     class Hosts:

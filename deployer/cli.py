@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-__doc__ = """
+"""
 Pure Python alternative to readline and cmm.Cmd.
 
 Author: Jonathan Slenders

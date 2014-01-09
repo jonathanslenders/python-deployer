@@ -3,7 +3,6 @@ from deployer.groups import Group
 from deployer.inspection import filters
 from functools import wraps
 
-__doc__ = \
 """
 Inspector
 ---------
@@ -320,7 +319,7 @@ class Inspector(object):
         It does not split ``SimpleNodes`` nodes in several isolations.
 
         :param filter: A :class:`.filters.Filter` instance.
-        :returns: A :class:`.NodeIterator` instance.
+        :returns: A :class:`NodeIterator` instance.
         """
         return NodeIterator(self._walk).filter(filter)
 

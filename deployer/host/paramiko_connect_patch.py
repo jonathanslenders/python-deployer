@@ -7,7 +7,6 @@ from paramiko.transport import Transport
 from paramiko.resource import ResourceManager
 from paramiko.ssh_exception import BadHostKeyException
 
-__doc__ = \
 """
 Patch for the paramiko SSHClient.connect function.
 The only difference is that it calls a progress bar callback.

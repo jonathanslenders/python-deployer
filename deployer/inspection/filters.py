@@ -1,4 +1,3 @@
-__doc__ = \
 """
 Filters for NodeIterator
 ------------------------
