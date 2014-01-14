@@ -360,7 +360,7 @@ class Console(object):
         stdout.write(colored(' ***\n', 'yellow'))
         stdout.flush()
 
-    def progress_bar(self, message, expected=None, clear_on_finish=False):
+    def progress_bar(self, message, expected=None, clear_on_finish=False, format_str=None):
         """
         Display a progress bar. This returns a Python context manager.
         Call the next() method to increase the counter.
@@ -373,10 +373,12 @@ class Console(object):
                     ...
 
         :returns: :class:`ProgressBar` instance.
+        :param message: Text label of the progress bar.
         """
-        return ProgressBar(self._pty, message, expected=expected, clear_on_finish=clear_on_finish)
+        return ProgressBar(self._pty, message, expected=expected,
+                    clear_on_finish=clear_on_finish, format_str=format_str)
 
-    def progress_bar_with_steps(self, message, steps):
+    def progress_bar_with_steps(self, message, steps, format_str=None):
         """
         Display a progress bar with steps.
 
@@ -396,8 +398,9 @@ class Console(object):
                 ...
 
         :param steps: :class:`ProgressBarSteps` instance.
+        :param message: Text label of the progress bar.
         """
-        return ProgressBar(self._pty, message, steps=steps)
+        return ProgressBar(self._pty, message, steps=steps, format_str=format_str)
 
 
 class ProgressBarSteps(object): # TODO: unittest this class.
@@ -419,7 +422,7 @@ class ProgressBarSteps(object): # TODO: unittest this class.
 class ProgressBar(object):
     interval = .1 # Refresh interval
 
-    def __init__(self, pty, message, expected=None, steps=None, clear_on_finish=False):
+    def __init__(self, pty, message, expected=None, steps=None, clear_on_finish=False, format_str=None):
         if expected and steps:
             raise Exception("Don't give expected and steps parameter at the same time.")
 
@@ -443,35 +446,44 @@ class ProgressBar(object):
 
         self.steps = steps
 
+        # Formatting
+        if format_str:
+            self.format_str = format_str
+        elif self.expected:
+            self.format_str = '%(message)s: %(counter)s/%(expected)s [%(percentage)s completed]  [%(duration)s] [%(status)s]'
+        else:
+            self.format_str = '%(message)s: %(counter)s [%(duration)s] [%(status)s]'
+
     def __enter__(self):
         self._print()
         return self
 
     def _print(self):
-        if self.expected:
-            if self.expected > 0:
-                perc = '%s%%' % (self.counter * 100 / self.expected)
-            else:
-                perc = '??'
+        # Calculate percentage
+        percentage = '??'
+        if self.expected and self.expected > 0:
+            percentage = '%s%%' % (self.counter * 100 / self.expected)
 
-            counter_str = '%s/%s [%s completed]' % (self.counter, self.expected, perc)
-        else:
-            counter_str = '%s' % self.counter
-
+        # Calculate duration
         duration = (self.end_time or datetime.now()) - self.start_time
         duration = str(duration).split('.')[0] # Don't show decimals.
 
-        message = colored('%s:' % self.message, 'cyan')
-        counter_str = colored(counter_str, 'cyan', attrs=['bold'])
-        duration = colored(duration, 'cyan')
-
-        done = colored(' %s ' % (
-                '[DONE]' if self.done else
-                '[%s]' % self.steps.get_step_description(self.counter) if self.steps
+        status = colored((
+                'DONE' if self.done else
+                self.steps.get_step_description(self.counter) if self.steps
                 else ''), 'green')
 
-        self._pty.stdout.write('\x1b[K%s  %s  [%s] %s\r' % (message, counter_str, duration, done))
-        # '\x1b[K' clears the line.
+        format_str = '\r\x1b[K' + self.format_str + '\r' # '\x1b[K' clears the line.
+
+        self._pty.stdout.write(format_str % {
+            'message': self.message,
+            'counter': self.counter,
+            'duration': duration,
+            'counter': self.counter,
+            'expected': self.expected,
+            'percentage': percentage,
+            'status': status ,
+        })
 
     def next(self):
         """
