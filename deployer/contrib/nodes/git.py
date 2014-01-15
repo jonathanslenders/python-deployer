@@ -70,6 +70,13 @@ class Git(SimpleNode):
 
         self._checkout(commit)
 
+    def _before_checkout_hook(self, commit):
+        """ To be overridden. This function can throw an exception for
+        instance, in a case when it's not allowed to continue with the
+        checkout. (e.g. when git-grep matches a certain pattern that is not
+        allowed on the machine.) """
+        pass
+
     def _checkout(self, commit):
         """
         This will either clone or checkout the given commit. Changes in the
@@ -86,6 +93,8 @@ class Git(SimpleNode):
 
         with host.cd(self.repository_location):
             host.run('git fetch --all --prune')
+
+            self._before_checkout_hook(commit)
 
             # Stash
             if existed:
