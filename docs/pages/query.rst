@@ -98,10 +98,3 @@ A query can even do complex calculations:
 .. note:: Python does not support overloading the ``and``, ``or`` and ``not``
           operators. You should use the bitwise equivalents ``&``, ``|`` and
           ``~`` instead.
-
-Reference
----------
-
-TODO: implemented operators
-
-TODO: implemented special methods: __getitem__, 

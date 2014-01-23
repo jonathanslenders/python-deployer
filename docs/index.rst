@@ -40,17 +40,17 @@ Table of contents
    pages/getting_started
    pages/architecture_of_roles_and_nodes
    pages/interactive_shell
-   pages/internals
 
    pages/node
+   pages/host
+   pages/host_container
    pages/groups
    pages/console
    pages/inspection
    pages/query
-   pages/host
-   pages/host_container
    pages/utils
    pages/exceptions
    pages/pseudo_terminal
+   pages/internals
 
    pages/about

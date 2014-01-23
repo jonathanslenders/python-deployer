@@ -10,9 +10,9 @@ A simple example of a node:
 
 ::
 
-    from deployer.node import SimpleNode
+    from deployer.node import ParallelNode
 
-    class SayHello(SimpleNode):
+    class SayHello(ParallelNode):
         def hello(self):
             self.host.run('echo hello world')
 
@@ -91,22 +91,87 @@ classes:
             return 'http://%s' % self.domain
 
 
-The difference between Node and SimpleNode
-------------------------------------------
+The importance of ``ParallelNode``
+----------------------------------
 
-TODO: ...
+.. note:: ``ParallelNode`` was called ``SimpleNode`` before.
+
+There are several kind of setups. You can have many hosts which are all doing
+exactly the same, or many hosts that do something different. Simply said,
+``ParallelNode`` should be used when you have many hosts in your node that all
+do exactly the same. Actions on such a ``ParallelNode`` can be executed in
+parallel. The hosts are equal but also independend and don't need to know about
+each other. An example is an array of stateless web servers.
+
+A typical setup consists of a root node which is just a normal ``Node``, with
+several arrays of ``ParallelNode`` nested inside.
+
+
+Isolation of hosts in ``ParallelNode``.
+***************************************
+
+Take the following example:
+
+::
+
+    class WebSystem(ParallelNode):
+        class Hosts:
+            host = { Host1, Host2, Host3, Host4 }
+
+        def checkout_git(self, commit):
+            self.host.run("git checkout '%s'" % esc1(commit))
+
+        def restart(self):
+            self.host.run("nginx restart")
+
+        def deploy(self, commit):
+            self.checkout_git(commit)
+            self.restart()
+
+
+We see a ``ParallelNode`` class with three actions and four Hosts mapped to the
+role ``host`` of this node. Because of the isolation that ``ParallelNode``
+provides, it is possible to call any of the four actions independently on any
+of the four hosts. Look how our ``WebSystem`` acts like an array:
+
+::
+
+    websystem = WebSystem()
+    websystem[Host1].deploy('abcde6565eee...')
+    websystem[Host2].restart()
+
+We can also call an action directly without specifying a host. This will allow
+parallel execution. It says: call this action on every cell of the array. They
+are independent and unordered in this case, so we don't have to run the deploy
+sequentially.
+
+::
+
+    websystem = WebSystem()
+    websystem.deploy('abcde6565eee...') # Parallel execution.
+
+.. note:: One thing worth noting is that there is a variable ``host`` in the
+          class. This is because the isolation always happens by convention on
+          the role named ``host``. Both sides of the following equation will
+          represent a host container containing exactly one host: the host of
+          the current isolation.
+
+          ::
+
+                self.host == self.hosts.filter('host')
+
+          If there happen to be hosts mapped to other roles, they will simply
+          become available for every instance in the role named ``host``. If
+          you'd call ``self.hosts.filter('other_role')``, that would still
+          work.
 
 
 .Array and .JustOne
 *******************
 
-TODO: complete ...
-
-TODO: ``SimpleNode`` will probably be renamed to ``PNode`` (or ParallelNode)
-
-``.Array`` and ``.JustOne`` are required for nesting a ``SimpleNode`` inside a
+``.Array`` and ``.JustOne`` are required for nesting a ``ParallelNode`` inside a
 normal ``Node``. The idea is that when host roles are mapped from the parent
-``Node``, to the child -- which is a ``SimpleNode`` --, that this childnode
+``Node``, to the child -- which is a ``ParallelNode`` --, that this childnode
 behaves as an array. Each 'cell' in the array is isolated, so it's possible to
 execute a command on just one 'cell' (or host) of the array or all 'cells' (or
 hosts.) You can use it as follows:
@@ -114,18 +179,16 @@ hosts.) You can use it as follows:
 ::
 
     class NormalNode(Node):
-        class OurSimpleNode(SimpleNode.Array):
-            class SimpleNode(SimpleNode):
+        class OurParallelNode(ParallelNode.Array):
+            class PNode(ParallelNode):
                 pass
 
 
-Basically, you can nest 'normal' nodes inside each other, and
-``SimpleNodes`` classes inside each other. However, when nesting such a
-``SimpleNode`` inside a normal node, the ``.Array`` suffix is required to
-indicate the creation of an array. ``.JustOne`` can always be used instead of
-an array, if you assert that only one host will be in there.
-
-TODO: more examples...
+Basically, you can nest 'normal' nodes inside each other, and ``ParallelNode``
+classes inside each other. However, when nesting such a ``ParallelNode`` inside
+a normal node, the ``.Array`` suffix is required to indicate the creation of an
+array. ``.JustOne`` can always be used instead of an array, if you assert that
+only one host will be in there.
 
 
 Using contrib.nodes

@@ -21,14 +21,14 @@ SSH client.
 
    digraph internals{
        "Node" [style=filled, fillcolor=gold1];
-       "SimpleNode" [style=filled, fillcolor=gold1];
+       "ParallelNode" [style=filled, fillcolor=gold1];
        "Host" [style=filled, fillcolor=gold1];
 
        "Host" [shape=box];
        "HostContainer" [shape=box];
        "HostsContainer" [shape=box];
        "Node" [shape=box];
-       "SimpleNode" [shape=box];
+       "ParallelNode" [shape=box];
        "Env" [shape=box];
        "HostContext" [shape=box];
 
@@ -39,17 +39,17 @@ SSH client.
        "HostsContainer" -> "HostContext";
        "HostContainer" -> "HostContext";
        "Node" -> "HostsContainer";
-       "SimpleNode" -> "HostsContainer";
-       "SimpleNode" -> "HostContainer";
+       "ParallelNode" -> "HostsContainer";
+       "ParallelNode" -> "HostContainer";
        "Env" -> "Node";
-       "Env" -> "SimpleNode";
+       "Env" -> "ParallelNode";
        "Interactive shell" -> "Env";
    }
 
    
 
-The yellow classes -- :class:`Node <deployer.node.Node>`, :class:`SimpleNode
-<deployer.node.SimpleNode>` and :class:`Host <deployer.host.Host>` -- are the
+The yellow classes -- :class:`Node <deployer.node.Node>`, :class:`ParallelNode
+<deployer.node.ParallelNode>` and :class:`Host <deployer.host.Host>` -- are the
 ones which an average end-user of this framework will use. He will inherit from
 there to define his deployment script.
 
@@ -68,14 +68,3 @@ interactive shell also has a telnet server (remote shell) and a shell which has
 some multithreaded execution model (parallel deployment). These are realized
 through Twisted Matrix, and there's some event-driven code touching the
 iterative blocking code.
-
-
-More in-depth execution flow
-----------------------------
-
-TODO: describe by example how stuff is proxied, how we keep things thread-safe
-and performant.
-
-TODO: more in depth: more explanation, ...
-
-TODO: Tell why we need unbuffered stdin/out.

@@ -153,13 +153,19 @@ class Stat(object):
 
 class Host(object):
     """
-    Definiton of a remote host. An instance will open an SSH connection
-    according to the settings defined in the class definition.
+    Abstract base class for SSHHost and LocalHost.
 
     :param pty: The pseudo terminal wrapper which handles the stdin/stdout.
     :type pty: :class:`deployer.pseudo_terminal.Pty`
     :param logger: The logger interface.
     :type logger: LoggerInterface
+
+    ::
+
+            class MyHost(SSHHost):
+                ...
+            my_host = MyHost()
+            my_host.run('pwd', interactive=False)
     """
     #class __metaclass__(type):
     #    @property
@@ -630,14 +636,14 @@ class Host(object):
 
         ::
 
-            with host.open('/path/to/somefile', wb') as f:
+            with host.open('/path/to/somefile', 'wb') as f:
                 f.write('some content')
 
         or:
 
         ::
 
-            host.open('/path/to/somefile', wb').write('some content')
+            host.open('/path/to/somefile', 'wb').write('some content')
         """
         # Expand path
         remote_path = os.path.normpath(os.path.join(self.getcwd(), self.expand_path(remote_path)))
