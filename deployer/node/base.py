@@ -24,6 +24,8 @@ __all__ = (
     'NodeBase',
     'SimpleNode',
     'SimpleNodeBase',
+    'ParallelNode',
+    'ParallelNodeBase',
     'iter_isolations',
     'required_property',
 )
@@ -500,12 +502,12 @@ class NodeBase(type):
                     isinstance(instance, Env) and isinstance(instance._node, self))
 
 
-class SimpleNodeBase(NodeBase):
+class ParallelNodeBase(NodeBase):
     @property
     def Array(self):
         """
-        'Arrayify' a SimpleNode. This is an explicit step
-        to be taken before nesting SimpleNode into a normal Node.
+        'Arrayify' a ParallelNode. This is an explicit step
+        to be taken before nesting ParallelNode into a normal Node.
         """
         if self._node_type != NodeTypes.SIMPLE:
             raise Exception('Second .Array operation is not allowed.')
@@ -513,17 +515,17 @@ class SimpleNodeBase(NodeBase):
         # When this class doesn't have a Hosts, create default mapper.
         hosts = RoleMapping(host=ALL_HOSTS) if self.Hosts is None else self.Hosts
 
-        class SimpleNodeArray(self):
+        class ParallelNodeArray(self):
             _node_type = NodeTypes.SIMPLE_ARRAY
             Hosts = hosts
 
-        SimpleNodeArray.__name__ = '%s.Array' % self.__name__
-        return SimpleNodeArray
+        ParallelNodeArray.__name__ = '%s.Array' % self.__name__
+        return ParallelNodeArray
 
     @property
     def JustOne(self):
         """
-        When nesting SimpleNode inside a normal Node,
+        When nesting ParallelNode inside a normal Node,
         say that we expect exactly one host for the mapped
         role, so don't act like an array.
         """
@@ -533,7 +535,7 @@ class SimpleNodeBase(NodeBase):
         # When this class doesn't have a Hosts, create default mapper.
         hosts = RoleMapping(host=ALL_HOSTS) if self.Hosts is None else self.Hosts
 
-        class SimpleNode_One(self):
+        class ParallelNode_One(self):
             _node_type = NodeTypes.SIMPLE_ONE
             Hosts = hosts
 
@@ -541,12 +543,18 @@ class SimpleNodeBase(NodeBase):
             def __init__(self, parent):
                 Node.__init__(self, parent)
                 if len(self.hosts.filter('host')) != 1:
-                    raise Exception('Invalid initialisation of SimpleNode.JustOne. %i hosts given to %r.' %
+                    raise Exception('Invalid initialisation of ParallelNode .JustOne. %i hosts given to %r.' %
                             (len(self.hosts.filter('host')), self))
 
 
-        SimpleNode_One.__name__ = '%s.JustOne' % self.__name__
-        return SimpleNode_One
+        ParallelNode_One.__name__ = '%s.JustOne' % self.__name__
+        return ParallelNode_One
+
+
+SimpleNodeBase = ParallelNodeBase
+"""
+Deprecated alias for ParallelNodeBase
+"""
 
 
 def get_node_path(node): # TODO: maybe replace this by using the inspection module.
@@ -618,16 +626,16 @@ class Node(object):
         else:
             self.hosts = HostsContainer.from_definition(Hosts)
 
-        # TODO: when this is a SimpleNode and a parent was given, do we have to make sure that the
+        # TODO: when this is a ParallelNode and a parent was given, do we have to make sure that the
         #       the 'host' is the same, when a mapping was given? I don't think it's necessary.
 
     def __getitem__(self, index):
         """
-        When this is a not-yet-isolated SimpleNode,
+        When this is a not-yet-isolated ParallelNode,
         __getitem__ retrieves the instance for this host.
 
         This returns a specific isolation. In case of multiple dimensions
-        (multiple Node-SimpleNode.Array transitions, a tuple should be provided.)
+        (multiple Node-ParallelNode.Array transitions, a tuple should be provided.)
         """
         if self._node_is_isolated:
             # TypeError, would also be a good, idea, but we choose to be compatible
@@ -681,14 +689,14 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
 
     def get_simple_node_cell(parent, host, identifier):
         """
-        For a SimpleNode (or array cell), create a SimpleNode instance which
-        matches a single cell, that is one Host for the 'host'-role.
+        For a ParallelNode (or array cell), create a ParallelNode instance
+        which matches a single cell, that is one Host for the 'host'-role.
         """
         assert isinstance(host, Host)
         hosts2 = node.hosts.get_hosts_as_dict()
         hosts2['host'] = host.__class__
 
-        class SimpleNodeItem(node.__class__):
+        class ParallelNodeItem(node.__class__):
             _node_is_isolated = True
             _node_isolation_identifier = identifier
             Hosts = type('Hosts', (object,), hosts2)
@@ -699,7 +707,7 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
         # return isolated instances.)
         assert not parent or parent._node_is_isolated
 
-        return SimpleNodeItem(parent=parent)
+        return ParallelNodeItem(parent=parent)
 
     def get_identifiers(node, parent_identifier):
         # The `node` parameter here is one for which the parent is
@@ -754,13 +762,15 @@ def iter_isolations(node, identifier_type=IsolationIdentifierType.INT_TUPLES):
                 yield (identifier, get_simple_node_cell(None, host, identifier[-1]))
 
 
-class SimpleNode(Node):
+class ParallelNode(Node):
     """
-    A ``SimpleNode`` is a ``Node`` which has only one role, named ``host``.
+    A ``ParallelNode`` is a ``Node`` which has only one role, named ``host``.
     Multiple hosts can be given for this role, but all of them will be isolated,
     during execution. This allows parallel executing of functions on each 'cell'.
+
+    :note: This was called `SimpleNode` before.
     """
-    __metaclass__ = SimpleNodeBase
+    __metaclass__ = ParallelNodeBase
     _node_type = NodeTypes.SIMPLE
 
     def host(self):
@@ -773,6 +783,12 @@ class SimpleNode(Node):
             raise AttributeError
     host._internal = True
     host = property(host)
+
+
+SimpleNode = ParallelNode
+"""
+Deprecated alias for ParallelNode
+"""
 
 
 class Action(object):
@@ -897,7 +913,7 @@ class EnvAction(object):
 
     def _run_on_node(self, isolation, *a, **kw):
         """
-        Run the action on one isolation. (On a normal Node, or on a SimpleNode cell.)
+        Run the action on one isolation. (On a normal Node, or on a ParallelNode cell.)
         """
         with isolation._logger.group(self._action._func, *a, **kw):
             while True:
@@ -943,13 +959,13 @@ class EnvAction(object):
                     raise e2
 
     def __call__(self, *a, **kw):
-        if isinstance(self._env, SimpleNode) and not self._env._node_is_isolated and \
+        if isinstance(self._env, ParallelNode) and not self._env._node_is_isolated and \
                             not getattr(self._action._func, 'dont_isolate_yet', False):
 
             # Get isolations of the env.
             isolations = list(self._env)
 
-            # No hosts in SimpleNode. Nothing to do.
+            # No hosts in ParallelNode. Nothing to do.
             if len(isolations) == 0:
                 print 'Nothing to do. No hosts in %r' % self._action
                 return [ ]
