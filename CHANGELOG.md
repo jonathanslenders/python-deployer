@@ -5,7 +5,14 @@ Changelog
 Now
 ---
 
-...
+- Improved documentation
+- Renamed SimpleNode to ParallelNode
+
+Version 0.3.6: 15 january 2014
+-------------------------------
+
+- Added keep-panes-open option
+
 
 Version 0.3.5: 26 november 2013
 -------------------------------
