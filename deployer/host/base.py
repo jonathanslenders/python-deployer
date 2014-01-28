@@ -22,6 +22,7 @@ from twisted.internet import fdesc
 __all__ = (
     'Host',
     'HostContext',
+    'Stat',
 )
 
 class HostContext(object):
@@ -265,7 +266,7 @@ class Host(object):
         """
         Return the network information for this host.
 
-        :returns: A :class:`deployer.utils.IfConfig` instance.
+        :returns: An :class:`IfConfig <deployer.utils.network.IfConfig>` instance.
         """
         # We add "cd /", to be sure that at least no error get thrown because
         # we're in a non existing directory right now.
@@ -623,7 +624,7 @@ class Host(object):
 
     def listdir_stat(self, path='.'):
         """
-        Return a list of :class:`Stat` instances for each file in this directory.
+        Return a list of :class:`.Stat` instances for each file in this directory.
         """
         raise NotImplementedError
 

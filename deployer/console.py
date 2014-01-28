@@ -39,14 +39,14 @@ class Console(object):
     """
     Interface for user interaction from within a ``Node``.
 
-    :param pty: :class:`deployer.pseudo_terminal.pty` instance.
+    :param pty: :class:`deployer.pseudo_terminal.Pty` instance.
     """
     def __init__(self, pty):
         self._pty = pty
 
     @property
     def pty(self):
-        """ The :class:`deployer.pseudo_terminal.pty` of this console. """
+        """ The :class:`deployer.pseudo_terminal.Pty` of this console. """
         return self._pty
 
     @property

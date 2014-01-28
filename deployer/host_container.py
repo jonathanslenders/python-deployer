@@ -65,7 +65,7 @@ class HostsContainer(object):
     @classmethod
     def from_definition(cls, hosts_class, **kw):
         """
-        Create a ``HostContainer`` from a Hosts class.
+        Create a :class:`HostsContainer` from a Hosts class.
         """
         hosts = { }
         for k in dir(hosts_class):
@@ -88,16 +88,16 @@ class HostsContainer(object):
 
     def get_hosts(self):
         """
-        Return a set of :class:`Host` classes that appear in this container.
-        Each ``Host`` class will abviously appear only once in the set, even
-        when it appears in several roles.
+        Return a set of :class:`deployer.host.Host` classes that appear in this
+        container.  Each :class:`deployer.host.Host` class will abviously
+        appear only once in the set, even when it appears in several roles.
         """
         return { h.__class__ for l in self._hosts.values() for h in l }
 
     def get_hosts_as_dict(self):
         """
         Return a dictionary which maps all the roles to the set of
-        :class:`Host` classes for each role.
+        :class:`deployer.host.Host` classes for each role.
         """
         return { k: { h.__class__ for h in l } for k,l in self._hosts.items() }
 
@@ -121,9 +121,9 @@ class HostsContainer(object):
 
     def __len__(self):
         """
-        Returns the amount of :class:`Host` instances in this container. If a
-        host appears in several roles, each appearance will be taken in
-        account.
+        Returns the amount of :class:`deployer.host.Host` instances in this
+        container. If a host appears in several roles, each appearance will be
+        taken in account.
         """
         return sum(len(v) for v in self._hosts.values())
 

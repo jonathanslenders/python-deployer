@@ -42,6 +42,7 @@ Table of contents
    pages/interactive_shell
 
    pages/node
+   pages/node_reference
    pages/host
    pages/host_container
    pages/groups

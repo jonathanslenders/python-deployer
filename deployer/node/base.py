@@ -33,8 +33,17 @@ __all__ = (
 
 class required_property(property):
     """
-    Placeholder for properties which are required
-    when a service is inherit.
+    Placeholder for properties which are required when a service is inherit.
+
+    ::
+
+        class MyNode(Node):
+            name = required_property()
+
+            def method(self):
+                # This will raise an exception, unless this class was
+                # inherited, and `name` was filled in.
+                print (self.name)
     """
     def __init__(self, description=''):
         self.description = description
@@ -50,11 +59,14 @@ class required_property(property):
 
 class ChildNodeDescriptor(object):
     """
-    Every nested Node class definition in a Node will be wrapped by this descriptor. For instance:
+    Every nested Node class definition in a Node will be wrapped by this
+    descriptor. For instance:
 
-    >> class ParentNode(Node):
-    >>     class ChildNode(Node):
-    >>         pass
+    ::
+
+    class ParentNode(Node):
+        class ChildNode(Node):
+            pass
     """
     def __init__(self, attr_name, node_class):
         self.attr_name = attr_name

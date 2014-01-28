@@ -1,8 +1,10 @@
+.. _node-object:
+
 The node object
 ===============
 
-The `deployer.node.Node` class is probably the most important class of this
-framework. See `architecture of roles and nodes
+The :class:`Node <deployer.node.base.Node>` class is probably the most
+important class of this framework. See :ref:`architecture of roles and nodes
 <architecture-of-roles-and-nodes>` for a high level overview of what a Node
 exactly is.
 
@@ -71,8 +73,8 @@ you do this:
                 domain = 'mydomain.com'
 
 This is not too bad, but if you have a lot of nested classes, it can become
-pretty ugly. Therefor, the `deployer.node.Node` class has some magic which
-allows us to do this instead:
+pretty ugly. Therefor, the :class:`Node <deployer.node.base.Node>` class has
+some magic which allows us to do this instead:
 
 ::
 
@@ -94,17 +96,20 @@ classes:
 The importance of ``ParallelNode``
 ----------------------------------
 
-.. note:: ``ParallelNode`` was called ``SimpleNode`` before.
+.. note:: :class:`ParallelNode <deployer.node.base.ParallelNode>` was called
+          ``SimpleNode`` before.
 
 There are several kind of setups. You can have many hosts which are all doing
 exactly the same, or many hosts that do something different. Simply said,
-``ParallelNode`` should be used when you have many hosts in your node that all
-do exactly the same. Actions on such a ``ParallelNode`` can be executed in
+:class:`ParallelNode <deployer.node.base.ParallelNode>` should be used when you
+have many hosts in your node that all do exactly the same. Actions on such a
+:class:`ParallelNode <deployer.node.base.ParallelNode>` can be executed in
 parallel. The hosts are equal but also independend and don't need to know about
 each other. An example is an array of stateless web servers.
 
-A typical setup consists of a root node which is just a normal ``Node``, with
-several arrays of ``ParallelNode`` nested inside.
+A typical setup consists of a root node which is just a normal
+:class:`Node <deployer.node.base.Node>`, with several arrays of
+:class:`ParallelNode <deployer.node.base.ParallelNode>` nested inside.
 
 
 Isolation of hosts in ``ParallelNode``.
@@ -129,8 +134,9 @@ Take the following example:
             self.restart()
 
 
-We see a ``ParallelNode`` class with three actions and four Hosts mapped to the
-role ``host`` of this node. Because of the isolation that ``ParallelNode``
+We see a :class:`ParallelNode <deployer.node.base.ParallelNode>` class with
+three actions and four Hosts mapped to the role ``host`` of this node. Because
+of the isolation that :class:`ParallelNode <deployer.node.base.ParallelNode>`
 provides, it is possible to call any of the four actions independently on any
 of the four hosts. Look how our ``WebSystem`` acts like an array:
 
@@ -169,12 +175,14 @@ sequentially.
 .Array and .JustOne
 *******************
 
-``.Array`` and ``.JustOne`` are required for nesting a ``ParallelNode`` inside a
-normal ``Node``. The idea is that when host roles are mapped from the parent
-``Node``, to the child -- which is a ``ParallelNode`` --, that this childnode
-behaves as an array. Each 'cell' in the array is isolated, so it's possible to
-execute a command on just one 'cell' (or host) of the array or all 'cells' (or
-hosts.) You can use it as follows:
+``.Array`` and ``.JustOne`` are required for nesting a
+:class:`ParallelNode <deployer.node.base.ParallelNode>` inside a normal
+:class:`Node <deployer.node.base.Node>`. The idea is that when host roles are
+mapped from the parent :class:`Node <deployer.node.base.Node>`, to the child --
+which is a :class:`ParallelNode <deployer.node.base.ParallelNode>` --, that
+this childnode behaves as an array. Each 'cell' in the array is isolated, so
+it's possible to execute a command on just one 'cell' (or host) of the array or
+all 'cells' (or hosts.) You can use it as follows:
 
 ::
 
@@ -184,11 +192,12 @@ hosts.) You can use it as follows:
                 pass
 
 
-Basically, you can nest 'normal' nodes inside each other, and ``ParallelNode``
-classes inside each other. However, when nesting such a ``ParallelNode`` inside
-a normal node, the ``.Array`` suffix is required to indicate the creation of an
-array. ``.JustOne`` can always be used instead of an array, if you assert that
-only one host will be in there.
+Basically, you can nest 'normal' nodes inside each other, and
+:class:`ParallelNode <deployer.node.base.ParallelNode>` classes inside each
+other. However, when nesting such a :class:`ParallelNode
+<deployer.node.base.ParallelNode>` inside a normal node, the ``.Array`` suffix
+is required to indicate the creation of an array. ``.JustOne`` can always be
+used instead of an array, if you assert that only one host will be in there.
 
 
 Using contrib.nodes
@@ -215,5 +224,4 @@ Some recommended contrib nodes:
 Reference
 ---------
 
-.. automodule:: deployer.node
-    :members:
+See :ref:`Node reference <node-reference>`.

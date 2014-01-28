@@ -48,13 +48,13 @@ SSH client.
 
    
 
-The yellow classes -- :class:`Node <deployer.node.Node>`, :class:`ParallelNode
-<deployer.node.ParallelNode>` and :class:`Host <deployer.host.Host>` -- are the
-ones which an average end-user of this framework will use. He will inherit from
-there to define his deployment script.
+The yellow classes -- :class:`Node <deployer.node.base.Node>`,
+:class:`ParallelNode <deployer.node.base.ParallelNode>` and :class:`Host
+<deployer.host.Host>` -- are the ones which an average end-user of this
+framework will use. He will inherit from there to define his deployment script.
 
 :class:`HostContainer <deployer.host_container.HostContainer>` (singular and
-plural) and :class:`Env <deployer.node.Env>` are proxy classes. They are
+plural) and :class:`Env <deployer.node.base.Env>` are proxy classes. They are
 created by the framework, but passed to the user's code at some points.
 
 ``Paramiko``, at the lowest level, is responsible for the SSH connection. The
