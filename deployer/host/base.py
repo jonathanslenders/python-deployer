@@ -481,9 +481,9 @@ class Host(object):
             # Read/write loop
             while True:
                 # Don't wait for any input when an exit status code has been
-                # set already.
+                # set already. (But still wait for the output to finish.)
                 if chan.status_event.isSet():
-                    break;
+                    reading_from_stdin = False
 
                 channels = [self.pty.stdin, chan] if reading_from_stdin else [chan]
                 r, w, e = select(channels, [], [])
