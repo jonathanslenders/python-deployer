@@ -1,12 +1,17 @@
 Changelog
 =========
 
-
 Now
 ---
 
+
+Version 0.3.7: 6 february 2014
+------------------------------
+
 - Improved documentation
 - Renamed SimpleNode to ParallelNode
+- Bugfix in interactive_shell: getting term variable from pty object.
+- Bugfix: wait for the output to finish before closing interactive shell.
 
 Version 0.3.6: 15 january 2014
 -------------------------------
