@@ -269,7 +269,7 @@ class SSHHost(Host):
         """
         # Start a new shell using the same dimentions as the current terminal
         height, width = self.pty.get_size()
-        chan = self._backend.get_ssh(self).invoke_shell(term=self.term, height=height, width=width)
+        chan = self._backend.get_ssh(self).invoke_shell(term=self.pty.get_term_var(), height=height, width=width)
 
         # Keep size of local pty and remote pty in sync
         def set_size():
