@@ -496,8 +496,8 @@ class CLInterface(object):
 
             # Receive stream from monitor
             if self._extra_stdin in r:
-                self.stdout.write('\x1b[1000D') # Move cursor to the left
-                self.stdout.write('\x1b[K') # Erace until the end of line
+                self.stdout.write('\r') # Move cursor to the left
+                self.stdout.write('\x1b[K') # Erase until the end of line
                 self.stdout.write(self._extra_stdin.read(4096))
                 self.stdout.write('\r\n')
 
