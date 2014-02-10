@@ -7,6 +7,7 @@ from our_hosts import LocalHost1, LocalSSHHost1
 import os
 import unittest
 import tempfile
+from os.path import expanduser
 
 
 class HostTest(unittest.TestCase):
@@ -38,6 +39,10 @@ class HostTest(unittest.TestCase):
         # Test 'cd /'
         with context.cd('/'):
             self.assertEqual(host.run('pwd', interactive=False).strip(), '/')
+
+        # Test cd with path expansion
+        with context.cd('~', expand=True):
+            self.assertEqual(host.run('pwd', interactive=False).strip(), expanduser('~'))
 
         # Test env nesting.
         with context.env('VAR1', 'var1'):

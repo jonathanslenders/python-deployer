@@ -38,6 +38,9 @@ class LocalHost(Host):
             self._ensure_password_is_known()
         return Host.run(self, *a, **kw)
 
+    def _expand_tilde(self, relative_path):
+        return os.path.expanduser(relative_path)
+
     def expand_path(self, path):
         return os.path.expanduser(path) # TODO: expansion like with SSHHost!!!!
 

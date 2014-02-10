@@ -223,16 +223,17 @@ class SSHHost(Host):
             self._cached_start_path = sftp.getcwd()
         return self._cached_start_path
 
-    def expand_path(self, path):
-        def expand_tilde(p):
-            if p.startswith('~/') or p == '~':
-                home = self._backend.get_sftp(self).normalize('.')
-                return p.replace('~', home, 1)
-            else:
-                return p
+    def _expand_tilde(self, p):
+        """ Do tilde expansion of this (relative) path """
+        if p.startswith('~/') or p == '~':
+            home = self._backend.get_sftp(self).normalize('.')
+            return p.replace('~', home, 1)
+        else:
+            return p
 
+    def expand_path(self, path):
         # Expand remote path, using the current working directory.
-        return os.path.join(expand_tilde(self.getcwd()), expand_tilde(path))
+        return os.path.join(self.getcwd(), self._expand_tilde(path))
 
     @wraps(Host.stat)
     def stat(self, remote_path):

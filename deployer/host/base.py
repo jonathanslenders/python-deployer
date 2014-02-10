@@ -69,19 +69,22 @@ class HostContext(object):
                 self._command_prefixes.pop()
         return Prefix()
 
-    def cd(self, path):
+    def cd(self, path, expand=False):
         """
         Execute commands in this directory.
         Nesting of cd-statements is allowed.
 
         ::
 
-            with host.cd('~/directory'):
+            with host.cd('directory'):
                 host.run('ls')
+
+        :param expand: Expand tildes.
+        :type expand: bool
         """
         class CD(object):
             def __enter__(context):
-                self._path.append(path)
+                self._path.append((path, expand))
 
             def __exit__(context, *args):
                 self._path.pop()
@@ -90,7 +93,7 @@ class HostContext(object):
     def _chdir(self, path):
         """ Move to this directory. Not to be used together with the `cd` context manager. """
         # NOTE: This is used by the sftp shell.
-        self._path = [ os.path.join(* self._path + [path]) ]
+        self._path = [ (os.path.join(* self._path + [path]), False) ]
 
     def env(self, variable, value, escape=True):
         """
@@ -228,7 +231,11 @@ class Host(object):
         """
         Return current working directory as absolute path.
         """
-        path = os.path.normpath(os.path.join(*[ self.get_start_path() ] + self.host_context._path))
+        # Get path from host context (expand expandable parts)
+        host_context_path = [ (self._expand_tilde(path) if expand else path) for path, expand in self.host_context._path ]
+
+        # Join with start path.
+        path = os.path.normpath(os.path.join(*[ self.get_start_path() ] + host_context_path))
         assert path[0] == '/' # Returns absolute directory (get_start_path() should be absolute)
         return path
 
@@ -586,6 +593,9 @@ class Host(object):
     def _expand_local_path(self, path):
         # Only tilde expansion
         return os.path.expanduser(path)
+
+    def _expand_tilde(self, relative_path):
+        raise NotImplementedError
 
     def expand_path(self, path):
         raise NotImplementedError
