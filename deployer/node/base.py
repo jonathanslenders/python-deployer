@@ -552,7 +552,7 @@ class ParallelNodeBase(NodeBase):
             Hosts = hosts
 
             @_internal
-            def __init__(self, parent):
+            def __init__(self, parent=None):
                 Node.__init__(self, parent)
                 if len(self.hosts.filter('host')) != 1:
                     raise Exception('Invalid initialisation of ParallelNode .JustOne. %i hosts given to %r.' %
