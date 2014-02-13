@@ -13,7 +13,7 @@ from inspect import isfunction
 
 import logging
 import traceback
-
+import sys
 
 __all__ = (
     'Action',
@@ -197,6 +197,24 @@ class Env(object):
 
     def __repr__(self):
         return 'Env(%s)' % get_node_path(self._node)
+
+    @classmethod
+    def default_from_node(cls, node):
+        """
+        Create a default environment for this node to run.
+
+        It will be attached to stdin/stdout and commands will be logged to
+        stdout. The is the most obvious default.
+        """
+        from deployer.pseudo_terminal import Pty
+        from deployer.loggers import LoggerInterface
+        from deployer.loggers.default import DefaultLogger
+
+        pty = Pty(stdin=sys.stdin, stdout=sys.stdout, interactive=False)
+        logger_interface = LoggerInterface()
+        logger_interface.attach(DefaultLogger())
+
+        return cls(node, pty=pty, logger=logger_interface, is_sandbox=False)
 
     def __wrap_action(self, action, auto_evaluate=True):
         """
