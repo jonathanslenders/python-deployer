@@ -5,6 +5,7 @@ import paramiko
 import threading
 
 from deployer.console import Console
+from deployer.exceptions import ConnectionFailedException
 from functools import wraps
 
 from .base import Host, Stat
@@ -121,7 +122,8 @@ class SSHBackend(object):
 
                     except (paramiko.SSHException, Exception) as e:
                         self._ssh_cache = None
-                        raise Exception('Could not connect to host %s (%s)\n%s' % (h.slug, h.address, unicode(e)))
+                        raise ConnectionFailedException('Could not connect to host %s:%s (%s) username=%s\n%s' %
+                                        (h.address, h.port, h.slug, h.username, unicode(e)))
 
             return self._ssh_cache
 

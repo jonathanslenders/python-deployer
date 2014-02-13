@@ -41,3 +41,9 @@ class ActionException(DeployerException):
     def __init__(self, inner_exception, traceback):
         self.inner_exception = inner_exception
         self.traceback = traceback
+
+
+class ConnectionFailedException(DeployerException):
+    """
+    When connecting to an SSH host fails.
+    """
