@@ -14,6 +14,7 @@ from inspect import isfunction
 import logging
 import traceback
 import sys
+import os
 
 __all__ = (
     'Action',
@@ -211,6 +212,7 @@ class Env(object):
         from deployer.loggers.default import DefaultLogger
 
         pty = Pty(stdin=sys.stdin, stdout=sys.stdout, interactive=False)
+        pty.set_term_var(os.environ.get('TERM', ''))
         logger_interface = LoggerInterface()
         logger_interface.attach(DefaultLogger())
 
