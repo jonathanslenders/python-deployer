@@ -211,8 +211,9 @@ class Env(object):
         from deployer.loggers import LoggerInterface
         from deployer.loggers.default import DefaultLogger
 
-        pty = Pty(stdin=sys.stdin, stdout=sys.stdout, interactive=False)
-        pty.set_term_var(os.environ.get('TERM', ''))
+        pty = Pty(stdin=sys.stdin, stdout=sys.stdout, interactive=False,
+                term_var=os.environ.get('TERM', ''))
+
         logger_interface = LoggerInterface()
         logger_interface.attach(DefaultLogger())
 

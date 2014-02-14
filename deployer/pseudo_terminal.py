@@ -28,10 +28,10 @@ class Pty(object):
     :interactive: When ``False``, we should never ask for input during
                          the deployment. Choose default options when possible.
     """
-    def __init__(self, stdin=None, stdout=None, interactive=True):
+    def __init__(self, stdin=None, stdout=None, interactive=True, term_var=''):
         self._stdin = stdin or sys.__stdin__
         self._stdout = stdout or sys.__stdout__
-        self._term_var = ''
+        self._term_var = term_var
         self.interactive = interactive
         self.set_ssh_channel_size = None
 

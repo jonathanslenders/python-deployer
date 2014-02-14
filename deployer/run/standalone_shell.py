@@ -48,7 +48,8 @@ def start(root_node, interactive=True, cd_path=None, logfile=None,
     sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 
     # Create Pty object
-    pty = Pty(sys.stdin, sys.stdout, interactive=interactive)
+    pty = Pty(sys.stdin, sys.stdout, interactive=interactive,
+                term_var=os.environ.get('TERM', ''))
 
     def sigwinch_handler(n, frame):
         pty.trigger_resize()
