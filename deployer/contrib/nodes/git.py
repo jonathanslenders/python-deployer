@@ -116,6 +116,7 @@ class Git(ParallelNode):
                         if not self.console.confirm('Should we continue?', default=True):
                             raise Exception('Problem with popping your stash, please check logs and try again.')
 
+
 class GitOverview(Node):
     """
     Show a nice readable overview of all the git checkouts of all the services in the tree.

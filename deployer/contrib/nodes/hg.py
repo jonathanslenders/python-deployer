@@ -27,6 +27,7 @@ class HgBase(ParallelNodeBase):
                 return self.host.run('hg %s' % command)
         return run
 
+
 class Hg(ParallelNode):
     """
     Mercurial repository.
