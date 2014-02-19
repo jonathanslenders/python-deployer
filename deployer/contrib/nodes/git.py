@@ -1,11 +1,11 @@
 from deployer.exceptions import ExecCommandFailed
-from deployer.node import Node, SimpleNode, SimpleNodeBase, dont_isolate_yet, required_property
+from deployer.node import Node, ParallelNode, ParallelNodeBase, dont_isolate_yet, required_property
 from deployer.utils import esc1
 
 __all__ = ('Git', 'GitOverview' )
 
 
-class GitBase(SimpleNodeBase):
+class GitBase(ParallelNodeBase):
     _default_commands = {
         'branch': 'branch',
         'describe': 'describe',
@@ -35,7 +35,7 @@ class GitBase(SimpleNodeBase):
             attrs[cmd_name] = cls._create_git_command(command,
                                         ignore_exit_status=command in cls._ignore_exit_status)
 
-        return SimpleNodeBase.__new__(cls, name, bases, attrs)
+        return ParallelNodeBase.__new__(cls, name, bases, attrs)
 
     @staticmethod
     def _create_git_command(command, ignore_exit_status=False):
@@ -45,7 +45,7 @@ class GitBase(SimpleNodeBase):
         return run
 
 
-class Git(SimpleNode):
+class Git(ParallelNode):
     """
     Manage the git checkout of a project
     """

@@ -1,10 +1,10 @@
 from deployer.inspection.inspector import Inspector
-from deployer.node import SimpleNode, Node
+from deployer.node import ParallelNode, Node
 
 import termcolor
 
 
-class AnalyseHost(SimpleNode):
+class AnalyseHost(ParallelNode):
     """
     Analyze a host and find out what it's used for.
     """

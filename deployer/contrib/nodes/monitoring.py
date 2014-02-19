@@ -1,9 +1,9 @@
-from deployer.node import SimpleNode, dont_isolate_yet
+from deployer.node import ParallelNode, dont_isolate_yet
 from deployer.exceptions import ExecCommandFailed
 from deployer.contrib.nodes.apt_get import AptGet
 
 
-class Monitor(SimpleNode):
+class Monitor(ParallelNode):
     """
     Various monitoring tools, like 'uptime'
     """

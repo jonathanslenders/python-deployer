@@ -1,7 +1,7 @@
-from deployer.node import SimpleNode, isolate_one_only
+from deployer.node import ParallelNode, isolate_one_only
 
 
-class Connect(SimpleNode):
+class Connect(ParallelNode):
     """
     Open SSH connection to host
     """
