@@ -1,7 +1,8 @@
-from deployer.node import SimpleNode, required_property, dont_isolate_yet, SimpleNodeBase
+from deployer.node import ParallelNode, required_property, dont_isolate_yet, ParallelNodeBase
 from deployer.utils import esc1
 
-class HgBase(SimpleNodeBase):
+
+class HgBase(ParallelNodeBase):
     _default_commands = {
         'id': 'id',
         'log': 'log',
@@ -17,7 +18,7 @@ class HgBase(SimpleNodeBase):
         for cmd_name, command in cls._default_commands.items() + commands.items():
             attrs[cmd_name] = cls._create_hg_command(command)
 
-        return SimpleNodeBase.__new__(cls, name, bases, attrs)
+        return ParallelNodeBase.__new__(cls, name, bases, attrs)
 
     @staticmethod
     def _create_hg_command(command):
@@ -26,7 +27,8 @@ class HgBase(SimpleNodeBase):
                 return self.host.run('hg %s' % command)
         return run
 
-class Hg(SimpleNode):
+
+class Hg(ParallelNode):
     """
     Mercurial repository.
     """
