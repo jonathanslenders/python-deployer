@@ -37,13 +37,14 @@ from deployer.run.telnet_server import start as start_telnet_server
 
 import docopt
 import getpass
+import os
 import sys
 
 def start(root_service, name=sys.argv[0], extra_loggers=None):
     """
     Client startup point.
     """
-    a = docopt.docopt(__doc__.replace('client.py', name), version=__version__)
+    a = docopt.docopt(__doc__.replace('client.py', os.path.basename(name)), version=__version__)
 
     # "client.py scp" is a shorthand for "client.py run -s --scp"
     if a['scp']:
