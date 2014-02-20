@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """Usage:
   client.py run [-s | --single-threaded | --socket SOCKET] [--path PATH]
                   [--non-interactive] [--log LOGFILE] [--scp]
@@ -26,9 +24,7 @@ Options:
   --version              : Show version information.
 """
 
-
 from deployer import __version__
-from deployer.contrib.default_config import example_settings
 from deployer.run.socket_client import list_sessions
 from deployer.run.socket_client import start as start_client
 from deployer.run.socket_server import start as start_server
@@ -39,6 +35,7 @@ import docopt
 import getpass
 import os
 import sys
+
 
 def start(root_service, name=sys.argv[0], extra_loggers=None):
     """
@@ -105,7 +102,3 @@ def start(root_service, name=sys.argv[0], extra_loggers=None):
 
         start_client(socket_name, path, action_name=action, parameters=parameters,
                 open_scp_shell=scp)
-
-
-if __name__ == '__main__':
-    start(root_service=example_settings)
