@@ -36,4 +36,4 @@ class example_settings(Node):
 if __name__ == '__main__':
     # Start an interactive shell.
     from deployer.client import start
-    start(root_service=example_settings)
+    start(example_settings)

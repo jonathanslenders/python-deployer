@@ -37,7 +37,7 @@ import os
 import sys
 
 
-def start(root_service, name=sys.argv[0], extra_loggers=None):
+def start(root_node, name=sys.argv[0], extra_loggers=None):
     """
     Client startup point.
     """
@@ -70,12 +70,12 @@ def start(root_service, name=sys.argv[0], extra_loggers=None):
     # Telnet server
     elif a['telnet-server']:
         port = int(a['PORT']) if a['PORT'] is not None else 23
-        start_telnet_server(root_service, logfile=a['--log'], port=port,
+        start_telnet_server(root_node, logfile=a['--log'], port=port,
                 extra_loggers=extra_loggers)
 
     # Socket server
     elif a['listen']:
-        socket_name = start_server(root_service, daemonized=False,
+        socket_name = start_server(root_node, daemonized=False,
                     shutdown_on_last_disconnect=False,
                     interactive=interactive, logfile=a['--log'], socket=a['--socket'],
                     extra_loggers=extra_loggers)
@@ -87,7 +87,7 @@ def start(root_service, name=sys.argv[0], extra_loggers=None):
 
     # Single threaded client
     elif a['run'] and a['--single-threaded']:
-        start_standalone(root_service, interactive=interactive, cd_path=path,
+        start_standalone(root_node, interactive=interactive, cd_path=path,
                 action_name=action, parameters=parameters, logfile=a['--log'],
                 extra_loggers=extra_loggers, open_scp_shell=scp)
 
@@ -96,7 +96,7 @@ def start(root_service, name=sys.argv[0], extra_loggers=None):
         # If no socket has been given. Start a daemonized server in the
         # background, and use that socket instead.
         if not socket_name:
-            socket_name = start_server(root_service, daemonized=True,
+            socket_name = start_server(root_node, daemonized=True,
                     shutdown_on_last_disconnect=True, interactive=interactive,
                     logfile=a['--log'], extra_loggers=extra_loggers)
 
