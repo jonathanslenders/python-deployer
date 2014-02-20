@@ -948,7 +948,7 @@ class EnvAction(object):
         """
         Run the action on one isolation. (On a normal Node, or on a ParallelNode cell.)
         """
-        with isolation._logger.group(self._action._func, *a, **kw):
+        with isolation._logger.group(self._action._func.__name__, *a, **kw):
             while True:
                 try:
                     return self._action._func(isolation, *a, **kw)
