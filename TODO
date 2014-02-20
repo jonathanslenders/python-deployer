@@ -18,3 +18,11 @@
 30. Create command to enable/disable interactive property of the Console
 
 https://code.google.com/p/fusepy/source/browse/trunk/sftp.py
+
+
+
+
+32: reverse search for node references. "--search mynode": this traverses the tree, evaluates all Q-statements and prints pointers to this node.
+33: Mark host as unavailable. When a host is unavailable, nothing on that host will be executed.
+
+
