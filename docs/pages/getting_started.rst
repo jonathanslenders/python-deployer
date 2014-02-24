@@ -1,7 +1,7 @@
 .. _getting-started:
 
-Hello world
-===========
+Tutorial: Hello world
+=====================
 
 In this short tutorial, we'll demonstrate how to create a simple interactive
 shell around one simple deployment command that just prints 'Hello World'. We
@@ -57,9 +57,9 @@ class inheritance for this. Append the following to your Python file:
 Starting an interactive shell
 -----------------------------
 
-One way of execting this code, is by wrapping it in an interactive shell.
-This is the last thing to do: add the following to the bottom of your Python
-file, and save it as ``my_deployment.py``.
+One way of execting this code, is by wrapping it in an :ref:`interactive
+shell<interactive-shell>`.  This is the last thing to do: add the following to
+the bottom of your Python file, and save it as ``my_deployment.py``.
 
 ::
 
@@ -146,6 +146,7 @@ What you learned here is a basic example of how to use the deployment
 framework. However, there are much more advanced concepts possible.  A quick
 listing of items to learn are the following. (In logical order of learning.)
 
+ - :ref:`Read the Django tutorial <django-tutorial>`
  - :ref:`Architecture of role and nodes <architecture-of-roles-and-nodes>`
  - :ref:`Inheritance (and double underscore expansion) <node-inheritance>`
  - :ref:`Query expressions <query-expressions>`

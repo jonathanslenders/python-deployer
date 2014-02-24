@@ -45,6 +45,7 @@ Table of contents
    :maxdepth: 3
 
    pages/getting_started
+   examples/django-deployment
    pages/architecture_of_roles_and_nodes
    pages/interactive_shell
 
