@@ -81,9 +81,9 @@ Make it executable:
     chmod +x deploy.py
 
 This does nothing yet. In the following sections, we are going to add more code
-to the ``DjangoDeployment`` node. If you run the script, you will already get
-an :ref:`interactive shell <interactive-shell>`, but there's also nothing much
-to see yet. Try to run the script as follows:
+to the ``DjangoDeployment`` :class:`~deployer.node.base.Node`. If you run the
+script, you will already get an :ref:`interactive shell <interactive-shell>`,
+but there's also nothing much to see yet. Try to run the script as follows:
 
 .. code-block:: bash
 
@@ -106,7 +106,6 @@ the repository. You can add the ``install_git``, ``git_clone`` and
     from deployer.utils import esc1
 
     class DjangoDeployment(Node):
-        ...
         project_directory = '~/git/django-project'
         repository = 'git@github.com:example/example.git'
 
@@ -218,9 +217,14 @@ Put together, we currently have the following in our script:
     if __name__ == '__main':
         start(DjangoDeployment)
 
+
+If you run this executable, you can already execute the methods if this class
+from the interactive shell.
+
 .. [#f1] The reason is that you can add multiple hosts to a node, and even
          multiple hosts to multiple 'roles' in a node. This allows for some
          more complex setups and parallel deployments.
+
 
 Configuration management
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -333,8 +337,8 @@ be passed as an argument to ``./manage.py``. As an example we also add a
             """ Open interactive Django shell. """
             self.run_management_command('shell')
 
-Running gunicorn through upstart
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Running gunicorn through supervisord
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 You don't want to use Django's ``runserver`` on production, so we're going to
 install and configure `gunicorn`_. We are going to use `supervisord`_ to
@@ -365,8 +369,6 @@ virtualenv.
 
 For testing purposes, we add a command to run the gunicorn server from the
 shell. [#f2]_
-
-.. [#f2] See: http://docs.gunicorn.org/en/latest/run.html#django-manage-py
 
 .. code-block:: python
 
@@ -511,6 +513,8 @@ Gathering again everything we have:
 
     if __name__ == '__main':
         start(DjangoDeployment)
+
+.. [#f2] See: http://docs.gunicorn.org/en/latest/run.html#django-manage-py
 
 
 Making stuff reusable
@@ -833,11 +837,12 @@ Class inheritance is powerful in Python. But did you notice the that we never
 had a ``git__project_directory`` or ``virtual_env__location`` variable before?
 This is again some magic. It's a pattern that very offen occurs in this
 framework. Python has no easy way to write that you want to override a property
-of the nested class. We introduced double underscore expansion which tells
-Python that our case that if a member of a node class has double underscores in
-its name, it means that we are overriding a property of a nested node. In this
-case we override the ``location`` property of the ``virtual_env`` class of the
-parent and the value of ``project_directory`` of the nested ``git`` class.
+of the nested class. We introduced :ref:`double underscore expansion
+<double-underscore-expansion>` which tells Python that in our case that if a
+member of a node class has double underscores in its name, it means that we are
+overriding a property of a nested node. In this case we override the
+``location`` property of the ``virtual_env`` class of the parent and the value
+of ``project_directory`` of the nested ``git`` class.
 
 That's it. This script is executable and if you start it, you have a nice
 interactive shell from which you can run all the commands.

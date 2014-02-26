@@ -46,6 +46,9 @@ Inheritance
 A node is meant to be reusable. It is encouraged to inherit from such a node
 class and overwrite properties or class members.
 
+
+.. _double-underscore-expansion:
+
 Expansion of double underscores
 *******************************
 
