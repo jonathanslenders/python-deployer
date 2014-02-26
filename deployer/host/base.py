@@ -800,8 +800,9 @@ class Host(object):
     # Some simple wrappers for the commands
 
     def sudo(self, *args, **kwargs):
-        """
-        Run this command using sudo.
+        """sudo(command, use_sudo=False, sandbox=False, interactive=True, user=None, ignore_exit_status=False, initial_input=None, silent=False)
+
+        Wrapper around :func:`~deployer.host.base.Host.run` which uses ``sudo``.
         """
         kwargs['use_sudo'] = True
         return self.run(*args, **kwargs)
