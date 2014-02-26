@@ -31,7 +31,8 @@ Questions? Just `create a ticket <create-ticket>`_ in Github for now:
 
 .. _create-ticket: https://github.com/jonathanslenders/python-deployer/issues?state=open
 
- - :ref:`Read the tutorial <getting-started>`
+ - Read the tutorials: :ref:`Hello world <getting-started>` and :ref:`Django
+   tutorial <django-tutorial>`
  - Find the source code at `github`_.
 
 .. _github: https://github.com/jonathanslenders/python-deployer
