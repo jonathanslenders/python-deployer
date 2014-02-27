@@ -1,5 +1,5 @@
 from contextlib import nested
-from deployer.host import Host, HostContext
+from deployer.host import Host
 from deployer.exceptions import ExecCommandFailed
 from deployer.utils import isclass, esc1
 from functools import wraps
@@ -9,18 +9,21 @@ __all__ = ('HostContainer', 'HostsContainer', )
 
 class HostsContainer(object):
     """
-    Facade to the host instances.
-    if you have a role, name 'www' inside the service webserver, you can do:
+    Proxy to a group of :class:`~deployer.host.base.Host` instances.
 
-    - webserver.hosts.run(...)
-    - webserver.hosts.www.run(...)
-    - webserver.hosts[0].run(...)
-    - webserver.hosts.www[0].run(...)
-    - webserver.hosts.filter('www')[0].run(...)
+    For instance, if you have a role, name 'www' inside the container, you
+    could do:
 
-    The host container also keeps track of HostStatus. So, if we fork a new
-    thread, and the HostStatus object gets modified in either thread. Clone
-    this HostsContainer first.
+    ::
+
+        host_container.run(...)
+        host_container[0].run(...)
+        host_container.filter('www')[0].run(...)
+
+    Typically, you get a :class:`~deployer.host_container.HostsContainer` class
+    by accessing the :attr:`~deployer.node.base.Env.hosts` property of an
+    :class:`~deployer.node.base.Env` (:class:`~deployer.node.base.Node`
+    wrapper.)
     """
     def __init__(self, hosts, pty=None, logger=None, is_sandbox=False):
         # the hosts parameter is a dictionary, mapping roles to <Host> instances, or lists
@@ -99,7 +102,7 @@ class HostsContainer(object):
         Return a dictionary which maps all the roles to the set of
         :class:`deployer.host.Host` classes for each role.
         """
-        return { k: { h.__class__ for h in l } for k,l in self._hosts.items() }
+        return { k: { h.__class__ for h in l } for k, l in self._hosts.items() }
 
     def __repr__(self):
         return ('<%s\n' % self.__class__.__name__ +
@@ -194,10 +197,12 @@ class HostsContainer(object):
     def expand_path(self, path):
         return [ h.expand_path(path) for h in self._all ]
 
-    @wraps(Host.run)
     def run(self, *a, **kw):
-        """
-        Call ``run`` with this parameters on every host.
+        """run(command, sandbox=False, interactive=True, user=None, ignore_exit_status=False, initial_input=None)
+
+        Call :func:`~deployer.host.base.Host.run` with this parameters on every
+        :class:`~deployer.host.base.Host` in this container. It can be executed
+        in parallel when we have multiple hosts.
 
         :returns: An array of all the results.
         """
@@ -235,10 +240,14 @@ class HostsContainer(object):
         else:
             return [ c(self._pty) for c in callables ]
 
-    @wraps(Host.sudo)
     def sudo(self, *args, **kwargs):
-        """
-        Call ``sudo`` with this parameters on every host.
+        """sudo(command, sandbox=False, interactive=True, user=None, ignore_exit_status=False, initial_input=None)
+
+        Call :func:`~deployer.host.base.Host.sudo` with this parameters on every
+        :class:`~deployer.host.base.Host` in this container. It can be executed
+        in parallel when we have multiple hosts.
+
+        :returns: An array of all the results.
         """
         kwargs['use_sudo'] = True
         return HostsContainer.run(self, *args, **kwargs)
@@ -246,29 +255,49 @@ class HostsContainer(object):
                     #       sure that we don't call te overriden method in
                     #       HostContainer.
 
-    @wraps(HostContext.prefix)
-    def prefix(self, *a, **kw):
+    def prefix(self, command):
         """
-        Call 'prefix' with this parameters on every host.
-        """
-        return nested(* [ h.host_context.prefix(*a, **kw) for h in self._all ])
+        Call :func:`~deployer.host.base.HostContext.prefix` on the
+        :class:`~deployer.host.base.HostContext` of every host.
 
-    @wraps(HostContext.cd)
-    def cd(self, *a, **kw):
-        """
-        Call 'cd' with this parameters on every host.
-        """
-        return nested(* [ h.host_context.cd(*a, **kw) for h in self._all ])
+        ::
 
-    @wraps(HostContext.env)
-    def env(self, *a, **kw):
+            with host.prefix('workon environment'):
+                host.run('./manage.py migrate')
         """
-        Call 'env' with this parameters on every host.
+        return nested(* [ h.host_context.prefix(command) for h in self._all ])
+
+    def cd(self, path, expand=False):
         """
-        return nested(* [ h.host_context.env(*a, **kw) for h in self._all ])
+        Execute commands in this directory. Nesting of cd-statements is
+        allowed.
+
+        Call :func:`~deployer.host.base.HostContext.cd` on the
+        :class:`~deployer.host.base.HostContext` of every host.
+
+        ::
+
+            with host_container.cd('directory'):
+                host_container.run('ls')
+        """
+        return nested(* [ h.host_context.cd(path, expand=expand) for h in self._all ])
+
+    def env(self, variable, value, escape=True):
+        """
+        Sets an environment variable.
+
+        This calls :func:`~deployer.host.base.HostContext.env` on the
+        :class:`~deployer.host.base.HostContext` of every host.
+
+        ::
+
+            with host_container.cd('VAR', 'my-value'):
+                host_container.run('echo $VAR')
+        """
+        return nested(* [ h.host_context.env(variable, value, escape=escape) for h in self._all ])
 
     def getcwd(self):
-        """ Call getcwd() for every host """
+        """ Calls :func:`~deployer.host.base.Host.getcwd` for every host and return the result as an array. """
         return [ h._host.getcwd() for h in self ]
 
     #
@@ -277,7 +306,8 @@ class HostsContainer(object):
     #
     def exists(self, filename, use_sudo=True):
         """
-        Returns ``True`` when this file exists on the hosts.
+        Returns an array of boolean values that represent whether this a file
+        with this name exist for each host.
         """
         def on_host(container):
             return container._host.exists(filename, use_sudo=use_sudo)
@@ -311,7 +341,8 @@ class HostsContainer(object):
 
 class HostContainer(HostsContainer):
     """
-    Similar to hostsContainer, but wraps only around exactly one host.
+    Similar to :class:`~deployer.host_container.HostsContainer`, but wraps only
+    around exactly one :class:`~deployer.host.base.Host`.
     """
     @property
     def _host(self):
@@ -326,7 +357,7 @@ class HostContainer(HostsContainer):
         return self._host.slug
 
     @wraps(Host.get_file)
-    def get_file(self, *args,**kwargs):
+    def get_file(self, *args, **kwargs):
         kwargs['sandbox'] = self._sandbox
         return self._host.get_file(*args, **kwargs)
 
@@ -369,10 +400,15 @@ class HostContainer(HostsContainer):
     def expand_path(self, *a, **kw):
         return HostsContainer.expand_path(self, *a, **kw)[0]
 
-    @wraps(HostsContainer.exists)
-    def exists(self, *a, **kw):
-        return HostsContainer.exists(self, *a, **kw)[0]
+    def exists(self, filename, use_sudo=True):
+        """
+        Returns ``True`` when this file exists on the hosts.
+        """
+        return HostsContainer.exists(self, filename, use_sudo=use_sudo)[0]
 
-    @wraps(HostsContainer.has_command)
-    def has_command(self, *a, **kw):
-        return HostsContainer.has_command(self, *a, **kw)[0]
+    def has_command(self, command, use_sudo=False):
+        """
+        Test whether this command can be found in the bash shell, by executing
+        a ``which`` Returns ``True`` when the command exists.
+        """
+        return HostsContainer.has_command(self, command, use_sudo=use_sudo)[0]

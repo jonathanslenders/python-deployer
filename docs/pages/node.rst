@@ -18,23 +18,37 @@ A simple example of a node:
         def hello(self):
             self.host.run('echo hello world')
 
-.. note:: It is interesting to know that ``self`` is actually not a ``Node`` instance,
-      but an ``Env`` object which will proxy this actual Node class. This is
-      because there is some metaclass magic going on, which takes care of sandboxing,
-      logging and some other nice stuff, that you get for free.
+.. note:: It is interesting to know that ``self`` is actually not a
+      :class:`~deployer.node.base.Node` instance like you would expect, but an
+      :class:`~deployer.node.base.Env` object which will proxy this actual Node
+      class. This is because there is some metaclass magic going on, which
+      takes care of sandboxing, logging and some other nice stuff, that you get
+      for free.
 
-      Except that a few other variables like ``self.console`` are available,
-      you normally won't notice anything.
+      Except that a few other variables like :func:`self.console
+      <deployer.node.base.Env.console>` are available, you normally won't notice
+      anything.
 
 
 Running the code
 ----------------
 
+In order to run methods of a node, it has to be wrapped in an
+:class:`~deployer.node.base.Env` object. This will manage execution, optional
+sandboxing, logging and much more. It will also make sure that
+:attr:`self.hosts <deployer.node.base.Env.hosts>` actually becomes a
+:class:`~deployer.host_container.HostsContainer`, a proxy through which you can
+run methods on a series of hosts.
+
+The easiest way to wrap a node inside an :class:`~deployer.node.base.Env` is by
+using the :func:`~deployer.node.base.Env.default_from_node` helper. This will
+make sure that you can see the output and you can interact.
+
 ::
 
     from deployer.node import Env
 
-    env = Env(MyNode())
+    env = Env.default_from_node(MyNode())
     env.hello()
 
 
@@ -99,9 +113,6 @@ classes:
 The importance of ``ParallelNode``
 ----------------------------------
 
-.. note:: :class:`ParallelNode <deployer.node.base.ParallelNode>` was called
-          ``SimpleNode`` before.
-
 There are several kind of setups. You can have many hosts which are all doing
 exactly the same, or many hosts that do something different. Simply said,
 :class:`ParallelNode <deployer.node.base.ParallelNode>` should be used when you
@@ -145,7 +156,7 @@ of the four hosts. Look how our ``WebSystem`` acts like an array:
 
 ::
 
-    websystem = WebSystem()
+    websystem = Env.default_from_node(WebSystem())
     websystem[Host1].deploy('abcde6565eee...')
     websystem[Host2].restart()
 
@@ -156,14 +167,15 @@ sequentially.
 
 ::
 
-    websystem = WebSystem()
+    websystem = Env.default_from_node(WebSystem())
     websystem.deploy('abcde6565eee...') # Parallel execution.
 
-.. note:: One thing worth noting is that there is a variable ``host`` in the
-          class. This is because the isolation always happens by convention on
-          the role named ``host``. Both sides of the following equation will
-          represent a host container containing exactly one host: the host of
-          the current isolation.
+.. note:: One thing worth noting is that there is a variable
+          :attr:`~deployer.node.base.ParallelNode.host` in the class. This is
+          because the isolation always happens by convention on the role named
+          ``host``. Both sides of the following equation will represent a
+          :class:`~deployer.host_container.HostContainer` containing exactly
+          one host: the host of the current isolation.
 
           ::
 

@@ -5,8 +5,9 @@ The interactive shell
 =====================
 
 It's very easy to create an interactive command line shell from a node tree.
-Suppose that you have a `deployer.node.Node` called ``MyRootNode``, then you
-can create a shell by making an executable file like this:
+Suppose that you have a :class:`~deployer.node.base.Node` called
+``MyRootNode``, then you can create a shell by making an executable file like
+this:
 
 ::
 
@@ -51,8 +52,10 @@ If you save this as ``client.py`` and call it by typing ``python ./client.py
       --version              : Show version information.
 
 There are several options to start such a shell. It can be multi or single
-threaded, or you can run it as a telnet-server. Normally, you just type the
-following to get the interactive prompt:
+threaded, or you can run it as a telnet-server. Assuming you made the file also
+executable using ``chmod +x client.py``, you just type the following to get the
+interactive prompt:
+
 
 ::
 

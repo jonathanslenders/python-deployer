@@ -71,8 +71,8 @@ class HostContext(object):
 
     def cd(self, path, expand=False):
         """
-        Execute commands in this directory.
-        Nesting of cd-statements is allowed.
+        Execute commands in this directory. Nesting of cd-statements is
+        allowed.
 
         ::
 

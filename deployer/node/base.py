@@ -205,7 +205,9 @@ class Env(object):
         Create a default environment for this node to run.
 
         It will be attached to stdin/stdout and commands will be logged to
-        stdout. The is the most obvious default.
+        stdout. The is the most obvious default to create an ``Env`` instance.
+
+        :param node: :class:`~deployer.node.base.Node` instance
         """
         from deployer.pseudo_terminal import Pty
         from deployer.loggers import LoggerInterface
@@ -647,7 +649,10 @@ class Node(object):
 
     @_internal
     def __init__(self, parent=None):
+        #: Reference to the parent :class:`~deployer.node.base.Node`.
+        #: (This is always assigned in the constructor. You should never override it.)
         self.parent = parent
+
         if self._node_type in (NodeTypes.SIMPLE_ARRAY, NodeTypes.SIMPLE_ONE) and not parent:
             raise Exception('Cannot initialize a node of type %s without a parent' % self._node_type)
 
@@ -801,12 +806,20 @@ class ParallelNode(Node):
     Multiple hosts can be given for this role, but all of them will be isolated,
     during execution. This allows parallel executing of functions on each 'cell'.
 
+    If you call a method on a ``ParallelNode``, it will be called one for every
+    host, which can be accessed through the ``host`` property.
+
     :note: This was called `SimpleNode` before.
     """
     __metaclass__ = ParallelNodeBase
     _node_type = NodeTypes.SIMPLE
 
     def host(self):
+        """
+        This is the proxy to the active host.
+
+        :returns: :class:`~deployer.host_container.HostContainer` instance.
+        """
         if self._node_is_isolated:
             host = self.hosts.filter('host')
             if len(host) != 1:

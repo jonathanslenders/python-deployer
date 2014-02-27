@@ -27,12 +27,12 @@ meant to replace anything, it's another tool for your toolbox.
 .. _Fabric: http://docs.fabfile.org/
 .. _Saltstack: http://saltstack.com
 
-Questions? Just `create a ticket <create-ticket>`_ in Github for now:
+Questions? Just `create a ticket`_ in Github for now:
 
-.. _create-ticket: https://github.com/jonathanslenders/python-deployer/issues?state=open
+.. _create a ticket: https://github.com/jonathanslenders/python-deployer/issues?state=open
 
- - Read the tutorials: :ref:`Hello world <getting-started>` and :ref:`Django
-   tutorial <django-tutorial>`
+ - Read the tutorials: :ref:`Hello world <hello-world>` and :ref:`Deploying an
+   application <django-tutorial>`
  - Find the source code at `github`_.
 
 .. _github: https://github.com/jonathanslenders/python-deployer
@@ -45,8 +45,8 @@ Table of contents
 .. toctree::
    :maxdepth: 3
 
-   pages/getting_started
-   examples/django-deployment
+   pages/hello_world
+   pages/django-deployment
    pages/architecture_of_roles_and_nodes
    pages/interactive_shell
 

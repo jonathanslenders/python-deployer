@@ -123,9 +123,9 @@ the repository. You can add the ``install_git``, ``git_clone`` and
             with self.host.cd(self.project_directory, expand=True):
                 self.host.run("git checkout '%s'" % esc1(commit))
 
-Probably obvious, we have a clone and checkout function that are meant to move
-to a certain directory on the server and run a shell command in there. Some
-points worth noting:
+Probably obvious, we have a clone and checkout function that are meant to go
+to a certain directory on the server and run a shell command in there through
+:func:`~deployer.host.base.Host.run`. Some points worth noting:
 
 - ``expand=True``: this means that we should do tilde-expension. You want the
   tilde to be replaced with the home directory. If you have an absolute path,
@@ -254,6 +254,7 @@ Anyway, suppose that you have a configuration that you want to upload to
     """
 
     class DjangoDeployment(Node):
+        ...
         def upload_django_settings(self):
             """ Upload the content of the variable 'local_settings' in the
             local_settings.py file. """
@@ -858,4 +859,4 @@ would overwrite it with.
 
 
 Also, learn about :ref:`query expressions <query-expressions>` and the
-``parent`` variable which are very powerful.
+:attr:`~deployer.node.base.Node.parent` variable which are very powerful.

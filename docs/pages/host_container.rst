@@ -1,13 +1,14 @@
 host_container
 ==============
 
-Access to hosts from within a ``Node`` class happens through a
-``HostsContainer`` proxy. This container object has also methods for reducing
-the amount of hosts on which commands are executed, by filtering according to
-conditions.
+Access to hosts from within a :class:`~deployer.node.base.Node` class happens
+through a :class:`~deployer.host_container.HostsContainer` proxy. This
+container object has also methods for reducing the amount of hosts on which
+commands are executed, by filtering according to conditions.
 
-The ``hosts`` property of a node instance returns such a ``HostsContainer``
-object.
+The :attr:`~deployer.node.base.Env.hosts` property of
+:class:`~deployer.node.base.Env` wrapper around a node instance returns such a
+:class:`~deployer.host_container.HostsContainer` object.
 
 ::
 
@@ -17,12 +18,14 @@ object.
             caching_servers = Host3
 
         def do_something(self):
-            # self.hosts here, is a HostsContainer instance.
+            # ``self.hosts`` here is a HostsContainer instance.
             self.hosts.filter('caching_servers').run('echo hello')
 
 Reference
 ---------
 
-.. automodule:: deployer.host_container
+.. autoclass:: deployer.host_container.HostsContainer
     :members:
 
+.. autoclass:: deployer.host_container.HostContainer
+    :members:

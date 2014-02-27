@@ -1,4 +1,4 @@
-.. _getting-started:
+.. _hello-world:
 
 Tutorial: Hello world
 =====================
