@@ -122,6 +122,9 @@ class DefaultLogger(Logger):
     def log_exception(self, e):
         print_exception(e, self._stdout)
 
+    def log_msg(self, msg):
+        self.stdout.write('%s\n' % msg)
+
 
 class IndentedDefaultLogger(DefaultLogger):
     """

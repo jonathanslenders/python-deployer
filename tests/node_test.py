@@ -3,7 +3,7 @@ import unittest
 from deployer.console import Console
 from deployer.exceptions import ActionException, ExecCommandFailed
 from deployer.inspection import Inspector
-from deployer.node import Node, SimpleNode, Env
+from deployer.node import Node, SimpleNode, Env, ParallelActionResult
 from deployer.node import map_roles, dont_isolate_yet, required_property, alias, IsolationIdentifierType
 from deployer.pseudo_terminal import Pty
 from deployer.query import Q
@@ -290,7 +290,20 @@ class NodeTest(unittest.TestCase):
 
         # SimpleNode executes for each host separately.
         env = Env(N())
-        self.assertEqual(env.func(), ['result', 'result' ])
+        self.assertEqual(list(env.func()), ['result', 'result' ])
+
+        # Test return value of SimpleNode
+        result = env.func()
+        self.assertIsInstance(result, ParallelActionResult)
+
+            # (The key is the Env, containing the isolation)
+        self.assertIsInstance(result.keys()[0], Env)
+        self.assertIsInstance(result.keys()[1], Env)
+        self.assertIn(result.keys()[0]._node.Hosts.host, { LocalHost1, LocalHost2 })
+        self.assertIn(result.keys()[1]._node.Hosts.host, { LocalHost1, LocalHost2 })
+
+        self.assertEqual(result.values()[0], 'result')
+        self.assertEqual(result.values()[1], 'result')
 
     def test_simple_node_getitem(self):
         class N(SimpleNode):
@@ -314,7 +327,8 @@ class NodeTest(unittest.TestCase):
 
         # Calling the isolated item should not return an array
         env = Env(N())
-        self.assertEqual(env.func(), ['result', 'result' ])
+        self.assertEqual(list(env.func()), ['result', 'result' ])
+        self.assertIsInstance(env.func(), ParallelActionResult)
         self.assertEqual(env[0].func(), 'result')
         self.assertEqual(env[1].func(), 'result')
         self.assertRaises(KeyError, lambda: env[2])
@@ -389,7 +403,7 @@ class NodeTest(unittest.TestCase):
 
         # `M` gets both hosts as well.
         env = Env(N())
-        self.assertEqual(env.M.func(), ['result', 'result' ])
+        self.assertEqual(list(env.M.func()), ['result', 'result' ])
 
     def test_simple_nodes_in_normal_node(self):
         class N(Node):
@@ -412,9 +426,11 @@ class NodeTest(unittest.TestCase):
         # `M` should behave as an array.
         env = Env(N())
         self.assertEqual(env.func(), 'func-n')
-        self.assertEqual(env.M.func(), ['func-m', 'func-m' ])
+        self.assertEqual(list(env.M.func()), ['func-m', 'func-m' ])
+        self.assertIsInstance(env.M.func(), ParallelActionResult)
         self.assertEqual(env.M[0].func(), 'func-m')
-        self.assertEqual(env.M.X.func(), ['func-x', 'func-x'])
+        self.assertEqual(list(env.M.X.func()), ['func-x', 'func-x'])
+        self.assertIsInstance(env.M.X.func(), ParallelActionResult)
         self.assertEqual(env.M[0].X.func(), 'func-x')
         self.assertEqual(env.M.X[0].func(), 'func-x')
 
@@ -425,8 +441,8 @@ class NodeTest(unittest.TestCase):
                 role2 = LocalHost3
 
             def do_tests(this):
-                self.assertEqual(this.M.func(), ['func-m', 'func-m'])
-                self.assertEqual(this.M.X.func(), ['func-x', 'func-x'])
+                self.assertEqual(list(this.M.func()), ['func-m', 'func-m'])
+                self.assertEqual(list(this.M.X.func()), ['func-x', 'func-x'])
                 self.assertEqual(this.M[0].func(), 'func-m')
                 self.assertEqual(this.M.X[0].func(), 'func-x')
 
@@ -450,7 +466,7 @@ class NodeTest(unittest.TestCase):
 
                         self.assertEqual(this.func(), 'func-x')
                         self.assertEqual(this.parent.parent.func(), 'func-n')
-                        self.assertEqual(this.parent.parent.M.func(), ['func-m', 'func-m'])
+                        self.assertEqual(list(this.parent.parent.M.func()), ['func-m', 'func-m'])
                         self.assertEqual(this.parent.parent.M[0].func(), 'func-m')
 
         env = Env(N())
@@ -723,7 +739,7 @@ class NodeTest(unittest.TestCase):
         env = Env(A())
         self.assertEqual(env(), 'A.call')
         self.assertEqual(env.B(), 'B.call')
-        self.assertEqual(env.C(), ['C.call', 'C.call'])
+        self.assertEqual(list(env.C()), ['C.call', 'C.call'])
         self.assertEqual(env.C[0](), 'C.call')
 
     def test_going_from_isolated_to_parent(self):

@@ -161,6 +161,11 @@ class LoggerInterface(object):
         for l in self.loggers:
             l.log_exception(e)
 
+    def log_msg(self, msg):
+        for l in self.loggers:
+            l.log_msg(msg)
+
+
 class DummyLoggerInterface(LoggerInterface):
     """
     Dummy logger, does nothing
@@ -195,6 +200,8 @@ class Logger(object):
     def log_exception(self, e):
         pass
 
+    def log_msg(self, msg):
+        pass
 
 #
 # Callbacks

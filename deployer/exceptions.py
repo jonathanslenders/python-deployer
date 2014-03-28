@@ -42,6 +42,8 @@ class ActionException(DeployerException):
         self.inner_exception = inner_exception
         self.traceback = traceback
 
+    def __repr__(self):
+        return 'ActionException(%r)' % repr(self.inner_exception)
 
 class ConnectionFailedException(DeployerException):
     """

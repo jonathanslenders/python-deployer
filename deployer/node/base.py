@@ -23,10 +23,11 @@ __all__ = (
     'IsolationIdentifierType',
     'Node',
     'NodeBase',
-    'SimpleNode',
-    'SimpleNodeBase',
+    'ParallelActionResult',
     'ParallelNode',
     'ParallelNodeBase',
+    'SimpleNode',
+    'SimpleNodeBase',
     'iter_isolations',
     'required_property',
 )
@@ -1005,6 +1006,8 @@ class EnvAction(object):
                     raise e2
 
     def __call__(self, *a, **kw):
+        # In case of a not_isolated ParallelNode, return a
+        # ParallelActionResult, otherwise, just return the actual result.
         if isinstance(self._env, ParallelNode) and not self._env._node_is_isolated and \
                             not getattr(self._action._func, 'dont_isolate_yet', False):
 
@@ -1013,12 +1016,12 @@ class EnvAction(object):
 
             # No hosts in ParallelNode. Nothing to do.
             if len(isolations) == 0:
-                print 'Nothing to do. No hosts in %r' % self._action
-                return [ ]
+                self._env._logger.log_msg('Nothing to do. No hosts in %r' % self._action)
+                return ParallelActionResult([ ])
 
             # Exactly one host.
             elif len(isolations) == 1:
-                return [ self._run_on_node(isolations[0], *a, **kw) ]
+                return ParallelActionResult([ (isolations[0], self._run_on_node(isolations[0], *a, **kw)) ])
 
             # Multiple hosts, but isolate_one_only flag set.
             elif getattr(self._action._func, 'isolate_one_only', False):
@@ -1048,7 +1051,7 @@ class EnvAction(object):
 
                             # Succeed
                             logger_fork.set_succeeded()
-                            return result
+                            return (isolation, result)
                         except Exception as e:
                             # TODO: handle exception in thread
                             logger_fork.set_failed(e)
@@ -1068,7 +1071,32 @@ class EnvAction(object):
                     raise errors[0]
                 else:
                     # This returns a list of results.
-                    return fork_result.result
+                    return ParallelActionResult(fork_result.result)
         else:
             return self._run_on_node(self._env, *a, **kw)
 
+
+class ParallelActionResult(dict):
+    """
+    When an action of a ParallelNode was called from outside the parallel node
+    itself, a `ParallelActionResult` instance is returned. This contains the
+    result for each isolation.
+
+    (Unconventional, but) Iterating through the `ParallelActionResult` class
+    will yield the values (the results) instead of the keys, because of
+    backwards compatibility and this is typically what people are interested in
+    if they run:
+    ``for result in node.action(...)``.
+
+    The `keys`, `items` and `values` functions work as usual.
+    """
+    def __init__(self, isolations_and_results):
+        # This is a list of (isolation, result) tuples.
+        super(ParallelActionResult, self).__init__(isolations_and_results)
+
+    def __repr__(self):
+        return '{ %s }' % ', '.join('<%s>: %r' % (i.host._host.slug, v) for i, v in self.items())
+
+    def __iter__(self):
+        for v in self.values():
+            yield v
