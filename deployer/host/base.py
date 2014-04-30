@@ -264,6 +264,8 @@ class Host(object):
         """
         # We add "cd /", to be sure that at least no error get thrown because
         # we're in a non existing directory right now.
+        if hasattr(self, 'interface'):
+            interface = self.interface
 
         return self._run_silent(
                 """cd /; /sbin/ifconfig "%s" | grep 'inet ad' | """
