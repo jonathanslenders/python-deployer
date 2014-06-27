@@ -93,7 +93,8 @@ class HostContext(object):
     def _chdir(self, path):
         """ Move to this directory. Not to be used together with the `cd` context manager. """
         # NOTE: This is used by the sftp shell.
-        self._path = [ (os.path.join(* self._path + [path]), False) ]
+        # TODO: check 'expand' flags.
+        self._path = [ (os.path.join(* [p[0] for p in self._path] + [path]), False) ]
 
     def env(self, variable, value, escape=True):
         """
