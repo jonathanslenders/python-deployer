@@ -240,7 +240,11 @@ class DeploymentClient(object):
                     # Non blocking read. (Write works better in blocking mode.
                     # Especially on OS X.)
                     fdesc.setNonBlocking(sys.stdin)
-                    data = sys.stdin.read(1)
+                    data = sys.stdin.read(1024)
+                        # We read larger chuncks (more than just one byte) in
+                        # one go. This is important for meta and arrow keys
+                        # which consist of multiple bytes. Many applications
+                        # rely on this that they'll receive them together.
                     fdesc.setBlocking(sys.stdin)
 
                     # If we're finish and 'wait_for_closing' was set. Any key
@@ -248,7 +252,7 @@ class DeploymentClient(object):
                     if self.wait_for_closing:
                         break
 
-                    if ord(data) == 14: # Ctrl-N
+                    if chr(14) in data: # Ctrl-N
                         # Tell the server to open a new window.
                         self.socket.sendall(pickle.dumps(('open-new-window', '')))
                     else:
