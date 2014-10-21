@@ -585,7 +585,7 @@ class CLInterface(object):
                         self.print_command()
 
                 # Backspace
-                elif c == '\x7f': # (127) Backspace
+                elif c in ('\x08', '\x7f'): # (127) Backspace
                     self.backspace()
 
                 # Escape characters for cursor movement
