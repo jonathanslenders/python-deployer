@@ -37,7 +37,7 @@ setup(
     author_email='jonathan.slenders@mobilevikings.com',
     packages=find_packages('.'),
     install_requires = [
-        'paramiko>=1.12.0',
+        'paramiko>=1.15.1',
         'Twisted>=12.2.0',
         'pexpect==3.0',
         'Pygments>=1.5',
