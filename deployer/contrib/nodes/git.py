@@ -1,6 +1,7 @@
 from deployer.exceptions import ExecCommandFailed
 from deployer.node import Node, ParallelNode, ParallelNodeBase, dont_isolate_yet, required_property
 from deployer.utils import esc1
+from deployer.node.decorators import suppress_action_result
 
 __all__ = ('Git', 'GitOverview' )
 
@@ -39,6 +40,7 @@ class GitBase(ParallelNodeBase):
 
     @staticmethod
     def _create_git_command(command, ignore_exit_status=False):
+        @suppress_action_result
         def run(self):
             with self.host.cd(self.repository_location):
                 return self.host.run('git %s' % command, ignore_exit_status=ignore_exit_status)
