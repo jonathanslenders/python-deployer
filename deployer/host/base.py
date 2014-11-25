@@ -493,8 +493,18 @@ class Host(object):
                 if chan.status_event.isSet():
                     reading_from_stdin = False
 
+                    # When the channel is closed, and there's nothing to read
+                    # anymore. We can return what we got from Paramiko. (Not
+                    # sure why this happens. Most of the time, select() still
+                    # returns and chan.recv() returns an empty string, but when
+                    # read_ready is False, select() doesn't return anymore.)
+                    if chan.closed and not chan.in_buffer.read_ready():
+                        break
+
                 channels = [self.pty.stdin, chan] if reading_from_stdin else [chan]
-                r, w, e = select(channels, [], [])
+                r, w, e = select(channels, [], [], 1)
+                    # Note the select-timeout. That is required in order to
+                    # check for the status_event every second.
 
                 # Receive stream
                 if chan in r:
