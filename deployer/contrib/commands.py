@@ -1,13 +1,17 @@
 from deployer.utils import esc1
 
-def wget(url, target=None):
+def wget(url, target=None, pipe=None):
     """
     Download file using wget
     """
+    command = "wget %s" % esc1(url)
+    if pipe:
+        target = '-'
     if target:
-        return "wget '%s' --output-document '%s'" %  (esc1(url), esc1(target))
-    else:
-        return "wget '%s'" % esc1(url)
+        command += " --output-document '%s'" % esc1(target)
+    if pipe:
+        command += " | " + pipe
+    return command
 
 def bashrc_append(line):
     """
