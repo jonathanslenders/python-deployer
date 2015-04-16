@@ -45,7 +45,7 @@ class Config(ParallelNode):
         """
         Return the content which currently exists in this file.
         """
-        return self.host.open(self.remote_path, 'rb', use_sudo=self.sudo).read()
+        return self.host.open(self.remote_path, 'rb', use_sudo=self.use_sudo).read()
 
     @suppress_action_result
     def diff(self):
