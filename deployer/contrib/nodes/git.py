@@ -56,6 +56,8 @@ class Git(ParallelNode):
     repository = required_property()
     repository_location = required_property()
     default_revision = 'master'
+    use_sudo = False
+    sudo_username = None
 
     commands = { } # Extra git commands. Map function name to git command.
 
@@ -91,26 +93,26 @@ class Git(ParallelNode):
 
         if not existed:
             # Do a new checkout
-            host.run('git clone --recursive %s %s' % (self.repository, self.repository_location))
+            host.run('git clone --recursive %s %s' % (self.repository, self.repository_location), use_sudo=self.use_sudo, user=self.sudo_username)
 
         with host.cd(self.repository_location):
-            host.run('git fetch --all --prune')
+            host.run('git fetch --all --prune', use_sudo=self.use_sudo, user=self.sudo_username)
 
             self._before_checkout_hook(commit)
 
             # Stash
             if existed:
-                host.run('git stash')
+                host.run('git stash', use_sudo=self.use_sudo, user=self.sudo_username)
 
             # Checkout
             try:
-                host.run("git checkout '%s'" % esc1(commit))
-                host.run("git submodule update --init") # Also load submodules.
+                host.run("git checkout '%s'" % esc1(commit), use_sudo=self.use_sudo, user=self.sudo_username)
+                host.run("git submodule update --init", use_sudo=self.use_sudo, user=self.sudo_username) # Also load submodules.
             finally:
                 # Pop stash
                 try:
                     if existed:
-                        host.run('git stash pop 2>&1', interactive=False) # will fail when checkout had no local changes
+                        host.run('git stash pop 2>&1', interactive=False, use_sudo=self.use_sudo, user=self.sudo_username) # will fail when checkout had no local changes
                 except ExecCommandFailed, e:
                     result = e.result
                     if result.strip() not in ('Nothing to apply', 'No stash found.'):

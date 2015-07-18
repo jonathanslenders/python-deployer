@@ -22,6 +22,7 @@ class Config(ParallelNode):
     lexer = TextLexer
 
     use_sudo = True
+    sudo_username = None
     make_executable = False
     always_backup_existing_config = False
 
@@ -45,7 +46,7 @@ class Config(ParallelNode):
         """
         Return the content which currently exists in this file.
         """
-        return self.host.open(self.remote_path, 'rb', use_sudo=self.use_sudo).read()
+        return self.host.open(self.remote_path, 'rb', use_sudo=self.use_sudo, user=self.sudo_username).read()
 
     @suppress_action_result
     def diff(self):
@@ -93,10 +94,10 @@ class Config(ParallelNode):
         if self.always_backup_existing_config:
             self.backup()
 
-        self.host.open(self.remote_path, 'wb', use_sudo=self.use_sudo).write(self.content)
+        self.host.open(self.remote_path, 'wb', use_sudo=self.use_sudo, user=self.sudo_username).write(self.content)
 
         if self.make_executable:
-            self.host.run("chmod a+x '%s'" % esc1(self.host.expand_path(self.remote_path)), use_sudo=self.use_sudo)
+            self.host.run("chmod a+x '%s'" % esc1(self.host.expand_path(self.remote_path)), use_sudo=self.use_sudo, user=self.sudo_username)
 
     def backup(self):
         """
@@ -105,10 +106,10 @@ class Config(ParallelNode):
         import datetime
         suffix = datetime.datetime.now().strftime('%Y-%m-%d--%H-%M-%S')
         self.host.run("test -f '%s' && cp --archive '%s' '%s.%s'" % (
-                        esc1(self.remote_path), esc1(self.remote_path), esc1(self.remote_path), esc1(suffix)), use_sudo=self.use_sudo)
+                        esc1(self.remote_path), esc1(self.remote_path), esc1(self.remote_path), esc1(suffix)), use_sudo=self.use_sudo, user=self.sudo_username)
 
     def edit_in_vim(self):
         """
         Edit this configuration manually in Vim.
         """
-        self.host.run("vim '%s'" % esc1(self.host.expand_path(self.remote_path)), use_sudo=self.use_sudo)
+        self.host.run("vim '%s'" % esc1(self.host.expand_path(self.remote_path)), use_sudo=self.use_sudo, user=self.sudo_username)
