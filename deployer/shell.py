@@ -357,6 +357,65 @@ class RunWithSudo(Run):
     use_sudo = True
 
 
+class AuthorizedKeys(NodeACHandler):
+    """
+    List Authorized Keys
+    """
+    def __call__(self):
+        from deployer.exceptions import ConnectionFailedException
+        from deployer.node import Node
+        import time, random
+
+        class RunNode(Node):
+            class Hosts:
+                host = self.node.hosts.get_hosts()
+
+            def run(self, shell):
+                # Found halfway man authorized_keys(5)
+                keytypes = {'ecdsa-sha2-nistp256',
+                            'ecdsa-sha2-nistp384',
+                            'ecdsa-sha2-nistp521',
+                            'ssh-dss',
+                            'ssh-rsa'
+                           }
+
+                for host in self.hosts:
+                    shell.write('\n\nAuthorized keys on {}:'.format(host.slug))
+                    filename = "/tmp/deployer-tempfile-{}-{}".format(time.time(), random.randint(0, 1000000000))
+
+                    try:
+                        # Check if authorizedkeysfile is defined in host
+                        if hasattr(host, 'authorizedkeysfile'):
+                            authfilename = host.expand_path(host.authorizedkeysfile)
+                        else:
+                            authfilename = host.expand_path("~/.ssh/authorized_keys")
+
+                        # Read file
+                        if host.exists(authfilename):
+                            host.get_file(authfilename, filename)
+                            f = open(filename, 'r')
+                            for line in f:
+                                if line.strip():
+                                    split = line.split()
+                                    if split[0] in keytypes:
+                                        shell.write('\n{}'.format(split[2]))
+                        else:
+                            shell.write('\nNo {}'.format(authfilename))
+                    # Catch if key is not authorized or server unavailable
+                    except ConnectionFailedException as e:
+                        shell.write('\n{}'.format(e))
+                        pass
+
+        env = Env(RunNode(), self.shell.pty, self.shell.logger_interface)
+
+        try:
+            env.run(self.shell)
+        except ActionException as e:
+            pass
+        except Exception as e:
+            self.shell.logger_interface.log_exception(e)
+
+
 class Find(NodeACHandler):
     def __call__(self):
         def _list_nested_nodes(node, prefix):
@@ -841,6 +900,7 @@ class RootHandler(ShellHandler):
             '--version': Version,
             '--source-code': SourceCode,
             '--scp': Scp,
+            '--authorizedkeys': AuthorizedKeys,
     }
 
     @property
