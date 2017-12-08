@@ -297,7 +297,7 @@ installing stuff inside the virtualenv.
             (We have a requirements.txt file in our repository.)
             """
             with self.host.prefix(self.activate_cmd):
-                self.host.run("pip install -r ~/git/django-project/requirements.txt')
+                self.host.run("pip install -r ~/git/django-project/requirements.txt")
 
         def install_package(self, name):
             """
@@ -466,7 +466,7 @@ Gathering again everything we have:
             (We have a requirements.txt file in our repository.)
             """
             with self.host.prefix(self.activate_cmd):
-                self.host.run("pip install -r ~/git/django-project/requirements.txt')
+                self.host.run("pip install -r ~/git/django-project/requirements.txt")
 
         def install_package(self, name):
             """
