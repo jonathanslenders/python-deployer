@@ -18,9 +18,9 @@ def suppress_action_result(action):
 
 def dont_isolate_yet(func):
     """
-    If the node has not yet been separated in serveral parallel, isolated
+    If the node has not yet been separated in several parallel, isolated
     nodes per host. Don't do it yet for this function.
-    When anothor action of the same host without this decorator is called,
+    When another action of the same host without this decorator is called,
     the node will be split.
 
     It's for instance useful for reading input, which is similar for all

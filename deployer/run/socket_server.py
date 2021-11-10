@@ -184,7 +184,7 @@ class Connection(object):
         stdin = os.fdopen(self.slave, 'r', 0)
         stdout = os.fdopen(self.slave, 'w', 0)
 
-        # Create pty object, for passing to deployment enviroment.
+        # Create pty object, for passing to deployment environment.
         self.pty = SocketPty(stdin, stdout, self.runInNewPtys,
                     interactive=protocol.factory.interactive)
 

@@ -5,7 +5,7 @@ Internals
 
 This page will try to give a high level overview of how the framework is
 working. While the end-user of the framework won't usually touch much more than
-the ``Node`` and ``Host`` classes, there's a lot more going on underneat.
+the ``Node`` and ``Host`` classes, there's a lot more going on underneath.
 
 There's a lot of meta-programming, some domain specific languages, and a
 mix of event-driven and blocking code.
@@ -14,7 +14,7 @@ mix of event-driven and blocking code.
 Data flow
 ----------
 
-Roughly, this is the current flow from the interactive shell untill the actual
+Roughly, this is the current flow from the interactive shell until the actual
 SSH client.
 
 .. graphviz::

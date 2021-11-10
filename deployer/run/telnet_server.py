@@ -147,7 +147,7 @@ class Session(object):
         # File descriptors for slave pty.
         stdin = stdout = os.fdopen(self.slave, 'r+w', 0)
 
-        # Create pty object, for passing to deployment enviroment.
+        # Create pty object, for passing to deployment environment.
         self.pty = Pty(stdin, stdout)
 
     def start(self):

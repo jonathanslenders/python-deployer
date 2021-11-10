@@ -4,7 +4,7 @@ The ``console`` object is an interface for user interaction from within a
 input.
 
 It has output methods that take the terminal size into account, like pagination
-and multi-column display. It takes care of the pseudo terminal underneat.
+and multi-column display. It takes care of the pseudo terminal underneath.
 
 Example:
 
