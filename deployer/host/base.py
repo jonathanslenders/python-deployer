@@ -205,7 +205,7 @@ class Host(object):
     def copy(self, pty=None):
         """
         Create a deep copy of this Host class.
-        (the pty-parameter allows to bind it to anothor pty)
+        (the pty-parameter allows to bind it to another pty)
         """
         h = self.__class__(pty=(pty or self.pty), logger=self.logger)
         h.host_context = self.host_context.copy()
@@ -385,7 +385,7 @@ class Host(object):
 
             # Execute
             if use_sudo:
-                # We use 'sudo su' instead of 'sudo -u', because shell expension
+                # We use 'sudo su' instead of 'sudo -u', because shell expansion
                 # of ~ is threated differently. e.g.
                 #
                 # 1. This will still show the home directory of the original user

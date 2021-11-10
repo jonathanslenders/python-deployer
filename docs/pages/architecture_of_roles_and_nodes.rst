@@ -10,7 +10,7 @@ Use cases
 ---------
 
 Before we go in depth, let's first look at a typical set-up of a web server.
-The following picture displays serveral connected components. It contains a web
+The following picture displays several connected components. It contains a web
 server connected to some database back-ends, and a load balancer in front of
 it. Every component appears exactly once.
 

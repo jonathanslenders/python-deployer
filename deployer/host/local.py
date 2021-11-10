@@ -27,7 +27,7 @@ _localhost_start_path = os.getcwd()
 class LocalHost(Host):
     """
     ``LocalHost`` can be used instead of :class:`SSHHost` for local execution.
-    It uses ``pexpect`` underneat.
+    It uses ``pexpect`` underneath.
     """
     slug = 'localhost'
     address = 'localhost'

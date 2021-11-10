@@ -127,7 +127,7 @@ Probably obvious, we have a clone and checkout function that are meant to go
 to a certain directory on the server and run a shell command in there through
 :func:`~deployer.host.base.Host.run`. Some points worth noting:
 
-- ``expand=True``: this means that we should do tilde-expension. You want the
+- ``expand=True``: this means that we should do tilde-expansion. You want the
   tilde to be replaced with the home directory. If you have an absolute path,
   this isn't necessary.
 - :func:`~deployer.utils.string_utils.esc1`: This is important to avoid shell

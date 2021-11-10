@@ -16,7 +16,7 @@ def esc1(string):
     """
     Escape single quotes, mainly for use in shell commands. Single quotes
     are usually preferred above double quotes, because they never do shell
-    expension inside. e.g.
+    expansion inside. e.g.
 
     ::
 
